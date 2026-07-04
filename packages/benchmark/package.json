@@ -1,0 +1,17 @@
+{
+  "name": "@watervein/benchmark",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@watervein/core": "workspace:*",
+    "@watervein/dom-core": "workspace:*",
+    "@watervein/dom": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
