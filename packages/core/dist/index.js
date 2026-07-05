@@ -439,9 +439,38 @@ const MAP_ENTITY_SET = new Set();
 const MEMORY_GC_THRESHOLD = 2048;
 export function mapEntity(listNode, keyFn, renderFn) {
     const entityCache = new Map();
+    let prevList = [];
     createEffect(() => {
         const list = read(listNode);
         const len = list.length;
+        if (prevList.length === len) {
+            let diffIdx1 = -1;
+            let diffIdx2 = -1;
+            let isPureSwap = true;
+            for (let i = 0; i < len; i++) {
+                if (prevList[i] !== list[i]) {
+                    if (diffIdx1 === -1)
+                        diffIdx1 = i;
+                    else if (diffIdx2 === -1)
+                        diffIdx2 = i;
+                    else {
+                        isPureSwap = false;
+                        break;
+                    }
+                }
+            }
+            if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
+                const cache1 = entityCache.get(keyFn(list[diffIdx1]));
+                const cache2 = entityCache.get(keyFn(list[diffIdx2]));
+                if (cache1 && cache2) {
+                    write(cache1.indexNode, diffIdx1);
+                    write(cache2.indexNode, diffIdx2);
+                    prevList = list.slice();
+                    return;
+                }
+            }
+        }
+        prevList = list.slice();
         MAP_ENTITY_SET.clear();
         for (let i = 0; i < len; i++) {
             MAP_ENTITY_SET.add(keyFn(list[i]));
@@ -461,8 +490,13 @@ export function mapEntity(listNode, keyFn, renderFn) {
             const key = keyFn(item);
             const cached = entityCache.get(key);
             if (cached) {
-                write(cached.itemNode, item);
-                write(cached.indexNode, i);
+                if (cached.itemNode.value === item && cached.indexNode.value === i) {
+                    continue;
+                }
+                if (cached.itemNode.value !== item)
+                    write(cached.itemNode, item);
+                if (cached.indexNode.value !== i)
+                    write(cached.indexNode, i);
             }
             else {
                 const entityId = createEntity();
