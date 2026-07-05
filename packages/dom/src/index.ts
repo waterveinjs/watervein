@@ -81,7 +81,7 @@ export function Show(
 export function For<T>(
     listNode: WvNode<T[]>,
     keyFn: (item: T) => any,
-    renderFn: (getItem: () => T, getIndex: () => number) => HTMLElement
+    renderFn: (getItem: () => T) => HTMLElement
 ): HTMLElement {
     return for0(listNode, keyFn, renderFn);
 }

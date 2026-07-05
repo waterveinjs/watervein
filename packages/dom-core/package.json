@@ -1,7 +1,7 @@
 {
   "name": "@watervein/dom-core",
-  "version": "0.0.1",
-  "description": "Native DSL0 of Watervein",
+  "version": "0.0.2",
+  "description": "Watervein DOM core package",
   "author": "Korphere",
   "license": "MIT",
   "type": "module",
