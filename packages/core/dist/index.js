@@ -49,7 +49,7 @@ function createNode(type, value, compute = null) {
         compute,
         entityId: currentEntityId,
         watchedVersion: -1,
-        pendingDeps: new Array(8),
+        pendingDeps: type === NODE_TYPE_STATE ? [] : new Array(8),
         pendingDepsLen: 0,
         bucketIdx: -1,
     };
@@ -436,6 +436,7 @@ export function matchEntity(conditionNode, thenFn, elseFn) {
 }
 const MAP_ENTITY_TO_DESTROY = [];
 const MAP_ENTITY_SET = new Set();
+const MEMORY_GC_THRESHOLD = 2048;
 export function mapEntity(listNode, keyFn, renderFn) {
     const entityCache = new Map();
     createEffect(() => {
@@ -474,6 +475,14 @@ export function mapEntity(listNode, keyFn, renderFn) {
                     renderFn(key, getItem, getIndex);
                 });
             }
+        }
+        if (MAP_ENTITY_SET.size > MEMORY_GC_THRESHOLD) {
+            // @ts-ignore
+            MAP_ENTITY_SET = new Set();
+        }
+        if (MAP_ENTITY_TO_DESTROY.length > MEMORY_GC_THRESHOLD) {
+            // @ts-ignore
+            MAP_ENTITY_TO_DESTROY = [];
         }
     });
 }
