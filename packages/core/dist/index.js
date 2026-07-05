@@ -467,9 +467,6 @@ export function mapEntity(listNode, keyFn, renderFn) {
                         write(cache1.indexNode, diffIdx1);
                         write(cache2.indexNode, diffIdx2);
                         prevList = list.slice();
-                        if (currentTrackingNode) {
-                            commitEdges(currentTrackingNode);
-                        }
                         return;
                     }
                 }
