@@ -515,15 +515,22 @@ export function mapEntity<T>(
             }
 
             if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
-                if (prevList[diffIdx1] === list[diffIdx2] && prevList[diffIdx2] === list[diffIdx1]) {
-                    const cache1 = entityCache.get(keyFn(list[diffIdx1]));
-                    const cache2 = entityCache.get(keyFn(list[diffIdx2]));
+                const itemAtIdx1 = list[diffIdx1];
+                const itemAtIdx2 = list[diffIdx2];
+                
+                if (prevList[diffIdx1] === itemAtIdx2 && prevList[diffIdx2] === itemAtIdx1) {
+                    const cache1 = entityCache.get(keyFn(itemAtIdx2));
+                    const cache2 = entityCache.get(keyFn(itemAtIdx1));
 
                     if (cache1 && cache2) {
                         write(cache1.indexNode, diffIdx1);
                         write(cache2.indexNode, diffIdx2);
 
                         prevList = list.slice();
+                        
+                        if (currentTrackingNode) {
+                            commitEdges(currentTrackingNode);
+                        }
                         return;
                     }
                 }
@@ -582,7 +589,7 @@ export function mapEntity<T>(
             // @ts-ignore
             MAP_ENTITY_TO_DESTROY = [];
         }
-        
+
         prevList = list.slice();
     });
 }
