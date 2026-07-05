@@ -443,7 +443,7 @@ export function mapEntity(listNode, keyFn, renderFn) {
     createEffect(() => {
         const list = read(listNode);
         const len = list.length;
-        if (prevList.length === len) {
+        if (prevList.length === len && len > 0) {
             let diffIdx1 = -1;
             let diffIdx2 = -1;
             let isPureSwap = true;
@@ -460,13 +460,15 @@ export function mapEntity(listNode, keyFn, renderFn) {
                 }
             }
             if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
-                const cache1 = entityCache.get(keyFn(list[diffIdx1]));
-                const cache2 = entityCache.get(keyFn(list[diffIdx2]));
-                if (cache1 && cache2) {
-                    write(cache1.indexNode, diffIdx1);
-                    write(cache2.indexNode, diffIdx2);
-                    prevList = list.slice();
-                    return;
+                if (prevList[diffIdx1] === list[diffIdx2] && prevList[diffIdx2] === list[diffIdx1]) {
+                    const cache1 = entityCache.get(keyFn(list[diffIdx1]));
+                    const cache2 = entityCache.get(keyFn(list[diffIdx2]));
+                    if (cache1 && cache2) {
+                        write(cache1.indexNode, diffIdx1);
+                        write(cache2.indexNode, diffIdx2);
+                        prevList = list.slice();
+                        return;
+                    }
                 }
             }
         }
