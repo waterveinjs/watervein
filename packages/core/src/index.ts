@@ -529,8 +529,7 @@ export function mapEntity<T>(
                 }
             }
         }
-        prevList = list.slice();
-
+        
         MAP_ENTITY_SET.clear();
         for (let i = 0; i < len; i++) {
             MAP_ENTITY_SET.add(keyFn(list[i]));
@@ -551,7 +550,7 @@ export function mapEntity<T>(
             const item = list[i];
             const key = keyFn(item);
             const cached = entityCache.get(key);
-
+            
             if (cached) {
                 if (cached.itemNode.value === item && cached.indexNode.value === i) {
                     continue; 
@@ -583,6 +582,8 @@ export function mapEntity<T>(
             // @ts-ignore
             MAP_ENTITY_TO_DESTROY = [];
         }
+        
+        prevList = list.slice();
     });
 }
 
