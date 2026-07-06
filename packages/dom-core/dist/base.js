@@ -74,6 +74,8 @@ export function For(listNode, keyFn, renderFn) {
                     const cached = entityCache.get(oldKey);
                     toDestroy.push(cached.entityId);
                     cached.dom.remove();
+                    entityCache.delete(oldKey);
+                    oldKeys[i] = null;
                 }
             }
             if (toDestroy.length > 0)

@@ -103,16 +103,19 @@ export function For<T>(
         }
 
         if (oldLen > 0) {
-            const toDestroy: number[] = [];
+            const toDestroy = [];
             for (let i = 0; i < oldLen; i++) {
                 const oldKey = oldKeys[i];
                 if (oldKey !== null && !newCache.has(oldKey)) {
-                    const cached = entityCache.get(oldKey)!;
-                    toDestroy.push(cached.entityId);
-                    cached.dom.remove();
+                    const cached = entityCache.get(oldKey);
+                    toDestroy.push(cached!.entityId);
+                    cached!.dom.remove();
+                    entityCache.delete(oldKey);
+                    oldKeys[i] = null;
                 }
             }
-            if (toDestroy.length > 0) DestructionSystem.destroyEntities(toDestroy);
+            if (toDestroy.length > 0)
+                DestructionSystem.destroyEntities(toDestroy);
         }
 
         const oldKeyToIdx = new Map<any, number>();
