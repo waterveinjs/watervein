@@ -30,14 +30,14 @@ importers:
   packages/benchmark:
     dependencies:
       '@watervein/core':
-        specifier: 0.0.1
-        version: 0.0.1
+        specifier: workspace:*
+        version: link:../core
       '@watervein/dom':
-        specifier: 0.0.1
-        version: 0.0.1
+        specifier: workspace:*
+        version: link:../dom
       '@watervein/dom-core':
-        specifier: 0.0.1
-        version: 0.0.1
+        specifier: workspace:*
+        version: link:../dom-core
     devDependencies:
       vite:
         specifier: ^5.0.0
@@ -528,15 +528,6 @@ packages:
 
   '@vitest/utils@4.1.9':
     resolution: {integrity: sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==}
-
-  '@watervein/core@0.0.1':
-    resolution: {integrity: sha512-s2yueUI04YHRjEll0m1MP+TjgJnZY2Z/p/7ThHFrvphmga/aTvKQVwB8tK5HiHqAO1Xr84Tx8wcfqbLAPvvGnQ==}
-
-  '@watervein/dom-core@0.0.1':
-    resolution: {integrity: sha512-oQXKY74l2SKtZ3SAzbsdyfpwnFL4Up8/WDcLKZa9pbeNnSC+vSdpexpoT2rljquaRqQsOuKMy/glX+O3nVgM3g==}
-
-  '@watervein/dom@0.0.1':
-    resolution: {integrity: sha512-ISenKzl06Xh0K5X15vmk+EypQ2ZFRGEmBcshe6NeLWQasq32mJlKX+iwhl3JRqtsbZpChc9YQ+glEu+DkBhoZQ==}
 
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
@@ -1210,17 +1201,6 @@ snapshots:
       '@vitest/pretty-format': 4.1.9
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
-
-  '@watervein/core@0.0.1': {}
-
-  '@watervein/dom-core@0.0.1':
-    dependencies:
-      '@watervein/core': 0.0.1
-
-  '@watervein/dom@0.0.1':
-    dependencies:
-      '@watervein/core': 0.0.1
-      '@watervein/dom-core': 0.0.1
 
   assertion-error@2.0.1: {}
 

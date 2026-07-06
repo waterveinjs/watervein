@@ -1,6 +1,6 @@
 {
   "name": "@watervein/core",
-  "version": "0.0.9",
+  "version": "0.0.10-dev",
   "description": "Watervein core package",
   "author": "Korphere",
   "license": "MIT",

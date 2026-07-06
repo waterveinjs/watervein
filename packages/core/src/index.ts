@@ -481,10 +481,8 @@ export function matchEntity(
     });
 }
 
-let MAP_ENTITY_TO_DESTROY: number[] = [];
-let MAP_ENTITY_SET = new Set<any>();
-
-const MEMORY_GC_THRESHOLD = 2048;
+const MAP_ENTITY_TO_DESTROY: number[] = [];
+const MAP_ENTITY_SET = new Set<any>();
 
 export function mapEntity<T>(
     listNode: Node<T[]>,
@@ -492,10 +490,52 @@ export function mapEntity<T>(
     renderFn: (key: any, getItem: () => T, getIndex: () => number) => void
 ) {
     const entityCache = new Map<any, { entityId: number; itemNode: Node<T>; indexNode: Node<number> }>();
+    let prevList: T[] = [];
 
     createEffect(() => {
         const list = read(listNode);
         const len = list.length;
+
+        if (prevList.length === len && len > 0) {
+            let diffIdx1 = -1;
+            let diffIdx2 = -1;
+            let isPureSwap = true;
+
+            for (let i = 0; i < len; i++) {
+                if (prevList[i] !== list[i]) {
+                    if (diffIdx1 === -1)      diffIdx1 = i;
+                    else if (diffIdx2 === -1) diffIdx2 = i;
+                    else { 
+                        isPureSwap = false;
+                        break; 
+                    }
+                }
+            }
+
+            if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
+                const itemAtIdx1 = list[diffIdx1];
+                const itemAtIdx2 = list[diffIdx2];
+                
+                if (prevList[diffIdx1] === itemAtIdx2 && prevList[diffIdx2] === itemAtIdx1) {
+                    const cache1 = entityCache.get(keyFn(itemAtIdx2));
+                    const cache2 = entityCache.get(keyFn(itemAtIdx1));
+
+                    if (cache1 && cache2) {
+                        queueMicrotask(() => {
+                            write(cache1.indexNode, diffIdx1);
+                            write(cache2.indexNode, diffIdx2);
+                        });
+
+                        prevList = list.slice();
+
+                        if (currentTrackingNode) {
+                            commitEdges(currentTrackingNode);
+                        }
+                        return;
+                    }
+                }
+            }
+        }
         
         MAP_ENTITY_SET.clear();
         for (let i = 0; i < len; i++) {
@@ -541,12 +581,7 @@ export function mapEntity<T>(
             }
         }
 
-        if (MAP_ENTITY_SET.size > MEMORY_GC_THRESHOLD) {
-            MAP_ENTITY_SET = new Set<any>(); 
-        }
-        if (MAP_ENTITY_TO_DESTROY.length > MEMORY_GC_THRESHOLD) {
-            MAP_ENTITY_TO_DESTROY = [];
-        }
+        prevList = list.slice();
     });
 }
 

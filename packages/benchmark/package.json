@@ -7,9 +7,9 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@watervein/core": "0.0.1",
-    "@watervein/dom-core": "0.0.1",
-    "@watervein/dom": "0.0.1"
+    "@watervein/core": "workspace:*",
+    "@watervein/dom-core": "workspace:*",
+    "@watervein/dom": "workspace:*"
   },
   "devDependencies": {
     "vite": "^5.0.0"
