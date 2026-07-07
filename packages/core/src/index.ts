@@ -31,7 +31,13 @@ export type ResourceResult<T> = {
 };
 
 const allNodes: (Node | undefined)[] = [];
-function N(id: number): Node { return allNodes[id]!; }
+function N(id: number): Node { 
+    const node = allNodes[id];
+    if (!node) {
+        throw new Error(`[watervein] Node with id ${id} is undefined. Ensure allNodes is initialized.`);
+    }
+    return node; 
+}
 
 let trackingVersion     = 0;
 let currentTrackingNode: Node | null = null;
@@ -84,7 +90,55 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         pendingDepsLen: 0,
         bucketIdx:      -1,
     };
-    allNodes[node.id] = node;
+    allNodes[node.id] = node;function commitEdges(sub: Node) {
+    const pending = sub.pendingDeps;
+    const pLen    = sub.pendingDepsLen;
+    const dd      = sub.depsDense;
+
+    if (pLen === dd.length) {
+        let same = true;
+        for (let i = 0; i < pLen; i++) {
+            if (dd[i] !== pending[i]) { same = false; break; }
+        }
+        if (same) { sub.pendingDepsLen = 0; return; }
+    }
+
+    const pendingStamp = ++edgeCommitVersion;
+    for (let i = 0; i < pLen; i++) {
+        const dep = allNodes[pending[i]];
+        if (dep) dep.watchedVersion = pendingStamp; // 安全ガード
+    }
+
+    const existingStamp = ++edgeCommitVersion;
+    for (let i = dd.length - 1; i >= 0; i--) {
+        const depId = dd[i];
+        const dep = allNodes[depId];
+        if (!dep) continue; // 安全ガード
+        
+        if (dep.watchedVersion !== pendingStamp) {
+            removeEdge(dep, sub);
+        } else {
+            dep.watchedVersion = existingStamp;
+        }
+    }
+
+    for (let j = 0; j < pLen; j++) {
+        const depId = pending[j];
+        const dep = allNodes[depId];
+        if (!dep) continue; // 安全ガード
+
+        if (dep.watchedVersion !== existingStamp) {
+            addEdge(dep, sub);
+            dep.watchedVersion = existingStamp;
+            if (sub.depth <= dep.depth) {
+                sub.depth = dep.depth + 1;
+                propagateDepth(sub);
+            }
+        }
+    }
+
+    sub.pendingDepsLen = 0;
+}
     if (currentEntityId !== null) {
         entityRegistry.get(currentEntityId)!.push(node);
     }
@@ -134,13 +188,16 @@ function commitEdges(sub: Node) {
 
     const pendingStamp = ++edgeCommitVersion;
     for (let i = 0; i < pLen; i++) {
-        N(pending[i]).watchedVersion = pendingStamp;
+        const dep = allNodes[pending[i]];
+        if (dep) dep.watchedVersion = pendingStamp; // 安全ガード
     }
 
     const existingStamp = ++edgeCommitVersion;
     for (let i = dd.length - 1; i >= 0; i--) {
         const depId = dd[i];
-        const dep = N(depId);
+        const dep = allNodes[depId];
+        if (!dep) continue;
+        
         if (dep.watchedVersion !== pendingStamp) {
             removeEdge(dep, sub);
         } else {
@@ -150,7 +207,9 @@ function commitEdges(sub: Node) {
 
     for (let j = 0; j < pLen; j++) {
         const depId = pending[j];
-        const dep = N(depId);
+        const dep = allNodes[depId];
+        if (!dep) continue;
+
         if (dep.watchedVersion !== existingStamp) {
             addEdge(dep, sub);
             dep.watchedVersion = existingStamp;
