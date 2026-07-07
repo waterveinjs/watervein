@@ -63,11 +63,14 @@ export function Show(
 export function For<T>(
     listNode: WvNode<T[]>,
     keyFn: (item: T) => any,
-    renderFn: (getItem: () => T) => HTMLElement
+    renderFn: (getItem: () => T) => HTMLElement,
+    tagName: string = "span"
 ): HTMLElement {
     const marker = document.createTextNode("");
-    const wrapper = document.createElement("span");
-    wrapper.style.display = "contents";
+    const wrapper = document.createElement(tagName);
+    if (tagName === "span") {
+        wrapper.style.display = "contents";
+    }
     wrapper.appendChild(marker);
 
     let entityCache = new Map<any, { entityId: number; itemNode: WvNode<T>; dom: HTMLElement }>();
@@ -118,17 +121,20 @@ export function For<T>(
                 DestructionSystem.destroyEntities(toDestroy);
         }
 
+        let oldStartIdx = 0, newStartIdx = 0;
+        let oldEndIdx = oldLen - 1, newEndIdx = newLen - 1;
+
+        const getAnchor = (idx: number) => {
+            if (idx >= newLen) return marker;
+            const key = newKeys[idx];
+            return entityCache.get(key)?.dom ?? marker;
+        };
+
         const oldKeyToIdx = new Map<any, number>();
         for (let i = 0; i < oldLen; i++) {
             const k = oldKeys[i];
             if (k !== null) oldKeyToIdx.set(k, i);
         }
-
-        let oldStartIdx = 0, newStartIdx = 0;
-        let oldEndIdx = oldLen - 1, newEndIdx = newLen - 1;
-
-        const anchorFor = (nextKey: any) =>
-            nextKey !== undefined ? (newCache.get(nextKey)?.dom ?? marker) : marker;
 
         while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
             const oldStartKey = oldKeys[oldStartIdx];
@@ -142,7 +148,7 @@ export function For<T>(
             else if (oldEndKey === newEndKey) { oldEndIdx--; newEndIdx--; }
             else if (oldStartKey === newEndKey) {
                 const cached = entityCache.get(oldStartKey)!;
-                wrapper.insertBefore(cached.dom, anchorFor(newKeys[newEndIdx + 1]));
+                wrapper.insertBefore(cached.dom, getAnchor(newEndIdx + 1));
                 oldStartIdx++; newEndIdx--;
             }
             else if (oldEndKey === newStartKey) {
@@ -165,9 +171,10 @@ export function For<T>(
         }
 
         if (newStartIdx <= newEndIdx) {
+            const anchor = getAnchor(newEndIdx + 1);
             for (let i = newStartIdx; i <= newEndIdx; i++) {
                 const newCached = newCache.get(newKeys[i])!;
-                wrapper.insertBefore(newCached.dom, anchorFor(newKeys[newEndIdx + 1]));
+                wrapper.insertBefore(newCached.dom, anchor);
             }
         }
 
