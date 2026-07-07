@@ -531,20 +531,14 @@ export function mapEntity<T>(
                 const itemAtIdx2 = list[diffIdx2];
                 
                 if (prevList[diffIdx1] === itemAtIdx2 && prevList[diffIdx2] === itemAtIdx1) {
-                    const cache1 = entityCache.get(keyFn(itemAtIdx2));
-                    const cache2 = entityCache.get(keyFn(itemAtIdx1));
+                    const cache1 = entityCache.get(keyFn(itemAtIdx1));
+                    const cache2 = entityCache.get(keyFn(itemAtIdx2));
 
                     if (cache1 && cache2) {
-                        queueMicrotask(() => {
-                            write(cache1.indexNode, diffIdx1);
-                            write(cache2.indexNode, diffIdx2);
-                        });
+                        write(cache1.indexNode, diffIdx1);
+                        write(cache2.indexNode, diffIdx2);
 
                         prevList = list.slice();
-
-                        if (currentTrackingNode) {
-                            commitEdges(currentTrackingNode);
-                        }
                         return;
                     }
                 }
