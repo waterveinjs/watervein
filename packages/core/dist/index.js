@@ -117,8 +117,10 @@ function commitEdges(sub) {
     for (let i = dd.length - 1; i >= 0; i--) {
         const depId = dd[i];
         const dep = allNodes[depId];
-        if (!dep)
+        if (!dep) {
+            console.warn(`[watervein-debug] Missing pending node ID: ${depId}. allNodes length: ${allNodes.length}`);
             continue;
+        }
         if (dep.watchedVersion !== pendingStamp) {
             removeEdge(dep, sub);
         }
