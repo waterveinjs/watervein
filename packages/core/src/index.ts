@@ -33,8 +33,8 @@ export type ResourceResult<T> = {
 const allNodes: (Node | undefined)[] = [];
 function N(id: number): Node { 
     const node = allNodes[id];
-    if (!node) {
-        throw new Error(`[watervein] Node with id ${id} is undefined. Ensure allNodes is initialized.`);
+    if (!node || node.id === -1) {
+        throw new Error(`[watervein] Node with id ${id} is undefined or destroyed.`);
     }
     return node; 
 }
@@ -415,6 +415,8 @@ export const DataSystem = {
     },
 };
 
+const DELETED_NODE = { __wv: 0, id: -1 } as unknown as Node;
+
 export const DestructionSystem = {
     destroyEntity(entityId: number) {
         const nodes = entityRegistry.get(entityId);
@@ -459,7 +461,7 @@ export const DestructionSystem = {
         node.subsDense.length = 0;
         node.depsDense.length = 0;
 
-        allNodes[node.id] = undefined;
+        allNodes[node.id] = DELETED_NODE;
         freeNodeIds.push(node.id);
 
         if (node.dirty && node.bucketIdx !== -1) {

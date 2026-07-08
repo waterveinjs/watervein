@@ -127,7 +127,7 @@ export function For<T>(
         const getAnchor = (idx: number) => {
             if (idx >= newLen) return marker;
             const key = newKeys[idx];
-            return entityCache.get(key)?.dom ?? marker;
+            return newCache.get(key)?.dom ?? marker;
         };
 
         const oldKeyToIdx = new Map<any, number>();
@@ -147,13 +147,14 @@ export function For<T>(
             else if (oldStartKey === newStartKey) { oldStartIdx++; newStartIdx++; }
             else if (oldEndKey === newEndKey) { oldEndIdx--; newEndIdx--; }
             else if (oldStartKey === newEndKey) {
-                const cached = entityCache.get(oldStartKey)!;
+                const cached = newCache.get(oldStartKey)!;
                 wrapper.insertBefore(cached.dom, getAnchor(newEndIdx + 1));
                 oldStartIdx++; newEndIdx--;
             }
             else if (oldEndKey === newStartKey) {
-                const cached = entityCache.get(oldEndKey)!;
-                wrapper.insertBefore(cached.dom, entityCache.get(oldStartKey)!.dom);
+                const cached = newCache.get(oldEndKey)!;
+                const anchorNode = newCache.get(oldStartKey)!;
+                wrapper.insertBefore(cached.dom, anchorNode.dom);
                 oldEndIdx--; newStartIdx++;
             }
             else {
