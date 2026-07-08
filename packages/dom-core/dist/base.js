@@ -1,11 +1,5 @@
 import { read, createEffect, createCompute, matchEntity, DestructionSystem, write, createEntity, withEntity, createState } from '@watervein/core';
 const WV_ENTITY_KEY = '__wv_entity_id__';
-function associateDOMWithEntity(dom, entityId) {
-    dom[WV_ENTITY_KEY] = entityId;
-}
-function getDOMEntityId(dom) {
-    return dom[WV_ENTITY_KEY];
-}
 export function Show(condition, thenFn, elseFn) {
     const marker = document.createTextNode("");
     const wrapper = document.createElement("span");
@@ -74,9 +68,11 @@ export function For(listNode, keyFn, renderFn, tagName = "span") {
                 const oldKey = oldKeys[i];
                 if (oldKey !== null && !newCache.has(oldKey)) {
                     const cached = entityCache.get(oldKey);
-                    toDestroy.push(cached.entityId);
-                    cached.dom.remove();
-                    entityCache.delete(oldKey);
+                    if (cached) {
+                        toDestroy.push(cached.entityId);
+                        cached.dom.remove();
+                        entityCache.delete(oldKey);
+                    }
                     oldKeys[i] = null;
                 }
             }
@@ -86,10 +82,18 @@ export function For(listNode, keyFn, renderFn, tagName = "span") {
         let oldStartIdx = 0, newStartIdx = 0;
         let oldEndIdx = oldLen - 1, newEndIdx = newLen - 1;
         const getAnchor = (idx) => {
-            if (idx >= newLen)
+            if (idx >= newLen || idx < 0)
                 return marker;
             const key = newKeys[idx];
             return newCache.get(key)?.dom ?? marker;
+        };
+        const getOldDom = (idx) => {
+            if (idx >= oldLen || idx < 0)
+                return marker;
+            const key = oldKeys[idx];
+            if (key === null)
+                return marker;
+            return entityCache.get(key)?.dom ?? marker;
         };
         const oldKeyToIdx = new Map();
         for (let i = 0; i < oldLen; i++) {
@@ -134,11 +138,11 @@ export function For(listNode, keyFn, renderFn, tagName = "span") {
                 if (oldIdx !== undefined) {
                     const cached = entityCache.get(newStartKey);
                     oldKeys[oldIdx] = null;
-                    wrapper.insertBefore(cached.dom, entityCache.get(oldStartKey).dom);
+                    wrapper.insertBefore(cached.dom, getOldDom(oldStartIdx));
                 }
                 else {
                     const newCached = newCache.get(newStartKey);
-                    wrapper.insertBefore(newCached.dom, entityCache.get(oldStartKey).dom);
+                    wrapper.insertBefore(newCached.dom, getOldDom(oldStartIdx));
                 }
                 newStartIdx++;
             }

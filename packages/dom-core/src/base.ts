@@ -13,14 +13,6 @@ import {
 
 const WV_ENTITY_KEY = '__wv_entity_id__';
 
-function associateDOMWithEntity(dom: HTMLElement, entityId: number) {
-    (dom as any)[WV_ENTITY_KEY] = entityId;
-}
-
-function getDOMEntityId(dom: HTMLElement): number | undefined {
-    return (dom as any)[WV_ENTITY_KEY];
-}
-
 export function Show(
     condition: WvNode | (() => boolean),
     thenFn: () => HTMLElement,
@@ -111,9 +103,11 @@ export function For<T>(
                 const oldKey = oldKeys[i];
                 if (oldKey !== null && !newCache.has(oldKey)) {
                     const cached = entityCache.get(oldKey);
-                    toDestroy.push(cached!.entityId);
-                    cached!.dom.remove();
-                    entityCache.delete(oldKey);
+                    if (cached) {
+                        toDestroy.push(cached.entityId);
+                        cached.dom.remove();
+                        entityCache.delete(oldKey);
+                    }
                     oldKeys[i] = null;
                 }
             }
@@ -125,9 +119,16 @@ export function For<T>(
         let oldEndIdx = oldLen - 1, newEndIdx = newLen - 1;
 
         const getAnchor = (idx: number) => {
-            if (idx >= newLen) return marker;
+            if (idx >= newLen || idx < 0) return marker;
             const key = newKeys[idx];
             return newCache.get(key)?.dom ?? marker;
+        };
+
+        const getOldDom = (idx: number): Node => {
+            if (idx >= oldLen || idx < 0) return marker;
+            const key = oldKeys[idx];
+            if (key === null) return marker;
+            return entityCache.get(key)?.dom ?? marker;
         };
 
         const oldKeyToIdx = new Map<any, number>();
@@ -162,10 +163,10 @@ export function For<T>(
                 if (oldIdx !== undefined) {
                     const cached = entityCache.get(newStartKey)!;
                     oldKeys[oldIdx] = null;
-                    wrapper.insertBefore(cached.dom, entityCache.get(oldStartKey)!.dom);
+                    wrapper.insertBefore(cached.dom, getOldDom(oldStartIdx));
                 } else {
                     const newCached = newCache.get(newStartKey)!;
-                    wrapper.insertBefore(newCached.dom, entityCache.get(oldStartKey)!.dom);
+                    wrapper.insertBefore(newCached.dom, getOldDom(oldStartIdx));
                 }
                 newStartIdx++;
             }
