@@ -1,4 +1,4 @@
-import { Dsl1Props, Dsl1Child } from './index.js';
+import { Dsl1Props, Dsl1Child } from './base.js';
 /**
  * Type list of arguments taken as elements
  */

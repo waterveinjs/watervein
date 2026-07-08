@@ -1,4 +1,4 @@
-import { element } from './index.js';
+import { element } from './base.js';
 export const a = (...[props, children]) => element("a", props, children);
 export const abbr = (...[props, children]) => element("abbr", props, children);
 export const address = (...[props, children]) => element("address", props, children);
