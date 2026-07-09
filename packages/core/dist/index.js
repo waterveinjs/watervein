@@ -474,17 +474,31 @@ export function mapEntity(listNode, keyFn, renderFn) {
                 }
             }
             if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
-                const itemAtIdx1 = list[diffIdx1];
-                const itemAtIdx2 = list[diffIdx2];
-                if (prevList[diffIdx1] === itemAtIdx2 && prevList[diffIdx2] === itemAtIdx1) {
-                    const cache1 = entityCache.get(keyFn(itemAtIdx1));
-                    const cache2 = entityCache.get(keyFn(itemAtIdx2));
-                    if (cache1 && cache2) {
-                        write(cache1.indexNode, diffIdx1);
-                        write(cache2.indexNode, diffIdx2);
-                        prevList = list.slice();
-                        return;
+                const item1 = list[diffIdx1];
+                const item2 = list[diffIdx2];
+                const prevKey1 = keyFn(prevList[diffIdx1]);
+                const prevKey2 = keyFn(prevList[diffIdx2]);
+                const cache1 = entityCache.get(prevKey1);
+                const cache2 = entityCache.get(prevKey2);
+                if (cache1 && cache2) {
+                    write(cache1.indexNode, diffIdx1);
+                    write(cache2.indexNode, diffIdx2);
+                    if (cache1.itemNode.value !== item1)
+                        write(cache1.itemNode, item1);
+                    if (cache2.itemNode.value !== item2)
+                        write(cache2.itemNode, item2);
+                    const newKey1 = keyFn(item1);
+                    const newKey2 = keyFn(item2);
+                    if (prevKey1 !== newKey1) {
+                        entityCache.delete(prevKey1);
+                        entityCache.set(newKey1, cache1);
                     }
+                    if (prevKey2 !== newKey2) {
+                        entityCache.delete(prevKey2);
+                        entityCache.set(newKey2, cache2);
+                    }
+                    prevList = list.slice();
+                    return;
                 }
             }
         }
