@@ -145,9 +145,9 @@ function commitEdges(sub) {
     sub.pendingDepsLen = 0;
 }
 function propagateDepth(start) {
-    const stack = [start];
-    while (stack.length > 0) {
-        const node = stack.pop();
+    const queue = [start];
+    while (queue.length > 0) {
+        const node = queue.shift();
         const subs = node.subsDense;
         const len = subs.length;
         for (let i = 0; i < len; i++) {
@@ -158,7 +158,9 @@ function propagateDepth(start) {
                     throw new Error(`[watervein] A circular reference was detected while propagating depth (node ${sub.id}).`);
                 }
                 sub.depth = newDepth;
-                stack.push(sub);
+                if (!queue.includes(sub)) {
+                    queue.push(sub);
+                }
             }
         }
     }

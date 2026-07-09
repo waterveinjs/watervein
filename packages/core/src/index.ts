@@ -179,9 +179,9 @@ function commitEdges(sub: Node) {
 }
 
 function propagateDepth(start: Node) {
-    const stack: Node[] = [start];
-    while (stack.length > 0) {
-        const node = stack.pop()!;
+    const queue: Node[] = [start];
+    while (queue.length > 0) {
+        const node = queue.shift()!;
         const subs = node.subsDense;
         const len = subs.length;
         for (let i = 0; i < len; i++) {
@@ -194,7 +194,9 @@ function propagateDepth(start: Node) {
                     );
                 }
                 sub.depth = newDepth;
-                stack.push(sub);
+                if (!queue.includes(sub)) {
+                    queue.push(sub);
+                }
             }
         }
     }
