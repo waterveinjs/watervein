@@ -43,10 +43,11 @@ let trackingVersion     = 0;
 let currentTrackingNode: Node | null = null;
 const trackingStack: (Node | null)[] = [];
 
-const MAX_DEPTH = 1024;
-const buckets: Node[][] = Array.from({ length: MAX_DEPTH }, () => []);
-let minDirtyDepth = MAX_DEPTH;
-let maxDirtyDepth = 0;
+const buckets: Node[][] = [];
+let minDirtyDepth = Infinity;
+let maxDirtyDepth = -1;
+
+const cycleCheckStack: number[] = [];
 
 let ENTITY_COUNT = 0;
 const entityRegistry = new Map<number, Node[]>();
@@ -180,21 +181,24 @@ function commitEdges(sub: Node) {
 
 function propagateDepth(start: Node) {
     const queue: Node[] = [start];
-    while (queue.length > 0) {
-        const node = queue.shift()!;
+    let head = 0;
+
+    const visitMarker = ++trackingVersion; 
+
+    while (head < queue.length) {
+        const node = queue[head++];
         const subs = node.subsDense;
         const len = subs.length;
+        
         for (let i = 0; i < len; i++) {
             const sub = N(subs[i]);
+            if (sub.id === start.id) {
+                throw new Error(`[watervein] A circular reference was detected during depth propagation (node ${sub.id}).`);
+            }
             if (sub.depth <= node.depth) {
-                const newDepth = node.depth + 1;
-                if (newDepth >= MAX_DEPTH) {
-                    throw new Error(
-                        `[watervein] A circular reference was detected while propagating depth (node ${sub.id}).`
-                    );
-                }
-                sub.depth = newDepth;
-                if (!queue.includes(sub)) {
+                sub.depth = node.depth + 1;
+                if (sub.watchedVersion !== visitMarker) {
+                    sub.watchedVersion = visitMarker;
                     queue.push(sub);
                 }
             }
@@ -210,11 +214,13 @@ function scheduleNode(node: Node) {
     if (node.dirty) return;
     node.dirty = true;
     const d = node.depth;
+    while (d >= buckets.length) {
+        buckets.push([]);
+    }
     node.bucketIdx = buckets[d].length;
     buckets[d].push(node);
     if (d < minDirtyDepth) minDirtyDepth = d;
     if (d > maxDirtyDepth) maxDirtyDepth = d;
-    
     if (raFID === null && !isBatching) {
         raFID = nextTick(flush) as any;
     }
@@ -260,6 +266,7 @@ export function flush() {
     raFID = null;
     for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
         const bucket = buckets[d];
+        if (!bucket) continue;
         while (bucket.length > 0) {
             const node = bucket.pop()!;
             node.bucketIdx = -1;
@@ -268,8 +275,8 @@ export function flush() {
             else if (node.type === NODE_TYPE_EFFECT)  executeEffect(node);
         }
     }
-    minDirtyDepth = MAX_DEPTH;
-    maxDirtyDepth = 0;
+    minDirtyDepth = Infinity;
+    maxDirtyDepth = -1;
 }
 
 export function createState<T>(initial: T): Node<T> {
@@ -351,12 +358,10 @@ export function createResource<S, T>(
             .then((data) => {
                 if (fetchId !== currentFetchId) return;
                 write(resourceNode, { data, loading: false, error: null });
-                flush();
             })
             .catch((error) => {
                 if (fetchId !== currentFetchId) return;
                 write(resourceNode, { data: undefined, loading: false, error });
-                flush();
             });
     });
     return resourceNode;
@@ -417,8 +422,6 @@ export const DataSystem = {
     },
 };
 
-const DELETED_NODE = { __wv: 0, id: -1 } as unknown as Node;
-
 export const DestructionSystem = {
     destroyEntity(entityId: number) {
         const nodes = entityRegistry.get(entityId);
@@ -463,7 +466,7 @@ export const DestructionSystem = {
         node.subsDense.length = 0;
         node.depsDense.length = 0;
 
-        allNodes[node.id] = DELETED_NODE;
+        allNodes[node.id] = undefined;
         freeNodeIds.push(node.id);
 
         if (node.dirty && node.bucketIdx !== -1) {
@@ -531,9 +534,6 @@ export function mapEntity<T>(
             }
 
             if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
-                const item1 = list[diffIdx1];
-                const item2 = list[diffIdx2];
-
                 const prevKey1 = keyFn(prevList[diffIdx1]);
                 const prevKey2 = keyFn(prevList[diffIdx2]);
 
@@ -544,19 +544,14 @@ export function mapEntity<T>(
                     write(cache1.indexNode, diffIdx1);
                     write(cache2.indexNode, diffIdx2);
 
-                    if (cache1.itemNode.value !== item1) write(cache1.itemNode, item1);
-                    if (cache2.itemNode.value !== item2) write(cache2.itemNode, item2);
-
-                    const newKey1 = keyFn(item1);
-                    const newKey2 = keyFn(item2);
-                    if (prevKey1 !== newKey1) {
-                        entityCache.delete(prevKey1);
-                        entityCache.set(newKey1, cache1);
-                    }
-                    if (prevKey2 !== newKey2) {
-                        entityCache.delete(prevKey2);
-                        entityCache.set(newKey2, cache2);
-                    }
+                    const newKey1 = keyFn(list[diffIdx1]);
+                    const newKey2 = keyFn(list[diffIdx2]);
+                    
+                    entityCache.delete(prevKey1);
+                    entityCache.delete(prevKey2);
+                    
+                    entityCache.set(newKey1, cache1);
+                    entityCache.set(newKey2, cache2);
 
                     prevList = list.slice();
                     return;
@@ -622,10 +617,15 @@ export function batch(fn: () => void) {
         return;
     }
     isBatching = true;
-    try { fn(); }
-    finally {
+    let hasError = false;
+    try { 
+        fn(); 
+    } catch (e) {
+        hasError = true;
+        throw e;
+    } finally {
         isBatching = false;
-        if (minDirtyDepth < MAX_DEPTH) {
+        if (!hasError && minDirtyDepth !== Infinity && maxDirtyDepth !== -1) {
             flush();
         }
     }
