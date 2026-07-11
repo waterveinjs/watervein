@@ -11,8 +11,6 @@ import {
     createState
 } from '@watervein/core';
 
-const WV_ENTITY_KEY = '__wv_entity_id__';
-
 export function Show(
     condition: WvNode | (() => boolean),
     thenFn: () => HTMLElement,
@@ -31,13 +29,15 @@ export function Show(
     matchEntity(
         conditionNode,
         () => {
-            if (currentDOM) currentDOM.remove();
+            const prev = marker.previousElementSibling;
+            if (prev) prev.remove();
             currentDOM = thenFn();
             marker.before(currentDOM);
         },
         elseFn
             ? () => {
-                  if (currentDOM) currentDOM.remove();
+                  const prev = marker.previousElementSibling;
+                  if (prev) prev.remove();
                   currentDOM = elseFn();
                   marker.before(currentDOM);
               }
@@ -116,7 +116,8 @@ export function For<T>(
         let anchor: Node = marker;
         for (let i = len - 1; i >= 0; i--) {
             const key = keyFn(list[i]);
-            const entry = newCache.get(key)!;
+            const entry = newCache.get(key);
+            if (!entry) continue;
 
             if (entry.dom.nextSibling !== anchor) {
                 wrapper.insertBefore(entry.dom, anchor);

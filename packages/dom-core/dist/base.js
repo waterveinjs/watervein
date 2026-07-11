@@ -1,5 +1,4 @@
 import { read, createEffect, createCompute, matchEntity, DestructionSystem, write, createEntity, withEntity, createState } from '@watervein/core';
-const WV_ENTITY_KEY = '__wv_entity_id__';
 export function Show(condition, thenFn, elseFn) {
     const marker = document.createTextNode("");
     const wrapper = document.createElement("span");
@@ -8,14 +7,16 @@ export function Show(condition, thenFn, elseFn) {
     const conditionNode = typeof condition === "function" ? createCompute(condition) : condition;
     let currentDOM = null;
     matchEntity(conditionNode, () => {
-        if (currentDOM)
-            currentDOM.remove();
+        const prev = marker.previousElementSibling;
+        if (prev)
+            prev.remove();
         currentDOM = thenFn();
         marker.before(currentDOM);
     }, elseFn
         ? () => {
-            if (currentDOM)
-                currentDOM.remove();
+            const prev = marker.previousElementSibling;
+            if (prev)
+                prev.remove();
             currentDOM = elseFn();
             marker.before(currentDOM);
         }
@@ -73,6 +74,8 @@ export function For(listNode, keyFn, renderFn, tagName = "span") {
         for (let i = len - 1; i >= 0; i--) {
             const key = keyFn(list[i]);
             const entry = newCache.get(key);
+            if (!entry)
+                continue;
             if (entry.dom.nextSibling !== anchor) {
                 wrapper.insertBefore(entry.dom, anchor);
             }

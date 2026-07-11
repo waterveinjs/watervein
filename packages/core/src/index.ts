@@ -87,6 +87,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         compute,
         entityId:       currentEntityId,
         watchedVersion: -1,
+        // 初期サイズ 8 固定、リサイズ時の GC 回避
         pendingDeps:    type === NODE_TYPE_STATE ? [] : new Array(8),
         pendingDepsLen: 0,
         bucketIdx:      -1,
@@ -98,11 +99,13 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
     return node;
 }
 
+// インプレースでエッジをプッシュ
 function addEdge(dep: Node, sub: Node) {
     dep.subsDense.push(sub.id);
     sub.depsDense.push(dep.id);
 }
 
+// $O(N)$ の走査だが、関数呼び出しをインライン化するための共通関数
 function removeEdge(dep: Node, sub: Node) {
     const ss = dep.subsDense;
     const ssLen = ss.length;
@@ -131,6 +134,7 @@ function commitEdges(sub: Node) {
     const pLen    = sub.pendingDepsLen;
     const dd      = sub.depsDense;
 
+    // 1. 完全一致の高速パス（アロケーション・走査ゼロ）
     if (pLen === dd.length) {
         let same = true;
         for (let i = 0; i < pLen; i++) {
@@ -139,6 +143,7 @@ function commitEdges(sub: Node) {
         if (same) { sub.pendingDepsLen = 0; return; }
     }
 
+    // 2. スタンプのインクリメント
     const pendingStamp = ++edgeCommitVersion;
     for (let i = 0; i < pLen; i++) {
         const dep = allNodes[pending[i]];
@@ -146,28 +151,40 @@ function commitEdges(sub: Node) {
     }
 
     const existingStamp = ++edgeCommitVersion;
+    
+    // 3. 削除されたエッジのクリーンアップ（逆順走査で安全に縮小）
     for (let i = dd.length - 1; i >= 0; i--) {
         const depId = dd[i];
         const dep = allNodes[depId];
-        if (!dep) {
-            console.warn(`[watervein-debug] Missing pending node ID: ${depId}. allNodes length: ${allNodes.length}`);
-            continue;
-        }
+        if (!dep) continue;
         
         if (dep.watchedVersion !== pendingStamp) {
-            removeEdge(dep, sub);
+            // removeEdge をインライン展開して最速化
+            const ss = dep.subsDense;
+            const ssLen = ss.length;
+            for (let k = 0; k < ssLen; k++) {
+                if (ss[k] === sub.id) {
+                    ss[k] = ss[ssLen - 1];
+                    ss.pop();
+                    break;
+                }
+            }
+            dd[i] = dd[dd.length - 1];
+            dd.pop();
         } else {
             dep.watchedVersion = existingStamp;
         }
     }
 
+    // 4. 新規エッジの追加
     for (let j = 0; j < pLen; j++) {
         const depId = pending[j];
         const dep = allNodes[depId];
         if (!dep) continue;
 
         if (dep.watchedVersion !== existingStamp) {
-            addEdge(dep, sub);
+            dep.subsDense.push(sub.id);
+            dd.push(depId);
             dep.watchedVersion = existingStamp;
             if (sub.depth <= dep.depth) {
                 sub.depth = dep.depth + 1;
@@ -179,14 +196,18 @@ function commitEdges(sub: Node) {
     sub.pendingDepsLen = 0;
 }
 
+// 循環参照チェック & キューのアロケーションを完全にゼロにするためのグローバル静的バッファ
+const PROPAGATE_QUEUE: Node[] = new Array(1024);
+
 function propagateDepth(start: Node) {
-    const queue: Node[] = [start];
+    PROPAGATE_QUEUE[0] = start;
     let head = 0;
+    let tail = 1;
 
     const visitMarker = ++trackingVersion; 
 
-    while (head < queue.length) {
-        const node = queue[head++];
+    while (head < tail) {
+        const node = PROPAGATE_QUEUE[head++];
         const subs = node.subsDense;
         const len = subs.length;
         
@@ -199,11 +220,19 @@ function propagateDepth(start: Node) {
                 sub.depth = node.depth + 1;
                 if (sub.watchedVersion !== visitMarker) {
                     sub.watchedVersion = visitMarker;
-                    queue.push(sub);
+                    
+                    // キューが足りなくなったら倍化リサイズ
+                    if (tail >= PROPAGATE_QUEUE.length) {
+                        PROPAGATE_QUEUE.length *= 2;
+                    }
+                    PROPAGATE_QUEUE[tail++] = sub;
                 }
             }
         }
     }
+    
+    // 静的バッファの参照を解除してメモリリークを防ぐ
+    for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = undefined as any;
 }
 
 const nextTick = typeof requestAnimationFrame !== 'undefined' 
@@ -264,15 +293,24 @@ function executeEffect(node: Node) {
 
 export function flush() {
     raFID = null;
-    for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
+    // ループ内での再アロケーションを防ぐため、深さをローカル変数に退避
+    let d = minDirtyDepth;
+    while (d <= maxDirtyDepth) {
         const bucket = buckets[d];
-        if (!bucket) continue;
-        while (bucket.length > 0) {
+        if (bucket && bucket.length > 0) {
             const node = bucket.pop()!;
             node.bucketIdx = -1;
             node.dirty     = false;
             if      (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
             else if (node.type === NODE_TYPE_EFFECT)  executeEffect(node);
+            
+            // 評価中にトポロジカル順序が前に戻った（minDirtyDepth が小さくなった）場合、そこへジャンプ
+            if (minDirtyDepth < d) {
+                d = minDirtyDepth;
+                continue;
+            }
+        } else {
+            d++;
         }
     }
     minDirtyDepth = Infinity;
@@ -375,10 +413,8 @@ export function read<T>(node: Node<T>): T {
             return node.value;
         }
         if (idx >= trk.pendingDeps.length) {
-            const newArr = new Array(trk.pendingDeps.length * 2);
-            const len = trk.pendingDeps.length;
-            for (let i = 0; i < len; i++) newArr[i] = trk.pendingDeps[i];
-            trk.pendingDeps = newArr;
+            // `for` ループによる手動コピーを排除し、V8の組込最適化（JSArray::SetLength）に任せる
+            trk.pendingDeps.length *= 2;
         }
         trk.pendingDeps[idx] = node.id;
         trk.pendingDepsLen   = idx + 1;

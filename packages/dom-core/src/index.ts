@@ -175,14 +175,15 @@ function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
             if (typeof item === "function" || isWvNode(item)) {
                 let previousClass = "";
                 createEffect(() => {
-                    const newClass = String(isWvNode(item) ? read(item) : (item as Function)());
+                    const res = isWvNode(item) ? read(item) : (item as Function)();
+                    const newClass = res ? String(res).trim() : "";
                     if (previousClass && previousClass !== newClass) {
                         el.classList.remove(previousClass);
                     }
                     if (newClass) {
                         el.classList.add(newClass);
-                        previousClass = newClass;
                     }
+                    previousClass = newClass;
                 });
             } else if (item) {
                 el.classList.add(item);
