@@ -25,5 +25,16 @@
   "devDependencies": {},
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "keywords": [
+    "framework",
+    "ui-framework",
+    "watervein",
+    "waterveinjs",
+    "typescript",
+    "javascript",
+    "dag",
+    "ecs",
+    "nes"
+  ]
 }
