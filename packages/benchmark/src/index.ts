@@ -9,8 +9,7 @@ import {
     DestructionSystem, 
     UISystem,
     batch,
-    Node as WvNode,
-    createResource
+    Node as WvNode
 } from '@watervein/core';
 import { 
     element as el0,
@@ -62,7 +61,7 @@ type ScaleLevel = { name: string; nodeCount: number };
 
 const SCALE_LEVELS: ScaleLevel[] = [
     { name: "SMALL",   nodeCount: 100 },
-    { name: "MIDDLE",   nodeCount: 1_000 },
+    { name: "MIDDLE",  nodeCount: 1_000 },
     { name: "LARGE",   nodeCount: 10_000 },
     { name: "HUGE", nodeCount: 100_000 },
 ];
@@ -351,6 +350,197 @@ const BenchmarkSystem = {
         for (let i = 0; i < count; i++) createEffect(() => i);
         return performance.now() - start;
     },
+
+    runDiamondProblem(width: number) {
+        const base = createState(0);
+        const branches: any[] = [];
+        
+        for (let i = 0; i < width; i++) {
+            branches.push(createCompute(() => read(base) + i));
+        }
+        
+        const top = createCompute(() => {
+            let sum = 0;
+            for (let i = 0; i < width; i++) {
+                sum += read<number>(branches[i]);
+            }
+            return sum;
+        });
+        
+        let effectCount = 0;
+        createEffect(() => {
+            read(top);
+            effectCount++;
+        });
+        UISystem.flush();
+
+        const start = performance.now();
+        write(base, 1);
+        UISystem.flush();
+        const end = performance.now();
+        
+        return { time: end - start, glitchesPrevented: effectCount === 2 };
+    },
+
+    runUnusedEdgeCleanup(iterations: number) {
+        const toggle = createState(true);
+        const staticData = createState(42);
+        
+        const alternateStates: any[] = [];
+        for (let i = 0; i < 100; i++) {
+            alternateStates.push(createState(i));
+        }
+
+        const dynamicComputes: any[] = [];
+        for (let i = 0; i < 100; i++) {
+            dynamicComputes.push(createCompute(() => {
+                if (read(toggle)) {
+                    return read(staticData);
+                } else {
+                    return read(alternateStates[i]);
+                }
+            }));
+        }
+
+        createEffect(() => {
+            for(const c of dynamicComputes) read(c);
+        });
+        UISystem.flush();
+
+        const start = performance.now();
+        for (let i = 0; i < iterations; i++) {
+            write(toggle, (i & 1) === 0);
+            UISystem.flush();
+        }
+        return performance.now() - start;
+    },
+
+    runRedundantWriteFiltering(count: number) {
+        const s = createState(100);
+        const c = createCompute(() => read(s) * 2);
+        let runCount = 0;
+        createEffect(() => { read(c); runCount++; });
+        UISystem.flush();
+
+        const start = performance.now();
+        for (let i = 0; i < count; i++) {
+            write(s, 100);
+        }
+        UISystem.flush();
+        const end = performance.now();
+        return end - start;
+    },
+
+    runDslStaticVsDynamic(count: number) {
+        const container = document.createElement("div");
+        
+        const startStatic = performance.now();
+        for (let i = 0; i < count; i++) {
+            const el = el0("div", { class: "box static-mode", style: { color: "red", margin: "10px" } }, ["Static Text"]);
+            container.appendChild(el);
+        }
+        const endStatic = performance.now();
+
+        container.replaceChildren();
+
+        const s = createState("red");
+        const startDynamic = performance.now();
+        for (let i = 0; i < count; i++) {
+            const el = el0("div", { 
+                class: { "box": true, "dynamic-mode": true }, 
+                style: { color: () => read(s), margin: () => "10px" } 
+            }, [() => "Dynamic Text"]);
+            container.appendChild(el);
+        }
+        const endDynamic = performance.now();
+
+        return { staticTime: endStatic - startStatic, dynamicTime: endDynamic - startDynamic };
+    },
+
+    runForListReset(itemCount: number) {
+        type Row = { id: number; text: string };
+        const initialData = Array.from({ length: itemCount }, (_, i) => ({ id: i, text: `Item ${i}` }));
+        const itemsState = createState<Row[]>(initialData);
+
+        const container = for0(itemsState, (item: Row) => item.id, (item) => {
+            const el = document.createElement("div");
+            el.textContent = item().text;
+            return el;
+        });
+        document.body.appendChild(container);
+        UISystem.flush();
+
+        const start = performance.now();
+        write(itemsState, []);
+        UISystem.flush();
+        write(itemsState, initialData);
+        UISystem.flush();
+        const end = performance.now();
+
+        container.remove();
+        return end - start;
+    },
+
+    runForItemPropUpdate(itemCount: number, iterations: number) {
+        type Row = { id: number; text: WvNode<string> };
+        const data = Array.from({ length: itemCount }, (_, i) => ({
+            id: i,
+            text: createState(`Item ${i}`)
+        }));
+        
+        const itemsState = createState<Row[]>(data);
+        const container = for0(itemsState, (item: Row) => item.id, (item) => {
+            const el = document.createElement("div");
+            createEffect(() => {
+                el.textContent = read(item().text);
+            });
+            return el;
+        });
+        document.body.appendChild(container);
+        UISystem.flush();
+
+        const targetState = data[Math.floor(itemCount / 2)].text;
+
+        const start = performance.now();
+        for (let i = 0; i < iterations; i++) {
+            write(targetState, `Updated ${i}`);
+            UISystem.flush();
+        }
+        const end = performance.now();
+
+        container.remove();
+        return end - start;
+    },
+
+    runCrossEntityDependency(count: number) {
+        const globalEntity = createEntity();
+        const childEntities: number[] = [];
+        
+        let globalState: any;
+        withEntity(globalEntity, () => {
+            globalState = createState(0);
+        });
+
+        const start = performance.now();
+        for (let i = 0; i < count; i++) {
+            const childId = createEntity();
+            childEntities.push(childId);
+            withEntity(childId, () => {
+                const c = createCompute(() => read<number>(globalState) + i);
+                createEffect(() => { read(c); });
+            });
+        }
+        UISystem.flush();
+
+        write(globalState, 1);
+        UISystem.flush();
+
+        DestructionSystem.destroyEntities(childEntities);
+        DestructionSystem.destroyEntity(globalEntity);
+        
+        const end = performance.now();
+        return end - start;
+    }
 };
 
 async function runScaleSuite() {
@@ -405,6 +595,24 @@ async function runScaleSuite() {
         }
 
         {
+            const diamondWidth = Math.min(n, 5000);
+            const { time: diamondTime } = BenchmarkSystem.runDiamondProblem(diamondWidth);
+            console.log(`[DIAMOND PROBLEM] width=${diamondWidth}: ${diamondTime.toFixed(2)}ms`);
+        }
+
+        {
+            const cleanupIterations = Math.min(n, 2000);
+            const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(cleanupIterations);
+            console.log(`[UNUSED EDGE CLEANUP] iter=${cleanupIterations}: ${cleanupTime.toFixed(2)}ms`);
+        }
+
+        {
+            const listResetCount = Math.min(n, 5000);
+            const resetTime = BenchmarkSystem.runForListReset(listResetCount);
+            console.log(`[FOR LIST RESET] items=${listResetCount}: ${resetTime.toFixed(2)}ms`);
+        }
+
+        {
             const createCount = Math.min(n, 50000);
             const before = getMemory();
             const stateTime   = BenchmarkSystem.runCreateState(createCount);
@@ -426,7 +634,7 @@ async function runScaleSuite() {
     DestructionSystem.destroyEntity(entityId);
 
     const updateTime = BenchmarkSystem.runHighFrequencyUpdate(2000, 50);
-    console.log(`[2] 2,000 signals × 50 batch updates (100,000 patches total): ${updateTime.toFixed(2)} ms`);
+    console.log(`[2] 2,000 signals x 50 batch updates (100,000 patches total): ${updateTime.toFixed(2)} ms`);
 
     const destroyTime = BenchmarkSystem.runMassDestruction(5000);
     console.log(`[3] Batch Memory Release for 5,000 Entities (10,000 Nodes) (Individually): ${destroyTime.toFixed(2)} ms`);
@@ -460,6 +668,28 @@ async function runScaleSuite() {
     console.log(`[10] create-state (10000): ${BenchmarkSystem.runCreateState(10000).toFixed(2)} ms`);
     console.log(`[11] create-compute (10000): ${BenchmarkSystem.runCreateCompute(10000).toFixed(2)} ms`);
     console.log(`[12] create-effect (10000): ${BenchmarkSystem.runCreateEffect(10000).toFixed(2)} ms`);
+
+    const diamondRes = BenchmarkSystem.runDiamondProblem(2000);
+    console.log(`[13] Diamond Problem (Width 2,000): ${diamondRes.time.toFixed(2)} ms (Glitch Free: ${diamondRes.glitchesPrevented})`);
+
+    const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(5000);
+    console.log(`[14] Dynamic Edge Cleanup (5,000 toggles): ${cleanupTime.toFixed(2)} ms`);
+
+    const redundantTime = BenchmarkSystem.runRedundantWriteFiltering(50000);
+    console.log(`[15] Redundant Write Filtering (50,000 identical writes): ${redundantTime.toFixed(2)} ms`);
+
+    const dslProps = BenchmarkSystem.runDslStaticVsDynamic(1000);
+    console.log(`[16] DSL Property parsing (1,000 el) -> Static: ${dslProps.staticTime.toFixed(2)} ms / Dynamic: ${dslProps.dynamicTime.toFixed(2)} ms`);
+
+    const listResetTime = BenchmarkSystem.runForListReset(1000);
+    console.log(`[17] For-Loop List Clear & Re-populate (1,000 elements): ${listResetTime.toFixed(2)} ms`);
+
+    const itemPropTime = BenchmarkSystem.runForItemPropUpdate(1000, 5000);
+    console.log(`[18] For-Loop Single Item Property Update (5,000 writes): ${itemPropTime.toFixed(2)} ms`);
+
+    const crossEntityTime = BenchmarkSystem.runCrossEntityDependency(2000);
+    console.log(`[19] Cross-Entity Dependency & Cascade Destroy (2,000 entities): ${crossEntityTime.toFixed(2)} ms`);
+
     console.log("=== BENCHMARK END ===");
 };
 

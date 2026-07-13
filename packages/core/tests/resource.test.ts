@@ -320,7 +320,7 @@ describe('Watervein Core - createResource', () => {
         expect(read(toxicCompute)).not.toBe('poison');
     });
 
-    it('5. triggers downstream side effects exactly once even with 1,000 concurrent list mappings', async () => {
+    it('triggers downstream side effects exactly once even with 1,000 concurrent list mappings', async () => {
         const listData = Array.from({ length: 1000 }, (_, i) => `item-${i}`);
         const sourceList = createState(listData);
         const fetcher = vi.fn((list: string[]) => Promise.resolve(`length-${list.length}`));
@@ -346,7 +346,7 @@ describe('Watervein Core - createResource', () => {
         expect(spy).toHaveBeenNthCalledWith(2, false, 'length-1000');
     });
 
-    it('6. clears dynamic memory allocations on resource destruction within entity lifetimes', async () => {
+    it('clears dynamic memory allocations on resource destruction within entity lifetimes', async () => {
         const entityId = createEntity();
         const source = createState('entity-target');
         const fetcher = vi.fn(() => Promise.resolve('data'));
@@ -372,8 +372,8 @@ describe('Watervein Core - createResource', () => {
             }
         });
 
-        expect(resource.subsDense.length).toBe(0);
-        expect(resource.depsDense.length).toBe(0);
+        expect(resource.subsDense).toBeNull();
+        expect(resource.depsDense).toBeNull();
     });
 
     it('processes alternating async resolution in unpredictable order (stale-while-revalidate stress test)', async () => {

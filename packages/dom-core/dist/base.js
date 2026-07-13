@@ -1,4 +1,4 @@
-import { read, createEffect, createCompute, matchEntity, DestructionSystem, write, createEntity, withEntity, createState } from '@watervein/core';
+import { read, createEffect, createCompute, matchEntity, DestructionSystem, write, createEntity, withEntity, createState, untrack } from '@watervein/core';
 export function Show(condition, thenFn, elseFn) {
     const marker = document.createTextNode("");
     const wrapper = document.createElement("span");
@@ -46,7 +46,9 @@ export function For(listNode, keyFn, renderFn, tagName = "span") {
             const key = keyFn(item);
             const cached = entityCache.get(key);
             if (cached) {
-                write(cached.itemNode, item);
+                untrack(() => {
+                    write(cached.itemNode, item);
+                });
                 newCache.set(key, cached);
             }
             else {

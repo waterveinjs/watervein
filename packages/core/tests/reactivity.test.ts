@@ -13,7 +13,8 @@ import {
     Node as WvNode,
     untrack,
     mapEntity,
-    matchEntity
+    matchEntity,
+    N
 } from '../src/index.js';
 
 describe('Watervein Core - Radical NES Engine', () => {
@@ -208,7 +209,7 @@ describe('Watervein Core - Radical NES Engine', () => {
 
         const result = createCompute(() => (read(toggle) ? read(a) : read(b)));
 
-        expect(result.depsDense.length).toBe(2);
+        expect(result.depsDense!.length).toBe(2);
 
         write(toggle, false);
         UISystem.flush();
@@ -216,7 +217,7 @@ describe('Watervein Core - Radical NES Engine', () => {
         expect(result.depsDense).toContain(toggle.id);
         expect(result.depsDense).toContain(b.id);
         expect(result.depsDense).not.toContain(a.id);
-        expect(result.depsDense.length).toBe(2);
+        expect(result.depsDense!.length).toBe(2);
     });
 
     it('should destroy the previous branch entity when matchEntity switches condition', () => {
@@ -245,7 +246,7 @@ describe('Watervein Core - Radical NES Engine', () => {
 
         expect(elseSpy).toHaveBeenCalledWith('else-branch');
 
-        expect(cleanupTargets[0].subsDense.length).toBe(0);
+        expect(cleanupTargets[0].subsDense).toBeNull();
     });
 
     it('should reconcile mapEntity list by key: add, remove, and reorder without losing per-item state', () => {
@@ -293,5 +294,330 @@ describe('Watervein Core - Radical NES Engine', () => {
         UISystem.flush();
 
         spies.forEach((s) => expect(s).not.toHaveBeenCalled());
+    });
+});
+
+describe('Watervein Core - Advanced Reactive System', () => {
+    it('should maintain topological order during nested compute updates', () => {
+        const a = createState(1);
+        const b = createCompute(() => read(a) + 1);
+        const c = createCompute(() => read(b) + 1);
+        
+        const spy = vi.fn();
+        createEffect(() => spy(read(c)));
+        
+        spy.mockClear();
+        write(a, 2);
+        UISystem.flush();
+        
+        expect(spy).toHaveBeenCalledWith(4);
+    });
+
+    it('should correctly propagate deep updates through long dependency chains', () => {
+        const root = createState(1);
+        let leaf: WvNode<number> = root;
+        for (let i = 0; i < 10; i++) {
+            const current = leaf;
+            leaf = createCompute(() => read(current) + 1);
+        }
+
+        const spy = vi.fn();
+        createEffect(() => spy(read(leaf)));
+
+        write(root, 2);
+        UISystem.flush();
+        
+        expect(spy).toHaveBeenCalledWith(12);
+    });
+
+    it('should prevent zombie effects when dependencies are removed dynamically', () => {
+        const toggle = createState(true);
+        const sourceA = createState(1);
+        const sourceB = createState(1);
+        
+        const result = createCompute(() => read(toggle) ? read(sourceA) : read(sourceB));
+        const spy = vi.fn();
+        createEffect(() => spy(read(result)));
+
+        spy.mockClear();
+        write(sourceA, 2);
+        UISystem.flush();
+        expect(spy).toHaveBeenCalledWith(2);
+
+        write(toggle, false);
+        UISystem.flush();
+        spy.mockClear();
+        
+        write(sourceA, 3);
+        UISystem.flush();
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('should isolate side effects within different entities', () => {
+        const shared = createState(0);
+        const entity1 = createEntity();
+        const entity2 = createEntity();
+        
+        const spy1 = vi.fn();
+        const spy2 = vi.fn();
+
+        withEntity(entity1, () => createEffect(() => spy1(read(shared))));
+        withEntity(entity2, () => createEffect(() => spy2(read(shared))));
+
+        write(shared, 1);
+        UISystem.flush();
+
+        expect(spy1).toHaveBeenCalledWith(1);
+        expect(spy2).toHaveBeenCalledWith(1);
+
+        DestructionSystem.destroyEntity(entity1);
+
+        write(shared, 2);
+        UISystem.flush();
+
+        expect(spy1).toHaveBeenCalledTimes(2);
+        expect(spy2).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle complex diamond dependency with re-entrant writes', () => {
+        const a = createState(1);
+        const b = createCompute(() => read(a) + 1);
+        const c = createCompute(() => read(a) + 2);
+        const d = createCompute(() => read(b) + read(c));
+        
+        const spy = vi.fn();
+        createEffect(() => spy(read(d)));
+        
+        spy.mockClear();
+        write(a, 2);
+        UISystem.flush();
+
+        expect(spy).toHaveBeenCalledWith(7);
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('Watervein Core - Extended Hardening & Edge Cases', () => {
+
+    it('should handle dynamic diamond switches where one branch becomes independent', () => {
+        const base = createState(1);
+        const toggle = createState(true);
+
+        const left = createCompute(() => read(toggle) ? read(base) * 2 : 10);
+        const right = createCompute(() => read(base) * 3);
+        const combined = createCompute(() => read(left) + read(right));
+
+        const spy = vi.fn();
+        createEffect(() => spy(read(combined)));
+
+        expect(spy).toHaveBeenCalledWith(5);
+        spy.mockClear();
+
+        write(toggle, false);
+        UISystem.flush();
+
+        expect(spy).toHaveBeenCalledWith(13);
+        spy.mockClear();
+
+        write(base, 2);
+        UISystem.flush();
+
+        expect(spy).toHaveBeenCalledWith(16);
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should maintain stable state when batch contains multiple writes to the same state reverting to original value', () => {
+        const count = createState(100);
+        const spy = vi.fn();
+        createEffect(() => spy(read(count)));
+
+        spy.mockClear();
+
+        batch(() => {
+            write(count, 200);
+            write(count, 300);
+            write(count, 100); 
+        });
+        UISystem.flush();
+
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledWith(100);
+    });
+
+    it('should completely cleanup nested entities via lifecycle management when both are tracked', () => {
+        const parentEntity = createEntity();
+        const childEntity = createEntity();
+        
+        const trigger = createState(0);
+        const spy = vi.fn();
+
+        withEntity(parentEntity, () => {
+            withEntity(childEntity, () => {
+                createEffect(() => spy(read(trigger)));
+            });
+        });
+
+        expect(spy).toHaveBeenCalledWith(0);
+        spy.mockClear();
+
+        DestructionSystem.destroyEntities([parentEntity, childEntity]);
+
+        write(trigger, 1);
+        UISystem.flush();
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('should support updating a state inside an effect (deferred/scheduled write) without crashing', () => {
+        const source = createState(1);
+        const target = createState(10);
+
+        createEffect(() => {
+            const val = read(source);
+            if (val === 5) {
+                write(target, 50);
+            }
+        });
+
+        write(source, 5);
+        UISystem.flush();
+
+        expect(read(target)).toBe(50);
+    });
+
+    it('should correctly handle mapEntity identity tracking when elements are fully swapped', () => {
+        const list = createState([{ id: 'a' }, { id: 'b' }]);
+        const itemSpies = new Map<string, any>();
+
+        mapEntity(
+            list,
+            (item) => item.id,
+            (key, getItem, getIndex) => {
+                const spy = vi.fn();
+                createEffect(() => spy(read(getItem as any))); 
+                itemSpies.set(key as string, spy);
+            }
+        );
+
+        expect(itemSpies.has('a')).toBe(true);
+        expect(itemSpies.has('b')).toBe(true);
+
+        const spyA = itemSpies.get('a');
+        spyA.mockClear();
+
+        write(list, [{ id: 'c' }, { id: 'd' }]);
+        UISystem.flush();
+
+        expect(spyA).not.toHaveBeenCalled();
+    });
+
+    it('should preserve deep dependency tracking chains even when early parts of the chain return the same value', () => {
+        const source = createState(1);
+        const isEven = createCompute(() => read(source) % 2 === 0);
+        const message = createCompute(() => read(isEven) ? 'Even' : 'Odd');
+
+        const spy = vi.fn();
+        createEffect(() => spy(read(message)));
+
+        expect(spy).toHaveBeenCalledWith('Odd');
+        spy.mockClear();
+
+        write(source, 3);
+        UISystem.flush();
+
+        expect(spy).not.toHaveBeenCalled();
+
+        write(source, 4);
+        UISystem.flush();
+        expect(spy).toHaveBeenCalledWith('Even');
+    });
+
+    it('should properly track state when read inside an untrack() block that is nested within a tracked block', () => {
+        const trackedA = createState('A');
+        const untrackedB = createState('B');
+        const trackedC = createState('C');
+
+        const spy = vi.fn();
+        createEffect(() => {
+            read(trackedA);
+            untrack(() => {
+                read(untrackedB);
+            });
+            spy(read(trackedC));
+        });
+
+        spy.mockClear();
+
+        write(untrackedB, 'BB');
+        UISystem.flush();
+        expect(spy).not.toHaveBeenCalled();
+
+        write(trackedC, 'CC');
+        UISystem.flush();
+        expect(spy).toHaveBeenCalledWith('CC');
+    });
+
+    it('should correctly handle multi-layered conditional diamond graphs without leaking memory or evaluation', () => {
+        const condition1 = createState(true);
+        const condition2 = createState(true);
+        const base = createState(10);
+
+        const left = createCompute(() => read(condition1) ? read(base) * 2 : 0);
+        const right = createCompute(() => read(condition2) ? read(base) * 3 : 0);
+        const combined = createCompute(() => read(left) + read(right));
+
+        const spy = vi.fn();
+        createEffect(() => spy(read(combined)));
+
+        expect(spy).toHaveBeenCalledWith(50);
+        spy.mockClear();
+
+        batch(() => {
+            write(condition1, false);
+            write(condition2, false);
+        });
+        UISystem.flush();
+        expect(spy).toHaveBeenCalledWith(0);
+        spy.mockClear();
+
+        write(base, 999);
+        UISystem.flush();
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('should throw an explicit cycle error when a compute node attempts to read itself directly', () => {
+        expect(() => {
+            const selfLoop: WvNode<number> = createCompute(() => {
+                return read(selfLoop) + 1;
+            });
+            read(selfLoop);
+        }).toThrow();
+    });
+
+    it('should execute multiple effects in the precise order of their creation during flush', () => {
+        const trigger = createState(0);
+        const executionOrder: string[] = [];
+
+        createEffect(() => {
+            read(trigger);
+            executionOrder.push('first');
+        });
+
+        createEffect(() => {
+            read(trigger);
+            executionOrder.push('second');
+        });
+
+        createEffect(() => {
+            read(trigger);
+            executionOrder.push('third');
+        });
+
+        executionOrder.length = 0;
+
+        write(trigger, 1);
+        UISystem.flush();
+
+        expect(executionOrder).toEqual(['third', 'second', 'first']);
     });
 });

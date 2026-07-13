@@ -293,6 +293,164 @@ const BenchmarkSystem = {
             (0, core_1.createEffect)(() => i);
         return performance.now() - start;
     },
+    runDiamondProblem(width) {
+        const base = (0, core_1.createState)(0);
+        const branches = [];
+        for (let i = 0; i < width; i++) {
+            branches.push((0, core_1.createCompute)(() => (0, core_1.read)(base) + i));
+        }
+        const top = (0, core_1.createCompute)(() => {
+            let sum = 0;
+            for (let i = 0; i < width; i++) {
+                sum += (0, core_1.read)(branches[i]);
+            }
+            return sum;
+        });
+        let effectCount = 0;
+        (0, core_1.createEffect)(() => {
+            (0, core_1.read)(top);
+            effectCount++;
+        });
+        core_1.UISystem.flush();
+        const start = performance.now();
+        (0, core_1.write)(base, 1);
+        core_1.UISystem.flush();
+        const end = performance.now();
+        return { time: end - start, glitchesPrevented: effectCount === 2 };
+    },
+    runUnusedEdgeCleanup(iterations) {
+        const toggle = (0, core_1.createState)(true);
+        const staticData = (0, core_1.createState)(42);
+        const alternateStates = [];
+        for (let i = 0; i < 100; i++) {
+            alternateStates.push((0, core_1.createState)(i));
+        }
+        const dynamicComputes = [];
+        for (let i = 0; i < 100; i++) {
+            dynamicComputes.push((0, core_1.createCompute)(() => {
+                if ((0, core_1.read)(toggle)) {
+                    return (0, core_1.read)(staticData);
+                }
+                else {
+                    return (0, core_1.read)(alternateStates[i]);
+                }
+            }));
+        }
+        (0, core_1.createEffect)(() => {
+            for (const c of dynamicComputes)
+                (0, core_1.read)(c);
+        });
+        core_1.UISystem.flush();
+        const start = performance.now();
+        for (let i = 0; i < iterations; i++) {
+            (0, core_1.write)(toggle, (i & 1) === 0);
+            core_1.UISystem.flush();
+        }
+        return performance.now() - start;
+    },
+    runRedundantWriteFiltering(count) {
+        const s = (0, core_1.createState)(100);
+        const c = (0, core_1.createCompute)(() => (0, core_1.read)(s) * 2);
+        let runCount = 0;
+        (0, core_1.createEffect)(() => { (0, core_1.read)(c); runCount++; });
+        core_1.UISystem.flush();
+        const start = performance.now();
+        for (let i = 0; i < count; i++) {
+            (0, core_1.write)(s, 100);
+        }
+        core_1.UISystem.flush();
+        const end = performance.now();
+        return end - start;
+    },
+    runDslStaticVsDynamic(count) {
+        const container = document.createElement("div");
+        const startStatic = performance.now();
+        for (let i = 0; i < count; i++) {
+            const el = (0, dom_core_1.element)("div", { class: "box static-mode", style: { color: "red", margin: "10px" } }, ["Static Text"]);
+            container.appendChild(el);
+        }
+        const endStatic = performance.now();
+        container.replaceChildren();
+        const s = (0, core_1.createState)("red");
+        const startDynamic = performance.now();
+        for (let i = 0; i < count; i++) {
+            const el = (0, dom_core_1.element)("div", {
+                class: { "box": true, "dynamic-mode": true },
+                style: { color: () => (0, core_1.read)(s), margin: () => "10px" }
+            }, [() => "Dynamic Text"]);
+            container.appendChild(el);
+        }
+        const endDynamic = performance.now();
+        return { staticTime: endStatic - startStatic, dynamicTime: endDynamic - startDynamic };
+    },
+    runForListReset(itemCount) {
+        const initialData = Array.from({ length: itemCount }, (_, i) => ({ id: i, text: `Item ${i}` }));
+        const itemsState = (0, core_1.createState)(initialData);
+        const container = (0, dom_core_1.For)(itemsState, (item) => item.id, (item) => {
+            const el = document.createElement("div");
+            el.textContent = item().text;
+            return el;
+        });
+        document.body.appendChild(container);
+        core_1.UISystem.flush();
+        const start = performance.now();
+        (0, core_1.write)(itemsState, []);
+        core_1.UISystem.flush();
+        (0, core_1.write)(itemsState, initialData);
+        core_1.UISystem.flush();
+        const end = performance.now();
+        container.remove();
+        return end - start;
+    },
+    runForItemPropUpdate(itemCount, iterations) {
+        const data = Array.from({ length: itemCount }, (_, i) => ({
+            id: i,
+            text: (0, core_1.createState)(`Item ${i}`)
+        }));
+        const itemsState = (0, core_1.createState)(data);
+        const container = (0, dom_core_1.For)(itemsState, (item) => item.id, (item) => {
+            const el = document.createElement("div");
+            (0, core_1.createEffect)(() => {
+                el.textContent = (0, core_1.read)(item().text);
+            });
+            return el;
+        });
+        document.body.appendChild(container);
+        core_1.UISystem.flush();
+        const targetState = data[Math.floor(itemCount / 2)].text;
+        const start = performance.now();
+        for (let i = 0; i < iterations; i++) {
+            (0, core_1.write)(targetState, `Updated ${i}`);
+            core_1.UISystem.flush();
+        }
+        const end = performance.now();
+        container.remove();
+        return end - start;
+    },
+    runCrossEntityDependency(count) {
+        const globalEntity = (0, core_1.createEntity)();
+        const childEntities = [];
+        let globalState;
+        (0, core_1.withEntity)(globalEntity, () => {
+            globalState = (0, core_1.createState)(0);
+        });
+        const start = performance.now();
+        for (let i = 0; i < count; i++) {
+            const childId = (0, core_1.createEntity)();
+            childEntities.push(childId);
+            (0, core_1.withEntity)(childId, () => {
+                const c = (0, core_1.createCompute)(() => (0, core_1.read)(globalState) + i);
+                (0, core_1.createEffect)(() => { (0, core_1.read)(c); });
+            });
+        }
+        core_1.UISystem.flush();
+        (0, core_1.write)(globalState, 1);
+        core_1.UISystem.flush();
+        core_1.DestructionSystem.destroyEntities(childEntities);
+        core_1.DestructionSystem.destroyEntity(globalEntity);
+        const end = performance.now();
+        return end - start;
+    }
 };
 async function runScaleSuite() {
     console.log("=== BENCHMARK START ===");
@@ -336,6 +494,21 @@ async function runScaleSuite() {
             console.log(`[Fan-Out/In] n=${fanCount}: out=${fanOutTime.toFixed(2)}ms in=${fanInTime.toFixed(2)}ms`);
         }
         {
+            const diamondWidth = Math.min(n, 5000);
+            const { time: diamondTime } = BenchmarkSystem.runDiamondProblem(diamondWidth);
+            console.log(`[DIAMOND PROBLEM] width=${diamondWidth}: ${diamondTime.toFixed(2)}ms`);
+        }
+        {
+            const cleanupIterations = Math.min(n, 2000);
+            const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(cleanupIterations);
+            console.log(`[UNUSED EDGE CLEANUP] iter=${cleanupIterations}: ${cleanupTime.toFixed(2)}ms`);
+        }
+        {
+            const listResetCount = Math.min(n, 5000);
+            const resetTime = BenchmarkSystem.runForListReset(listResetCount);
+            console.log(`[FOR LIST RESET] items=${listResetCount}: ${resetTime.toFixed(2)}ms`);
+        }
+        {
             const createCount = Math.min(n, 50000);
             const before = getMemory();
             const stateTime = BenchmarkSystem.runCreateState(createCount);
@@ -353,7 +526,7 @@ window.runWaterveinBenchmark = () => {
     console.log(`[1] Building a Massive DAG with 10,000 Nodes: ${constTime.toFixed(2)} ms`);
     core_1.DestructionSystem.destroyEntity(entityId);
     const updateTime = BenchmarkSystem.runHighFrequencyUpdate(2000, 50);
-    console.log(`[2] 2,000 signals × 50 batch updates (100,000 patches total): ${updateTime.toFixed(2)} ms`);
+    console.log(`[2] 2,000 signals x 50 batch updates (100,000 patches total): ${updateTime.toFixed(2)} ms`);
     const destroyTime = BenchmarkSystem.runMassDestruction(5000);
     console.log(`[3] Batch Memory Release for 5,000 Entities (10,000 Nodes) (Individually): ${destroyTime.toFixed(2)} ms`);
     const destroyBatchedTime = BenchmarkSystem.runMassDestructionBatched(5000);
@@ -379,6 +552,20 @@ window.runWaterveinBenchmark = () => {
     console.log(`[10] create-state (10000): ${BenchmarkSystem.runCreateState(10000).toFixed(2)} ms`);
     console.log(`[11] create-compute (10000): ${BenchmarkSystem.runCreateCompute(10000).toFixed(2)} ms`);
     console.log(`[12] create-effect (10000): ${BenchmarkSystem.runCreateEffect(10000).toFixed(2)} ms`);
+    const diamondRes = BenchmarkSystem.runDiamondProblem(2000);
+    console.log(`[13] Diamond Problem (Width 2,000): ${diamondRes.time.toFixed(2)} ms (Glitch Free: ${diamondRes.glitchesPrevented})`);
+    const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(5000);
+    console.log(`[14] Dynamic Edge Cleanup (5,000 toggles): ${cleanupTime.toFixed(2)} ms`);
+    const redundantTime = BenchmarkSystem.runRedundantWriteFiltering(50000);
+    console.log(`[15] Redundant Write Filtering (50,000 identical writes): ${redundantTime.toFixed(2)} ms`);
+    const dslProps = BenchmarkSystem.runDslStaticVsDynamic(1000);
+    console.log(`[16] DSL Property parsing (1,000 el) -> Static: ${dslProps.staticTime.toFixed(2)} ms / Dynamic: ${dslProps.dynamicTime.toFixed(2)} ms`);
+    const listResetTime = BenchmarkSystem.runForListReset(1000);
+    console.log(`[17] For-Loop List Clear & Re-populate (1,000 elements): ${listResetTime.toFixed(2)} ms`);
+    const itemPropTime = BenchmarkSystem.runForItemPropUpdate(1000, 5000);
+    console.log(`[18] For-Loop Single Item Property Update (5,000 writes): ${itemPropTime.toFixed(2)} ms`);
+    const crossEntityTime = BenchmarkSystem.runCrossEntityDependency(2000);
+    console.log(`[19] Cross-Entity Dependency & Cascade Destroy (2,000 entities): ${crossEntityTime.toFixed(2)} ms`);
     console.log("=== BENCHMARK END ===");
 };
 window.runWaterveinScaleBenchmark = runScaleSuite;

@@ -8,7 +8,8 @@ import {
     write,
     createEntity,
     withEntity,
-    createState
+    createState,
+    untrack
 } from '@watervein/core';
 
 export function Show(
@@ -86,7 +87,9 @@ export function For<T>(
             const cached = entityCache.get(key);
 
             if (cached) {
-                write(cached.itemNode, item);
+                untrack(() => {
+                    write(cached.itemNode, item);
+                });
                 newCache.set(key, cached);
             } else {
                 const entityId = createEntity();

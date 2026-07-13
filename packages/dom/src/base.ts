@@ -1,7 +1,10 @@
 import {
     Node as WvNode,
     isNode,
-    read
+    read,
+    getCurrentEntityId,
+    handleDelegatedEvent,
+    eventRegistry
 } from '@watervein/core';
 import { 
     element as el0,
@@ -30,28 +33,42 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     props?: Dsl1Props,
     children?: Dsl1Child | Dsl1Child[]
 ): HTMLElementTagNameMap[K] {
+    const el = el0(tag, props as any, children as any);
+    
     if (props) {
         const keys = Object.keys(props);
         const len = keys.length;
-        
+        const entityId = getCurrentEntityId();
+
         for (let i = 0; i < len; i++) {
             const key = keys[i];
             const value = props[key];
 
-           if (key === "style" && value) {
-                if (isNode(value)) {
-                    const node = value as WvNode<string>;
-                    props[key] = (() => read(node)) as any;
-                } else if (typeof value === "object") {
-                    continue;
+            if (key.startsWith("on") && typeof value === "function") {
+                const eventName = key.slice(2).toLowerCase();
+                
+                if (entityId !== null) {
+                    if (!eventRegistry.has(eventName)) {
+                        eventRegistry.set(eventName, new Map());
+                        document.body.addEventListener(eventName, handleDelegatedEvent);
+                    }
+                    eventRegistry.get(eventName)!.set(entityId, value as EventListener);
+                    
+                    el.setAttribute('data-wv-eid', String(entityId));
+                } else {
+                    el.addEventListener(eventName, value as EventListener);
                 }
-            } 
-            else if ((key === "class" || key === "className") && value) {
+            }
+            else if (key === "style" && value) {
+                if (isNode(value)) {
+                    props[key] = (() => read(value as WvNode<string>)) as any;
+                }
+            } else if ((key === "class" || key === "className") && value) {
                 props[key] = parseDsl1Class(value);
             }
         }
     }
-    return el0(tag, props as any, children as any);
+    return el as HTMLElementTagNameMap[K];
 }
 
 function parseDsl1Class(classVal: Dsl1Class): Class0 {

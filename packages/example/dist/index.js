@@ -1,4 +1,4 @@
-import { createState, createCompute, createResource, write, read, UISystem } from '@watervein/core';
+import { createState, createCompute, createResource, write, read, UISystem, untrack } from '@watervein/core';
 import { element, Show, For, mountToBody } from '@watervein/dom';
 const serverId = createState("srv-node-01");
 const serverSpecResource = createResource(serverId, async (id) => {
@@ -109,14 +109,16 @@ setInterval(() => {
     console.log("⚡ [write] The simulator updates the value. Current value:", cpu);
     write(cpuLoad, cpu);
     write(memoryUsage, Math.floor(Math.random() * 16384));
-    const currentList = read(processes);
-    const nextList = currentList.map(p => ({
-        pid: p.pid,
-        name: p.name,
-        cpu: Math.floor(Math.random() * 100),
-        memory: Math.floor(Math.random() * 2048)
-    }));
-    write(processes, nextList);
+    untrack(() => {
+        const currentList = read(processes);
+        const nextList = currentList.map(p => ({
+            pid: p.pid,
+            name: p.name,
+            cpu: Math.floor(Math.random() * 100),
+            memory: Math.floor(Math.random() * 2048)
+        }));
+        write(processes, nextList);
+    });
     UISystem.flush();
 }, 100);
 //# sourceMappingURL=index.js.map

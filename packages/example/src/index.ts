@@ -131,15 +131,17 @@ setInterval(() => {
     write(cpuLoad, cpu);
     write(memoryUsage, Math.floor(Math.random() * 16384));
 
-    const currentList = read(processes);
-    const nextList = currentList.map(p => ({
-        pid: p.pid,
-        name: p.name,
-        cpu: Math.floor(Math.random() * 100), 
-        memory: Math.floor(Math.random() * 2048)
-    }));
-    
-    write(processes, nextList);
+    untrack(() => {
+        const currentList = read(processes);
+        const nextList = currentList.map(p => ({
+            pid: p.pid,
+            name: p.name,
+            cpu: Math.floor(Math.random() * 100), 
+            memory: Math.floor(Math.random() * 2048)
+        }));
+        
+        write(processes, nextList);
+    })
 
     UISystem.flush();
 

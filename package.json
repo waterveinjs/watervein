@@ -5,6 +5,7 @@
   "scripts": {
     "clean": "rimraf packages/*/dist && find packages -path '*/src/*' \\( -name '*.js' -o -name '*.js.map' -o -name '*.d.ts' -o -name '*.d.ts.map' \\) -delete",
     "build": "pnpm run clean && pnpm --filter \"./packages/*\" exec tsc",
+    "bt": "pnpm build && pnpm test",
     "bench": "pnpm --filter @watervein/benchmark run dev",
     "example": "pnpm --filter @watervein/example run dev",
     "test": "vitest run",

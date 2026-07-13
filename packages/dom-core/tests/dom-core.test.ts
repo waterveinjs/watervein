@@ -101,6 +101,66 @@ describe('Watervein DOM - Show', () => {
         write(innerCount, 1);
         expect(() => UISystem.flush()).not.toThrow();
     });
+
+    it('renders elseFn output when condition is initially false', () => {
+        const condition = createState(false);
+        const el = Show(
+            condition,
+            () => { const d = document.createElement('div'); d.textContent = 'then'; return d; },
+            () => { const d = document.createElement('div'); d.textContent = 'else'; return d; }
+        );
+        document.body.appendChild(el);
+        expect(el.textContent).toBe('else');
+    });
+
+    it('does not re-render or flash when condition updates to the same truthy value', () => {
+        const condition = createState(true);
+        const renderCalls = vi.fn();
+
+        const el = Show(
+            condition,
+            () => {
+                renderCalls();
+                const d = document.createElement('div');
+                d.textContent = 'then';
+                return d;
+            }
+        );
+        document.body.appendChild(el);
+        expect(renderCalls).toHaveBeenCalledTimes(1);
+
+        write(condition, true);
+        UISystem.flush();
+
+        expect(renderCalls).toHaveBeenCalledTimes(1);
+    });
+
+    it('properly disposes effects inside the unmounted branch', () => {
+        const condition = createState(true);
+        const innerState = createState('initial');
+        const effectSpy = vi.fn();
+
+        const el = Show(
+            condition,
+            () => {
+                const d = document.createElement('div');
+                createEffect(() => {
+                    effectSpy(innerState);
+                });
+                return d;
+            }
+        );
+        document.body.appendChild(el);
+        expect(effectSpy).toHaveBeenCalledTimes(1);
+
+        write(condition, false);
+        UISystem.flush();
+
+        write(innerState, 'changed');
+        UISystem.flush();
+
+        expect(effectSpy).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('Watervein DOM - For', () => {
@@ -259,5 +319,104 @@ describe('Watervein DOM - For', () => {
 
         const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['A', 'B', 'C']);
+    });
+
+    it('handles a complete swap of the entire list correctly', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        const wrapper = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        document.body.appendChild(wrapper);
+
+        write(list, [{ id: 3, label: 'X' }, { id: 4, label: 'Y' }]);
+        UISystem.flush();
+
+        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        expect(labels).toEqual(['X', 'Y']);
+    });
+
+    it('clears all DOM elements when the list becomes empty', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        const wrapper = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        document.body.appendChild(wrapper);
+        expect(wrapper.querySelectorAll('div').length).toBe(2);
+
+        write(list, []);
+        UISystem.flush();
+
+        expect(wrapper.querySelectorAll('div').length).toBe(0);
+    });
+
+    it('handles complex shuffle, delete, and insert operations combined in a single flush', () => {
+        const list = makeList([
+            { id: 1, label: 'A' },
+            { id: 2, label: 'B' },
+            { id: 3, label: 'C' },
+            { id: 4, label: 'D' }
+        ]);
+        const wrapper = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        document.body.appendChild(wrapper);
+
+        write(list, [
+            { id: 4, label: 'D' },
+            { id: 5, label: 'E' },
+            { id: 1, label: 'A' },
+            { id: 3, label: 'C' }
+        ]);
+        UISystem.flush();
+
+        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        expect(labels).toEqual(['D', 'E', 'A', 'C']);
+    });
+
+    it('disposes inner effects of a single removed item without affecting remaining items', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        const item1EffectSpy = vi.fn();
+        const item2EffectSpy = vi.fn();
+
+        const wrapper = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                createEffect(() => {
+                    const data = getItem();
+                    if (data.id === 1) item1EffectSpy(data.label);
+                    if (data.id === 2) item2EffectSpy(data.label);
+                });
+                return d;
+            }
+        );
+        document.body.appendChild(wrapper);
+        item1EffectSpy.mockClear();
+        item2EffectSpy.mockClear();
+
+        write(list, [{ id: 2, label: 'B-updated' }]);
+        UISystem.flush();
+
+        expect(item2EffectSpy).toHaveBeenCalledWith('B-updated');
+        expect(item1EffectSpy).not.toHaveBeenCalled();
     });
 });

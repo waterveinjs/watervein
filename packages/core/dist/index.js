@@ -5,7 +5,7 @@ let nextAvailableNodeType = 3;
 const WV_NODE_TAG = 0x57564E44;
 let NODE_ID_COUNTER = 0;
 const allNodes = [];
-function N(id) {
+export function N(id) {
     const node = allNodes[id];
     if (!node || node.id === -1) {
         throw new Error(`[watervein] Node with id ${id} is undefined or destroyed.`);
@@ -18,7 +18,6 @@ const trackingStack = [];
 const buckets = [];
 let minDirtyDepth = Infinity;
 let maxDirtyDepth = -1;
-const cycleCheckStack = [];
 let ENTITY_COUNT = 0;
 const entityRegistry = new Map();
 let currentEntityId = null;
@@ -45,20 +44,19 @@ function createNode(type, value, compute = null) {
     const id = freeNodeIds.length > 0 ? freeNodeIds.pop() : NODE_ID_COUNTER++;
     const node = {
         __wv: WV_NODE_TAG,
+        type,
+        id,
         dirty: false,
         depth: 0,
-        type,
-        value,
-        subsDense: [],
-        depsDense: [],
-        id,
-        compute,
-        entityId: currentEntityId,
         watchedVersion: -1,
-        // 初期サイズ 8 固定、リサイズ時の GC 回避
-        pendingDeps: type === NODE_TYPE_STATE ? [] : new Array(8),
-        pendingDepsLen: 0,
         bucketIdx: -1,
+        pendingDepsLen: 0,
+        value,
+        entityId: currentEntityId,
+        compute,
+        subsDense: null,
+        depsDense: null,
+        pendingDeps: type === NODE_TYPE_STATE ? [] : new Array(8),
     };
     allNodes[node.id] = node;
     if (currentEntityId !== null) {
@@ -66,29 +64,35 @@ function createNode(type, value, compute = null) {
     }
     return node;
 }
-// インプレースでエッジをプッシュ
 function addEdge(dep, sub) {
+    if (dep.subsDense === null)
+        dep.subsDense = [];
+    if (sub.depsDense === null)
+        sub.depsDense = [];
     dep.subsDense.push(sub.id);
     sub.depsDense.push(dep.id);
 }
-// $O(N)$ の走査だが、関数呼び出しをインライン化するための共通関数
 function removeEdge(dep, sub) {
     const ss = dep.subsDense;
-    const ssLen = ss.length;
-    for (let i = 0; i < ssLen; i++) {
-        if (ss[i] === sub.id) {
-            ss[i] = ss[ssLen - 1];
-            ss.pop();
-            break;
+    if (ss !== null) {
+        const ssLen = ss.length;
+        for (let i = 0; i < ssLen; i++) {
+            if (ss[i] === sub.id) {
+                ss[i] = ss[ssLen - 1];
+                ss.pop();
+                break;
+            }
         }
     }
     const ds = sub.depsDense;
-    const dsLen = ds.length;
-    for (let i = 0; i < dsLen; i++) {
-        if (ds[i] === dep.id) {
-            ds[i] = ds[dsLen - 1];
-            ds.pop();
-            break;
+    if (ds !== null) {
+        const dsLen = ds.length;
+        for (let i = 0; i < dsLen; i++) {
+            if (ds[i] === dep.id) {
+                ds[i] = ds[dsLen - 1];
+                ds.pop();
+                break;
+            }
         }
     }
 }
@@ -96,9 +100,8 @@ let edgeCommitVersion = 0;
 function commitEdges(sub) {
     const pending = sub.pendingDeps;
     const pLen = sub.pendingDepsLen;
-    const dd = sub.depsDense;
-    // 1. 完全一致の高速パス（アロケーション・走査ゼロ）
-    if (pLen === dd.length) {
+    let dd = sub.depsDense;
+    if (dd !== null && pLen === dd.length) {
         let same = true;
         for (let i = 0; i < pLen; i++) {
             if (dd[i] !== pending[i]) {
@@ -111,7 +114,9 @@ function commitEdges(sub) {
             return;
         }
     }
-    // 2. スタンプのインクリメント
+    if (pLen > 0 && dd === null) {
+        dd = sub.depsDense = [];
+    }
     const pendingStamp = ++edgeCommitVersion;
     for (let i = 0; i < pLen; i++) {
         const dep = allNodes[pending[i]];
@@ -119,37 +124,40 @@ function commitEdges(sub) {
             dep.watchedVersion = pendingStamp;
     }
     const existingStamp = ++edgeCommitVersion;
-    // 3. 削除されたエッジのクリーンアップ（逆順走査で安全に縮小）
-    for (let i = dd.length - 1; i >= 0; i--) {
-        const depId = dd[i];
-        const dep = allNodes[depId];
-        if (!dep)
-            continue;
-        if (dep.watchedVersion !== pendingStamp) {
-            // removeEdge をインライン展開して最速化
-            const ss = dep.subsDense;
-            const ssLen = ss.length;
-            for (let k = 0; k < ssLen; k++) {
-                if (ss[k] === sub.id) {
-                    ss[k] = ss[ssLen - 1];
-                    ss.pop();
-                    break;
+    if (dd !== null) {
+        for (let i = dd.length - 1; i >= 0; i--) {
+            const depId = dd[i];
+            const dep = allNodes[depId];
+            if (!dep)
+                continue;
+            if (dep.watchedVersion !== pendingStamp) {
+                const ss = dep.subsDense;
+                if (ss !== null) {
+                    const ssLen = ss.length;
+                    for (let k = 0; k < ssLen; k++) {
+                        if (ss[k] === sub.id) {
+                            ss[k] = ss[ssLen - 1];
+                            ss.pop();
+                            break;
+                        }
+                    }
                 }
+                dd[i] = dd[dd.length - 1];
+                dd.pop();
             }
-            dd[i] = dd[dd.length - 1];
-            dd.pop();
-        }
-        else {
-            dep.watchedVersion = existingStamp;
+            else {
+                dep.watchedVersion = existingStamp;
+            }
         }
     }
-    // 4. 新規エッジの追加
     for (let j = 0; j < pLen; j++) {
         const depId = pending[j];
         const dep = allNodes[depId];
         if (!dep)
             continue;
         if (dep.watchedVersion !== existingStamp) {
+            if (dep.subsDense === null)
+                dep.subsDense = [];
             dep.subsDense.push(sub.id);
             dd.push(depId);
             dep.watchedVersion = existingStamp;
@@ -161,7 +169,6 @@ function commitEdges(sub) {
     }
     sub.pendingDepsLen = 0;
 }
-// 循環参照チェック & キューのアロケーションを完全にゼロにするためのグローバル静的バッファ
 const PROPAGATE_QUEUE = new Array(1024);
 function propagateDepth(start) {
     PROPAGATE_QUEUE[0] = start;
@@ -171,26 +178,26 @@ function propagateDepth(start) {
     while (head < tail) {
         const node = PROPAGATE_QUEUE[head++];
         const subs = node.subsDense;
-        const len = subs.length;
-        for (let i = 0; i < len; i++) {
-            const sub = N(subs[i]);
-            if (sub.id === start.id) {
-                throw new Error(`[watervein] A circular reference was detected during depth propagation (node ${sub.id}).`);
-            }
-            if (sub.depth <= node.depth) {
-                sub.depth = node.depth + 1;
-                if (sub.watchedVersion !== visitMarker) {
-                    sub.watchedVersion = visitMarker;
-                    // キューが足りなくなったら倍化リサイズ
-                    if (tail >= PROPAGATE_QUEUE.length) {
-                        PROPAGATE_QUEUE.length *= 2;
+        if (subs !== null) {
+            const len = subs.length;
+            for (let i = 0; i < len; i++) {
+                const sub = N(subs[i]);
+                if (sub.id === start.id) {
+                    throw new Error(`[watervein] A circular reference was detected during depth propagation (node ${sub.id}).`);
+                }
+                if (sub.depth <= node.depth) {
+                    sub.depth = node.depth + 1;
+                    if (sub.watchedVersion !== visitMarker) {
+                        sub.watchedVersion = visitMarker;
+                        if (tail >= PROPAGATE_QUEUE.length) {
+                            PROPAGATE_QUEUE.length *= 2;
+                        }
+                        PROPAGATE_QUEUE[tail++] = sub;
                     }
-                    PROPAGATE_QUEUE[tail++] = sub;
                 }
             }
         }
     }
-    // 静的バッファの参照を解除してメモリリークを防ぐ
     for (let i = 0; i < tail; i++)
         PROPAGATE_QUEUE[i] = undefined;
 }
@@ -229,9 +236,11 @@ function executeCompute(node) {
         if (oldValue !== newValue) {
             node.value = newValue;
             const subs = node.subsDense;
-            const len = subs.length;
-            for (let i = 0; i < len; i++)
-                scheduleNode(N(subs[i]));
+            if (subs !== null) {
+                const len = subs.length;
+                for (let i = 0; i < len; i++)
+                    scheduleNode(N(subs[i]));
+            }
         }
     }
     finally {
@@ -254,21 +263,68 @@ function executeEffect(node) {
             evaluationStack.delete(node.id);
     }
 }
+export function writeRaw(node, value) {
+    if (node.value === value)
+        return;
+    node.value = value;
+    const subs = node.subsDense;
+    if (subs !== null) {
+        const len = subs.length;
+        for (let i = 0; i < len; i++) {
+            const sub = allNodes[subs[i]];
+            if (sub && !sub.dirty) {
+                sub.dirty = true;
+                const d = sub.depth;
+                if (d >= buckets.length) {
+                    while (d >= buckets.length)
+                        buckets.push([]);
+                }
+                sub.bucketIdx = buckets[d].length;
+                buckets[d].push(sub);
+                if (d < minDirtyDepth)
+                    minDirtyDepth = d;
+                if (d > maxDirtyDepth)
+                    maxDirtyDepth = d;
+            }
+        }
+        if (raFID === null && !isBatching) {
+            raFID = nextTick(flush);
+        }
+    }
+}
 export function flush() {
     raFID = null;
-    // ループ内での再アロケーションを防ぐため、深さをローカル変数に退避
     let d = minDirtyDepth;
     while (d <= maxDirtyDepth) {
         const bucket = buckets[d];
         if (bucket && bucket.length > 0) {
             const node = bucket.pop();
+            if (!node || node.id === -1 || node.type === -1 || allNodes[node.id] !== node) {
+                continue;
+            }
             node.bucketIdx = -1;
             node.dirty = false;
-            if (node.type === NODE_TYPE_COMPUTE)
-                executeCompute(node);
-            else if (node.type === NODE_TYPE_EFFECT)
-                executeEffect(node);
-            // 評価中にトポロジカル順序が前に戻った（minDirtyDepth が小さくなった）場合、そこへジャンプ
+            if (import.meta.env.DEV) {
+                try {
+                    if (node.type === NODE_TYPE_COMPUTE)
+                        executeCompute(node);
+                    else if (node.type === NODE_TYPE_EFFECT)
+                        executeEffect(node);
+                }
+                catch (err) {
+                    console.error(`[watervein-error] Exception caught during flush at depth ${d} (Node ID: ${node.id}, Type: ${node.type}).\n` +
+                        `Entity ID: ${node.entityId ?? 'Global'}\n`, err);
+                    minDirtyDepth = Infinity;
+                    maxDirtyDepth = -1;
+                    throw err;
+                }
+            }
+            else {
+                if (node.type === NODE_TYPE_COMPUTE)
+                    executeCompute(node);
+                else if (node.type === NODE_TYPE_EFFECT)
+                    executeEffect(node);
+            }
             if (minDirtyDepth < d) {
                 d = minDirtyDepth;
                 continue;
@@ -373,7 +429,6 @@ export function read(node) {
             return node.value;
         }
         if (idx >= trk.pendingDeps.length) {
-            // `for` ループによる手動コピーを排除し、V8の組込最適化（JSArray::SetLength）に任せる
             trk.pendingDeps.length *= 2;
         }
         trk.pendingDeps[idx] = node.id;
@@ -386,9 +441,11 @@ export function write(node, value) {
         return;
     node.value = value;
     const subs = node.subsDense;
-    const len = subs.length;
-    for (let i = 0; i < len; i++)
-        scheduleNode(N(subs[i]));
+    if (subs !== null) {
+        const len = subs.length;
+        for (let i = 0; i < len; i++)
+            scheduleNode(N(subs[i]));
+    }
 }
 export function untrack(fn) {
     const backup = currentTrackingNode;
@@ -412,8 +469,10 @@ export const DataSystem = {
     schedule: scheduleNode,
     propagateDepth,
     cleanupEdges: (node) => {
-        for (let i = node.depsDense.length - 1; i >= 0; i--) {
-            removeEdge(N(node.depsDense[i]), node);
+        if (node.depsDense !== null) {
+            for (let i = node.depsDense.length - 1; i >= 0; i--) {
+                removeEdge(N(node.depsDense[i]), node);
+            }
         }
     },
 };
@@ -432,14 +491,19 @@ export const DestructionSystem = {
         const len = entityIds.length;
         if (len === 0)
             return;
+        const allCollectedNodes = [];
         for (let e = 0; e < len; e++) {
             const nodes = entityRegistry.get(entityIds[e]);
-            if (!nodes)
-                continue;
-            const nLen = nodes.length;
-            for (let i = 0; i < nLen; i++) {
-                this._cleanupNode(nodes[i]);
+            if (nodes) {
+                for (let i = 0; i < nodes.length; i++) {
+                    allCollectedNodes.push(nodes[i]);
+                }
             }
+        }
+        allCollectedNodes.sort((a, b) => b.depth - a.depth);
+        const totalNodes = allCollectedNodes.length;
+        for (let i = 0; i < totalNodes; i++) {
+            this._cleanupNode(allCollectedNodes[i]);
         }
         for (let e = 0; e < len; e++) {
             entityRegistry.delete(entityIds[e]);
@@ -447,26 +511,64 @@ export const DestructionSystem = {
     },
     _cleanupNode(node) {
         const ss = node.subsDense;
-        for (let j = ss.length - 1; j >= 0; j--) {
-            removeEdge(node, allNodes[ss[j]]);
+        if (ss !== null) {
+            for (let j = ss.length - 1; j >= 0; j--) {
+                const subNode = allNodes[ss[j]];
+                if (subNode && subNode.depsDense !== null) {
+                    const ds = subNode.depsDense;
+                    for (let k = ds.length - 1; k >= 0; k--) {
+                        if (ds[k] === node.id) {
+                            ds[k] = ds[ds.length - 1];
+                            ds.pop();
+                            break;
+                        }
+                    }
+                }
+            }
+            node.subsDense = null;
         }
         const ds = node.depsDense;
-        for (let j = ds.length - 1; j >= 0; j--) {
-            removeEdge(allNodes[ds[j]], node);
+        if (ds !== null) {
+            for (let j = ds.length - 1; j >= 0; j--) {
+                const depNode = allNodes[ds[j]];
+                if (depNode && depNode.subsDense !== null) {
+                    const ss = depNode.subsDense;
+                    for (let k = ss.length - 1; k >= 0; k--) {
+                        if (ss[k] === node.id) {
+                            ss[k] = ss[ss.length - 1];
+                            ss.pop();
+                            break;
+                        }
+                    }
+                }
+            }
+            node.depsDense = null;
         }
-        node.subsDense.length = 0;
-        node.depsDense.length = 0;
-        allNodes[node.id] = undefined;
-        freeNodeIds.push(node.id);
-        if (node.dirty && node.bucketIdx !== -1) {
+        if (node.bucketIdx !== -1) {
             const bucket = buckets[node.depth];
             const idx = node.bucketIdx;
-            const last = bucket[bucket.length - 1];
-            bucket[idx] = last;
-            last.bucketIdx = idx;
-            bucket.pop();
+            if (bucket && idx < bucket.length) {
+                const last = bucket[bucket.length - 1];
+                bucket[idx] = last;
+                if (last) {
+                    last.bucketIdx = idx;
+                }
+                bucket.pop();
+            }
             node.bucketIdx = -1;
         }
+        node.dirty = false;
+        node.compute = null;
+        if (node.run) {
+            node.run = null;
+        }
+        if (node.pendingDeps) {
+            node.pendingDeps.length = 0;
+        }
+        allNodes[node.id] = undefined;
+        freeNodeIds.push(node.id);
+        node.type = -1;
+        node.id = -1;
     }
 };
 export function matchEntity(conditionNode, thenFn, elseFn) {
@@ -594,6 +696,34 @@ export function batch(fn) {
         if (!hasError && minDirtyDepth !== Infinity && maxDirtyDepth !== -1) {
             flush();
         }
+    }
+}
+export const eventRegistry = new Map();
+const activeDelegatedEvents = new Set();
+export function getCurrentEntityId() {
+    return currentEntityId;
+}
+export function handleDelegatedEvent(e) {
+    const registry = eventRegistry.get(e.type);
+    if (!registry)
+        return;
+    let target = e.target;
+    while (target && target !== document.body) {
+        const entityIdStr = target.getAttribute('data-wv-eid');
+        if (entityIdStr) {
+            const handler = registry.get(parseInt(entityIdStr, 10));
+            if (handler) {
+                handler(e);
+                if (e.cancelBubble)
+                    return;
+            }
+        }
+        target = target.parentElement;
+    }
+}
+export function cleanupEntityEvents(entityId) {
+    for (const registry of eventRegistry.values()) {
+        registry.delete(entityId);
     }
 }
 //# sourceMappingURL=index.js.map
