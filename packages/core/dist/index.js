@@ -406,7 +406,7 @@ export function createEffect(fn) {
     node.pendingDepsLen = 0;
     pushTrackingNode(node);
     try {
-        fn();
+        node.value = fn();
     }
     finally {
         popTrackingNode();
@@ -527,6 +527,9 @@ export const DestructionSystem = {
         }
     },
     _cleanupNode(node) {
+        if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {
+            node.value();
+        }
         const ss = node.subsDense;
         if (ss !== null) {
             for (let j = ss.length - 1; j >= 0; j--) {
