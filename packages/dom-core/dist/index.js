@@ -1,4 +1,4 @@
-import { createEffect, read } from '@watervein/core';
+import { createEffect, getCurrentEntityId, read, untrack } from '@watervein/core';
 const WV_NODE_TAG = 0x57564E44;
 function isWvNode(val) {
     return val !== null && typeof val === "object" && val.__wv === WV_NODE_TAG;
@@ -50,6 +50,12 @@ export function element(tag, props, children) {
                 else {
                     el.setAttribute(key, String(value));
                 }
+            }
+        }
+        if ("ref" in props && typeof props.ref === "function") {
+            const cleanup = untrack(() => props.ref(el));
+            if (typeof cleanup === "function" && getCurrentEntityId() !== null) {
+                createEffect(() => cleanup);
             }
         }
     }

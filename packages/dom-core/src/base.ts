@@ -11,6 +11,7 @@ import {
     createState,
     untrack
 } from '@watervein/core';
+import { InternalDOM, wvLeaveKey } from './internal.js';
 
 export function Show(
     condition: WvNode | (() => boolean),
@@ -52,6 +53,8 @@ export function Show(
 
     return wrapper;
 }
+
+export const leaveHooks = new WeakMap<HTMLElement, (resolve: () => void) => void>();
 
 export function For<T>(
     listNode: WvNode<T[]>,
@@ -109,7 +112,12 @@ export function For<T>(
         for (const [key, entry] of entityCache) {
             if (!newCache.has(key)) {
                 toDestroy.push(entry.entityId);
-                entry.dom.remove();
+                const dom = entry.dom as InternalDOM;
+                if (dom[wvLeaveKey]) {
+                    dom[wvLeaveKey](() => dom.remove());
+                } else {
+                    dom.remove();
+                }
             }
         }
         if (toDestroy.length > 0) {

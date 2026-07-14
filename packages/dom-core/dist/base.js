@@ -1,4 +1,5 @@
 import { read, createEffect, createCompute, matchEntity, DestructionSystem, write, createEntity, withEntity, createState, untrack } from '@watervein/core';
+import { wvLeaveKey } from './internal.js';
 export function Show(condition, thenFn, elseFn) {
     const marker = document.createTextNode("");
     const wrapper = document.createElement("span");
@@ -28,6 +29,7 @@ export function Show(condition, thenFn, elseFn) {
         });
     return wrapper;
 }
+export const leaveHooks = new WeakMap();
 export function For(listNode, keyFn, renderFn, tagName = "span") {
     const marker = document.createTextNode("");
     const wrapper = document.createElement(tagName);
@@ -66,7 +68,13 @@ export function For(listNode, keyFn, renderFn, tagName = "span") {
         for (const [key, entry] of entityCache) {
             if (!newCache.has(key)) {
                 toDestroy.push(entry.entityId);
-                entry.dom.remove();
+                const dom = entry.dom;
+                if (dom[wvLeaveKey]) {
+                    dom[wvLeaveKey](() => dom.remove());
+                }
+                else {
+                    dom.remove();
+                }
             }
         }
         if (toDestroy.length > 0) {

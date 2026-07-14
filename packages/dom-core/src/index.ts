@@ -1,4 +1,4 @@
-import { createEffect, read } from '@watervein/core';
+import { createEffect, getCurrentEntityId, read, untrack } from '@watervein/core';
 
 type ReactiveProp<T> = T | WvNode<T> | (() => T);
 type CSSStyleKeys = {
@@ -81,6 +81,13 @@ export function element<K extends keyof HTMLElementTagNameMap>(
                 } else {
                     el.setAttribute(key, String(value));
                 }
+            }
+        }
+
+        if ("ref" in props && typeof props.ref === "function") {
+            const cleanup = untrack(() => props.ref(el));
+            if (typeof cleanup === "function" && getCurrentEntityId() !== null) {
+                createEffect(() => cleanup);
             }
         }
     }
