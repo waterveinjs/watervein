@@ -400,7 +400,7 @@ Planned/under-consideration work includes:
 - [ ] **`@watervein/router`**: A reactive, graph-integrated client-side router that treats route updates as node transitions.
 - [ ] **`@watervein/compiler`**: An optional build-time plugin (Vite / Rollup) to pre-parse static object properties into direct JavaScript assignments, reducing runtime factory-call overhead.
 - [ ] **Server-side rendering / hydration**: Streaming string compilation mapped onto the existing DAG dependency resolution.
-- [ ] **Scope**: Addition of Scope Functionality.
+- [x] **Scope**: Addition of Scope Functionality.
 - [ ] **Extensions**: We'll make it possible to create extensions.
 
 None of the above are implemented yet. This section describes direction, not current capability — please don't rely on any roadmap item until it has a corresponding package and tests.
