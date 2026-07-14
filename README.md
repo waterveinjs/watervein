@@ -395,7 +395,7 @@ Watervein's core (`@watervein/core`) is headless and decoupled from any renderin
 
 Planned/under-consideration work includes:
 
-- [ ] **Error boundaries**: An `errorBoundary` API for `@watervein/dom` that isolates exceptions thrown inside a sub-graph during `flush()`, rendering a fallback UI instead of letting the exception propagate and stall the rest of the flush pass.
+- [x] **Error boundaries**: An `errorBoundary` API for `@watervein/dom` that isolates exceptions thrown inside a sub-graph during `flush()`, rendering a fallback UI instead of letting the exception propagate and stall the rest of the flush pass.
 - [ ] **`@watervein/canvas`**: A 2D/WebGL rendering backend powered by the same NES graph engine.
 - [ ] **`@watervein/router`**: A reactive, graph-integrated client-side router that treats route updates as node transitions.
 - [ ] **`@watervein/compiler`**: An optional build-time plugin (Vite / Rollup) to pre-parse static object properties into direct JavaScript assignments, reducing runtime factory-call overhead.

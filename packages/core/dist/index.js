@@ -26,6 +26,7 @@ let raFID = null;
 export function createEntity() {
     const id = ENTITY_COUNT++;
     entityRegistry.set(id, []);
+    entityParentMap.set(id, currentEntityId);
     return id;
 }
 export function withEntity(entityId, fn) {
@@ -314,6 +315,21 @@ export function flush() {
                 catch (err) {
                     console.error(`[watervein-error] Exception caught during flush at depth ${d} (Node ID: ${node.id}, Type: ${node.type}).\n` +
                         `Entity ID: ${node.entityId ?? 'Global'}\n`, err);
+                    let currentSearchId = node.entityId;
+                    let handler = undefined;
+                    while (currentSearchId !== null) {
+                        if (errorBoundaryRegistry.has(currentSearchId)) {
+                            handler = errorBoundaryRegistry.get(currentSearchId);
+                            break;
+                        }
+                        currentSearchId = entityParentMap.get(currentSearchId) ?? null;
+                    }
+                    if (handler) {
+                        minDirtyDepth = Infinity;
+                        maxDirtyDepth = -1;
+                        handler(err);
+                        return;
+                    }
                     minDirtyDepth = Infinity;
                     maxDirtyDepth = -1;
                     throw err;
@@ -486,6 +502,7 @@ export const DestructionSystem = {
             this._cleanupNode(nodes[i]);
         }
         entityRegistry.delete(entityId);
+        entityParentMap.delete(entityId);
     },
     destroyEntities(entityIds) {
         const len = entityIds.length;
@@ -725,5 +742,13 @@ export function cleanupEntityEvents(entityId) {
     for (const registry of eventRegistry.values()) {
         registry.delete(entityId);
     }
+}
+const entityParentMap = new Map();
+const errorBoundaryRegistry = new Map();
+export function registerErrorBoundary(entityId, handler) {
+    errorBoundaryRegistry.set(entityId, handler);
+}
+export function unregisterErrorBoundary(entityId) {
+    errorBoundaryRegistry.delete(entityId);
 }
 //# sourceMappingURL=index.js.map

@@ -57,6 +57,7 @@ let raFID: number | null = null;
 export function createEntity(): number {
     const id = ENTITY_COUNT++;
     entityRegistry.set(id, []);
+    entityParentMap.set(id, currentEntityId);
     return id;
 }
 
@@ -348,6 +349,24 @@ export function flush() {
                         err
                     );
 
+                    let currentSearchId: number | null = node.entityId;
+                    let handler: ((err: any) => void) | undefined = undefined;
+
+                    while (currentSearchId !== null) {
+                        if (errorBoundaryRegistry.has(currentSearchId)) {
+                            handler = errorBoundaryRegistry.get(currentSearchId);
+                            break;
+                        }
+                        currentSearchId = entityParentMap.get(currentSearchId) ?? null;
+                    }
+
+                    if (handler) {
+                        minDirtyDepth = Infinity;
+                        maxDirtyDepth = -1;
+                        handler(err); 
+                        return;
+                    }
+
                     minDirtyDepth = Infinity;
                     maxDirtyDepth = -1;
                     throw err; 
@@ -523,6 +542,7 @@ export const DestructionSystem = {
             this._cleanupNode(nodes[i]);
         }
         entityRegistry.delete(entityId);
+        entityParentMap.delete(entityId);
     },
 
     destroyEntities(entityIds: number[]) {
@@ -799,4 +819,15 @@ export function cleanupEntityEvents(entityId: number) {
     for (const registry of eventRegistry.values()) {
         registry.delete(entityId);
     }
+}
+
+const entityParentMap = new Map<number, number | null>();
+const errorBoundaryRegistry = new Map<number, (err: any) => void>();
+
+export function registerErrorBoundary(entityId: number, handler: (err: any) => void) {
+    errorBoundaryRegistry.set(entityId, handler);
+}
+
+export function unregisterErrorBoundary(entityId: number) {
+    errorBoundaryRegistry.delete(entityId);
 }

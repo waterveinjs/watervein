@@ -23,6 +23,8 @@ export function For<T>(
     return for0(listNode, keyFn, renderFn, tagName);
 }
 
-export { mount, mountToBody } from '@watervein/dom-core';
+export { mount, mountToBody, mountToHead, mountToRoot } from '@watervein/dom-core';
 export * from './elements.js';
 export * from './base.js';
+export { errorBoundary } from './errorBoundary.js';
+export { scope } from './scope.js';

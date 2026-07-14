@@ -58,5 +58,7 @@ export declare const eventRegistry: Map<string, Map<number, EventListener>>;
 export declare function getCurrentEntityId(): number | null;
 export declare function handleDelegatedEvent(e: Event): void;
 export declare function cleanupEntityEvents(entityId: number): void;
+export declare function registerErrorBoundary(entityId: number, handler: (err: any) => void): void;
+export declare function unregisterErrorBoundary(entityId: number): void;
 export {};
 //# sourceMappingURL=index.d.ts.map
