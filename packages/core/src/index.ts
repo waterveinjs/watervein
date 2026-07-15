@@ -538,8 +538,13 @@ export const DestructionSystem = {
         if (!nodes || nodes.length === 0) return;
 
         const nLen = nodes.length;
+        const destroying = new Set<number>();
         for (let i = 0; i < nLen; i++) {
-            this._cleanupNode(nodes[i]);
+            destroying.add(nodes[i].id);
+        }
+
+        for (let i = 0; i < nLen; i++) {
+            this._cleanupNode(nodes[i], destroying);
         }
         entityRegistry.delete(entityId);
         entityParentMap.delete(entityId);
@@ -550,20 +555,39 @@ export const DestructionSystem = {
         if (len === 0) return;
 
         const allCollectedNodes: Node[] = [];
+        const destroying = new Set<number>();
+        let maxDepth = 0;
+
         for (let e = 0; e < len; e++) {
             const nodes = entityRegistry.get(entityIds[e]);
             if (nodes) {
-                for (let i = 0; i < nodes.length; i++) {
-                    allCollectedNodes.push(nodes[i]);
+                const nLen = nodes.length;
+                for (let i = 0; i < nLen; i++) {
+                    const node = nodes[i];
+                    destroying.add(node.id);
+                    allCollectedNodes.push(node);
+                    if (node.depth > maxDepth) {
+                        maxDepth = node.depth;
+                    }
                 }
             }
         }
 
-        allCollectedNodes.sort((a, b) => b.depth - a.depth);
-
         const totalNodes = allCollectedNodes.length;
+        if (totalNodes === 0) return;
+
+        const depthBuckets: Node[][] = Array.from({ length: maxDepth + 1 }, () => []);
         for (let i = 0; i < totalNodes; i++) {
-            this._cleanupNode(allCollectedNodes[i]);
+            const node = allCollectedNodes[i];
+            depthBuckets[node.depth].push(node);
+        }
+
+        for (let d = maxDepth; d >= 0; d--) {
+            const bucketNodes = depthBuckets[d];
+            const bLen = bucketNodes.length;
+            for (let i = 0; i < bLen; i++) {
+                this._cleanupNode(bucketNodes[i], destroying);
+            }
         }
 
         for (let e = 0; e < len; e++) {
@@ -571,21 +595,28 @@ export const DestructionSystem = {
         }
     },
 
-    _cleanupNode(node: Node) {
+    _cleanupNode(node: Node, destroying: Set<number> | null = null) {
         if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {
             (node.value as () => void)();
         }
+
         const ss = node.subsDense;
         if (ss !== null) {
             for (let j = ss.length - 1; j >= 0; j--) {
                 const subNode = allNodes[ss[j]];
-                if (subNode && subNode.depsDense !== null) {
-                    const ds = subNode.depsDense;
-                    for (let k = ds.length - 1; k >= 0; k--) {
-                        if (ds[k] === node.id) {
-                            ds[k] = ds[ds.length - 1];
-                            ds.pop();
-                            break;
+                if (subNode) {
+                    if (destroying && destroying.has(subNode.id)) {
+                        continue;
+                    }
+
+                    if (subNode.depsDense !== null) {
+                        const ds = subNode.depsDense;
+                        for (let k = ds.length - 1; k >= 0; k--) {
+                            if (ds[k] === node.id) {
+                                ds[k] = ds[ds.length - 1];
+                                ds.pop();
+                                break;
+                            }
                         }
                     }
                 }
@@ -597,13 +628,19 @@ export const DestructionSystem = {
         if (ds !== null) {
             for (let j = ds.length - 1; j >= 0; j--) {
                 const depNode = allNodes[ds[j]];
-                if (depNode && depNode.subsDense !== null) {
-                    const ss = depNode.subsDense;
-                    for (let k = ss.length - 1; k >= 0; k--) {
-                        if (ss[k] === node.id) {
-                            ss[k] = ss[ss.length - 1];
-                            ss.pop();
-                            break;
+                if (depNode) {
+                    if (destroying && destroying.has(depNode.id)) {
+                        continue;
+                    }
+
+                    if (depNode.subsDense !== null) {
+                        const ss = depNode.subsDense;
+                        for (let k = ss.length - 1; k >= 0; k--) {
+                            if (ss[k] === node.id) {
+                                ss[k] = ss[ss.length - 1];
+                                ss.pop();
+                                break;
+                            }
                         }
                     }
                 }
@@ -613,7 +650,7 @@ export const DestructionSystem = {
 
         if (node.bucketIdx !== -1) {
             const bucket = buckets[node.depth];
-            const idx    = node.bucketIdx;
+            const idx = node.bucketIdx;
             if (bucket && idx < bucket.length) {
                 const last = bucket[bucket.length - 1];
                 bucket[idx] = last;
@@ -626,11 +663,11 @@ export const DestructionSystem = {
         }
 
         node.dirty = false;
-        node.compute = null; 
+        node.compute = null;
         if ((node as any).run) {
             (node as any).run = null;
         }
-        
+
         if (node.pendingDeps) {
             node.pendingDeps.length = 0;
         }
@@ -638,7 +675,7 @@ export const DestructionSystem = {
         allNodes[node.id] = undefined;
         freeNodeIds.push(node.id);
 
-        node.type = -1; 
+        node.type = -1;
         node.id = -1;
     }
 };

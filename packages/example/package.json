@@ -2,10 +2,6 @@
   "name": "@watervein/example",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build"
-  },
   "dependencies": {
     "@watervein/core": "workspace:*",
     "@watervein/dom-core": "workspace:*",

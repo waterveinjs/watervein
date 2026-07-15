@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -18,8 +19,9 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch"
+    "build": "pnpm build:js && pnpm build:types",
+    "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/*",
+    "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check"
   },
   "dependencies": {
     "@watervein/core": "workspace:*"
