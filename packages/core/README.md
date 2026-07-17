@@ -75,14 +75,27 @@ Conditional structural rendering. Creates and discards internal reactive entity 
 
 ## Advanced Architecture (Design Goals)
 
-```
-[ State Node ] ──(read)──> [ Compute Node ] ──> [ Effect Node ]
-      │                            │                   │
-      └─────────[ Static Depth-based Buckets ]─────────┘
-                                   │
-                   (requestAnimationFrame / Manual)
-                                   ▼
-                       UISystem.flush()
+```mermaid
+graph TD
+    State["[ State Node ]"]
+    Compute["[ Compute Node ]"]
+    Effect["[ Effect Node ]"]
+
+    State -- read --> Compute
+    Compute --> Effect
+
+    Bucket["[ Static Depth-based Buckets ]"]
+
+    State --- Bucket
+    Compute --- Bucket
+    Effect --- Bucket
+
+    Flush["UISystem.flush()"]
+
+    Bucket -- "requestAnimationFrame / Manual" --> Flush
+
+    style Bucket fill:#edf2f7,stroke:#4a5568,stroke-width:1px
+    style Flush fill:#d4edda,stroke:#155724,stroke-width:1px
 ```
 
 1. **Memory Compact Nodes**: Nodes use continuous flat array tracking (`subsDense` and `depsDense`) instead of nested `Set`/`Map` structures, reducing garbage-collection pressure during large-scale updates.

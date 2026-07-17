@@ -44,8 +44,21 @@ window.runWaterveinScaleBenchmark();
 
 ## Multi-Scale Evaluation Levels
 `runWaterveinScaleBenchmark()` iteratively sweeps across four distinct node load densities, ensuring framework reactivity scales linearly:
-```
-[SMALL] (n=100)  ────>  [MIDDLE] (n=1,000)  ────>  [LARGE] (n=10,000)  ────>  [HUGE] (n=100,000)
+```mermaid
+graph LR
+    Small["[SMALL]<br>(n=100)"]
+    Middle["[MIDDLE]<br>(n=1,000)"]
+    Large["[LARGE]<br>(n=10,000)"]
+    Huge["[HUGE]<br>(n=100,000)"]
+
+    Small --> Middle
+    Middle --> Large
+    Large --> Huge
+
+    style Small fill:#f1f3f5,stroke:#ced4da,stroke-width:1px
+    style Middle fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px
+    style Large fill:#cfe2ff,stroke:#0d6efd,stroke-width:2px
+    style Huge fill:#0a58ca,stroke:#0a58ca,stroke-width:3px,color:#fff
 ```
 
 - `SMALL` & `MIDDLE`: Standard application view scopes. Focuses on base reaction overhead.
@@ -54,13 +67,27 @@ window.runWaterveinScaleBenchmark();
 
 ## Architectural Deep-Dive: Overhead Profiling
 The framework isolates user-space abstractions by directly racing `el0` (low-level node builders) against `el1` (high-level DSL tag factories):
-```
-Method A (el0): el0("div", { class: { "box": true } }, [ () => ... ])
-Method B (el1): el1("div", { class: { "box": true } }, [ () => ... ])
+```mermaid
+graph TD
+    subgraph Methods [Benchmark Methods]
+        direction TB
+        MethodA["<strong>Method A (el0)</strong><br><code>el0(\"div\", { class: { \"box\": true } }, [ () => ... ])</code>"]
+        MethodB["<strong>Method B (el1)</strong><br><code>el1(\"div\", { class: { \"box\": true } }, [ () => ... ])</code>"]
+    end
 
-Resulting Delta Execution Time
-  ↳ ΔTime = (Time_el1 - Time_el0) / Total_Elements
-  ↳ Discovers the pure cost of 'isNode' checking and dynamic class property parsing.
+    subgraph Analysis [Resulting Delta Execution Time]
+        direction TB
+        Formula["$$ \Delta\text{Time} = \frac{\text{Time}_{\text{el1}} - \text{Time}_{\text{el0}}}{\text{Total Elements}} $$"]
+        Discovery["<strong>Discovers:</strong><br>The pure cost of 'isNode' checking and<br>dynamic class property parsing."]
+    end
+
+    Methods --> Analysis
+    Formula --> Discovery
+
+    style MethodA fill:#f8f9fa,stroke:#dee2e6,stroke-width:1px
+    style MethodB fill:#f8f9fa,stroke:#dee2e6,stroke-width:1px
+    style Formula fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px
+    style Discovery fill:#fff3cd,stroke:#ffc107,stroke-width:1px
 ```
 
 By profiling the framework this way, we ensure that the convenience of object-literal assignments and clean functional syntax never comes at the cost of high runtime rendering overhead.

@@ -84,27 +84,34 @@ mountToBody(modalContainer);
 
 `For` performs generation, destruction, and reordering in a single backward pass over the list, so a newly-inserted item is placed at the correct DOM position within the same reactive flush that created it — there's no separate "reorder" pass that could run before the "create" pass has registered the new entity.
 
-```
-[ For's createEffect runs ] ──> Diff current keys against previous keys
-                                        │
-                                        ▼
-                        Destroy entities/DOM for removed keys
-                        (via DestructionSystem.destroyEntities)
-                                        │
-                                        ▼
-              Walk the list backwards (len - 1 .. 0)
-                                        │
-              ┌─────────────────────────┴─────────────────────────┐
-              ▼                                                     ▼
-     Key already cached?                                   Key not cached?
-     write() updated item/index                            createEntity + renderFn,
-     into existing nodes                                    cache the resulting DOM
-              │                                                     │
-              └─────────────────────┬───────────────────────────────┘
-                                     ▼
-                    Is el.nextSibling !== anchor?
-                    ├── YES → wrapper.insertBefore(el, anchor)
-                    └── NO  → skip (already in the correct position)
+```mermaid
+graph TD
+    Start["[ For's createEffect runs ]"]
+    Diff["Diff current keys against previous keys"]
+    Destroy["Destroy entities/DOM for removed keys<br>(via DestructionSystem.destroyEntities)"]
+    Walk["Walk the list backwards (len - 1 .. 0)"]
+
+    Start --> Diff
+    Diff --> Destroy
+    Destroy --> Walk
+
+    Walk --> ChoiceCached{"Key already cached?"}
+    
+    ChoiceCached -- Yes --> UpdateExisting["write() updated item/index<br>into existing nodes"]
+    ChoiceCached -- No --> CreateNew["createEntity + renderFn,<br>cache the resulting DOM"]
+
+    UpdateExisting --> CheckAnchor
+    CreateNew --> CheckAnchor
+
+    CheckAnchor{"Is el.nextSibling !== anchor?"}
+    
+    CheckAnchor -- YES --> Insert["wrapper.insertBefore(el, anchor)"]
+    CheckAnchor -- NO --> Skip["skip (already in the correct position)"]
+
+    style ChoiceCached fill:#fff3cd,stroke:#ffc107,stroke-width:1px
+    style CheckAnchor fill:#fff3cd,stroke:#ffc107,stroke-width:1px
+    style Skip fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
+    style Insert fill:#d4edda,stroke:#155724,stroke-width:1px
 ```
 
 1. **Backwards DOM Drift Avoidance**: Walking the list from the end avoids the classic issue where shifting one element forces a layout recalculation cascade across its siblings, since each `anchor` is already resolved by the time its predecessor is placed.

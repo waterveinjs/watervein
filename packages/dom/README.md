@@ -70,14 +70,27 @@ Every method perfectly enforces argument packing options (`[props?, children?]`)
 - `a()`, `button()`, `canvas()`, `div()`, `form()`, `input()`, `label()`, `ol()`, `p()`, `section()`, `span()`, `table()`, `tbody()`, `td()`, `tr()`, `ul()`, and 90+ more.
 
 ## Architectural Workflow (How the DSL structures layers)
-```
-[ Developer Input ] ──> div({ class: { active: node } }, [...])
-                                  │
-                                  ▼ (Normalizes and Guards Classes)
-[ @watervein/dom ] ───> element("div", parsedProps, children)
-                                  │
-                                  ▼ (Binds Dynamic Graphs & Effects)
-[ @watervein/dom-core ] ──> Direct Native DOM Mutations
+```mermaid
+graph TD
+    Input["div({ class: { active: node } }, [...])"]
+
+    DOM["<strong>@watervein/dom</strong>"]
+    DOMCore["<strong>@watervein/dom-core</strong>"]
+
+    ElementCall["element(\"div\", parsedProps, children)"]
+    Mutation["Direct Native DOM Mutations"]
+
+    Input -- "Normalizes and Guards Classes" --> ElementCall
+    ElementCall -- "Binds Dynamic Graphs & Effects" --> Mutation
+
+    DOM -.-> ElementCall
+    DOMCore -.-> Mutation
+
+    DOM ~~~ DOMCore
+
+    style DOM fill:#edf2f7,stroke:#4a5568,stroke-width:1px
+    style DOMCore fill:#edf2f7,stroke:#4a5568,stroke-width:1px
+    style Mutation fill:#d4edda,stroke:#155724,stroke-width:1px
 ```
 
 By adding a dedicated DSL layer, Watervein protects runtime performance while offering clean developer aesthetics. It checks for reactive boundary nodes (via `isNode`) upfront, avoiding parsing loops when `dom-core` begins binding side-effects to the real tree.

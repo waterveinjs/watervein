@@ -188,17 +188,45 @@ document.getElementById("run")!.addEventListener("click", () => {
 
 ## Architecture
 
-```
-[ Traditional Component Tree ]         [ Watervein Flattened DAG ]
-         <App />                                ┌──────────┐
-          /   \                                 │  StateA  │────┐
-     <Sidebar> <Main>                           └──────────┘    │
-       /         \                                    │         ▼
-   <Menu>      <Card>      ───(Flatten)───>     ┌─────▼────┐ ┌──▼──────┐
-     │           │                              │ ComputeX │ │ EffectY │
-  [State]     [Update]                          └──────────┘ └─────────┘
-     │           │                                    │           │
- (Re-render entire tree)                        (Pinpoint mutation via NES)
+```mermaid
+graph LR
+    subgraph Traditional [Traditional Component Tree]
+        direction TB
+        App["&lt;App /&gt;"]
+        Sidebar["&lt;Sidebar&gt;"]
+        Main["&lt;Main&gt;"]
+        Menu["&lt;Menu&gt;"]
+        Card["&lt;Card&gt;"]
+        State["[State]"]
+        Update["[Update]"]
+        Rerender(["Re-render entire tree"])
+
+        App --> Sidebar
+        App --> Main
+        Sidebar --> Menu
+        Main --> Card
+        Menu --> State
+        Card --> Update
+        State --> Rerender
+    end
+
+    subgraph Watervein [Watervein Flattened DAG]
+        direction TB
+        StateA["StateA"]
+        ComputeX["ComputeX"]
+        EffectY["EffectY"]
+        Mutation(["Pinpoint mutation via NES"])
+
+        StateA --> ComputeX
+        StateA --> EffectY
+        ComputeX --> Mutation
+        EffectY --> Mutation
+    end
+
+    Traditional -- Flatten --> Watervein
+
+    style Rerender fill:#f9f,stroke:#333,stroke-width:2px
+    style Mutation fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
 Traditional frameworks model your application as a **Tree of Components**, requiring virtual DOM diffing or template analysis to isolate mutations.
@@ -211,19 +239,45 @@ At the engine level (`@watervein/core`), state (`createState`), derivations (`cr
 * **Entity Isolation**: States and computations can be bound to flat entity IDs (`createEntity`). There are no lexical component scopes.
 * **Downstream-Only Propagation**: When a state changes via `write()`, the engine walks the graph edges downstream and marks dependent nodes as dirty. Only terminal nodes directly bound to a text block, property, or conditional block are scheduled for patching.
 
-```
-[State Node] ──(edge)──> [Compute Node] ──(edge)──> [DOM Effect Node]
-│                                                     │
-(write triggers)                                     (direct patch)
-▼                                                     ▼
-[Dirty Queue]                                       Native Element
+```mermaid
+graph LR
+    State["[State Node]"]
+    Compute["[Compute Node]"]
+    DOM["[DOM Effect Node]"]
+    
+    State -- edge --> Compute
+    Compute -- edge --> DOM
+
+    Queue["[Dirty Queue]"]
+    Native["Native Element"]
+
+    State -- write triggers --> Queue
+    DOM -- direct patch --> Native
+
+    Queue ~~~ Native
+
+    style Queue fill:#fff3cd,stroke:#ffc107,stroke-width:1px
+    style Native fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
 ```
 
 ### 2. Flushing Pipeline
 Watervein decouples state changes from the browser's paint cycle. Multiple `write()` calls can be grouped inside `batch()`, which defers scheduling until the batch completes.
 
-```
-[ Multiple Writes ] ──> [ NES Graph Recalculation ] ──> [ UISystem.flush() ] ──> [ Synchronous DOM Commit ]
+```mermaid
+graph LR
+    Writes["[ Multiple Writes ]"]
+    Recalc["[ NES Graph Recalculation ]"]
+    Flush["[ UISystem.flush() ]"]
+    Commit["[ Synchronous DOM Commit ]"]
+
+    Writes --> Recalc
+    Recalc --> Flush
+    Flush --> Commit
+
+    style Writes fill:#f8d7da,stroke:#dc3545,stroke-width:1px
+    style Recalc fill:#cce5ff,stroke:#004085,stroke-width:1px
+    style Flush fill:#e2e3e5,stroke:#383d41,stroke-width:1px
+    style Commit fill:#d4edda,stroke:#155724,stroke-width:1px
 ```
 
 `UISystem.flush()` performs a synchronous topological sweep across dirtied nodes, ordered by graph depth.
@@ -233,26 +287,20 @@ Watervein decouples state changes from the browser's paint cycle. Multiple `writ
 ### 3. Layered DOM Decoupling
 To keep the core engine free of DOM assumptions while still offering an ergonomic authoring experience, the repository splits the rendering pipeline into three packages:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  @watervein/dom (High-Level Developer DSL)                  │
-│  - Ergonomic tag factories and prop shorthands               │
-│  - Reactive class/style prop parsing                         │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ (Lowering Properties)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│  @watervein/dom-core (Reactive Mutation Infrastructure)     │
-│  - `display: contents` wrapper elements for `For` / `Show`  │
-│  - Backwards-sweep DOM reconciliation for reordering         │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ (Direct Invocations)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│  @watervein/core (Pure Reactive Engine)                     │
-│  - Headless dependency-graph tracking                       │
-│  - Entity allocation and bulk destruction                   │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    DSL["<strong>@watervein/dom</strong> (High-Level Developer DSL)<br>• Ergonomic tag factories and prop shorthands<br>• Reactive class/style prop parsing"]
+    
+    Core["<strong>@watervein/dom-core</strong> (Reactive Mutation Infrastructure)<br>• `display: contents` wrapper elements for `For` / `Show`<br>• Backwards-sweep DOM reconciliation for reordering"]
+    
+    Engine["<strong>@watervein/core</strong> (Pure Reactive Engine)<br>• Headless dependency-graph tracking<br>• Entity allocation and bulk destruction"]
+
+    DSL -- "Lowering Properties" --> Core
+    Core -- "Direct Invocations" --> Engine
+
+    style DSL fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px
+    style Core fill:#edf2f7,stroke:#4a5568,stroke-width:1px
+    style Engine fill:#f7fafc,stroke:#718096,stroke-width:1px
 ```
 
 * **`@watervein/dom`**: Provides declarative prop shorthands (e.g. `{ class: { active: someNode } }`) on top of standard tag functions.
