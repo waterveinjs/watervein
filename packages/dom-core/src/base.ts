@@ -28,26 +28,34 @@ export function Show(
 
     let currentDOM: HTMLElement | null = null;
 
+    const cleanupCurrentDOM = () => {
+        if (currentDOM) {
+            const dom = currentDOM as InternalDOM;
+            if (dom[wvLeaveKey]) {
+                const target = dom;
+                dom[wvLeaveKey](() => target.remove());
+            } else {
+                dom.remove();
+            }
+            currentDOM = null;
+        }
+    };
+
     matchEntity(
         conditionNode,
         () => {
-            const prev = marker.previousElementSibling;
-            if (prev) prev.remove();
+            cleanupCurrentDOM();
             currentDOM = thenFn();
             marker.before(currentDOM);
         },
         elseFn
             ? () => {
-                  const prev = marker.previousElementSibling;
-                  if (prev) prev.remove();
+                  cleanupCurrentDOM();
                   currentDOM = elseFn();
                   marker.before(currentDOM);
               }
             : () => {
-                  if (currentDOM) {
-                      currentDOM.remove();
-                      currentDOM = null;
-                  }
+                  cleanupCurrentDOM();
               }
     );
 
@@ -119,7 +127,6 @@ export function For<T>(
 
     let oldKeys: any[] = [];
     let entityCache = new Map<any, Entry<T>>();
-    const toDestroy: number[] = [];
 
     createEffect(() => {
         const list = read(listNode);
@@ -154,20 +161,24 @@ export function For<T>(
             }
         }
 
-        toDestroy.length = 0;
+        const toDestroyImmediate: number[] = [];
         for (const [key, entry] of entityCache) {
             if (!newCache.has(key)) {
-                toDestroy.push(entry.entityId);
                 const dom = entry.dom as InternalDOM;
                 if (dom[wvLeaveKey]) {
-                    dom[wvLeaveKey](() => dom.remove());
+                    const entId = entry.entityId;
+                    dom[wvLeaveKey](() => {
+                        dom.remove();
+                        DestructionSystem.destroyEntities([entId]);
+                    });
                 } else {
                     dom.remove();
+                    toDestroyImmediate.push(entry.entityId);
                 }
             }
         }
-        if (toDestroy.length > 0) {
-            DestructionSystem.destroyEntities(toDestroy);
+        if (toDestroyImmediate.length > 0) {
+            DestructionSystem.destroyEntities(toDestroyImmediate);
         }
 
         let start = 0;

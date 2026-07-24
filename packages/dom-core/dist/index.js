@@ -26,24 +26,31 @@ function Show(condition, thenFn, elseFn) {
   wrapper.appendChild(marker);
   const conditionNode = typeof condition === "function" ? createCompute(condition) : condition;
   let currentDOM = null;
+  const cleanupCurrentDOM = () => {
+    if (currentDOM) {
+      const dom = currentDOM;
+      if (dom[wvLeaveKey]) {
+        const target = dom;
+        dom[wvLeaveKey](() => target.remove());
+      } else {
+        dom.remove();
+      }
+      currentDOM = null;
+    }
+  };
   matchEntity(
     conditionNode,
     () => {
-      const prev = marker.previousElementSibling;
-      if (prev) prev.remove();
+      cleanupCurrentDOM();
       currentDOM = thenFn();
       marker.before(currentDOM);
     },
     elseFn ? () => {
-      const prev = marker.previousElementSibling;
-      if (prev) prev.remove();
+      cleanupCurrentDOM();
       currentDOM = elseFn();
       marker.before(currentDOM);
     } : () => {
-      if (currentDOM) {
-        currentDOM.remove();
-        currentDOM = null;
-      }
+      cleanupCurrentDOM();
     }
   );
   return wrapper;
@@ -97,7 +104,6 @@ function For(listNode, keyFn, renderFn, tagName = "span") {
   wrapper.appendChild(marker);
   let oldKeys = [];
   let entityCache = /* @__PURE__ */ new Map();
-  const toDestroy = [];
   createEffect(() => {
     const list = read(listNode);
     const newLen = list.length;
@@ -125,20 +131,24 @@ function For(listNode, keyFn, renderFn, tagName = "span") {
         newCache.set(key, { entityId, dom, itemNode });
       }
     }
-    toDestroy.length = 0;
+    const toDestroyImmediate = [];
     for (const [key, entry] of entityCache) {
       if (!newCache.has(key)) {
-        toDestroy.push(entry.entityId);
         const dom = entry.dom;
         if (dom[wvLeaveKey]) {
-          dom[wvLeaveKey](() => dom.remove());
+          const entId = entry.entityId;
+          dom[wvLeaveKey](() => {
+            dom.remove();
+            DestructionSystem.destroyEntities([entId]);
+          });
         } else {
           dom.remove();
+          toDestroyImmediate.push(entry.entityId);
         }
       }
     }
-    if (toDestroy.length > 0) {
-      DestructionSystem.destroyEntities(toDestroy);
+    if (toDestroyImmediate.length > 0) {
+      DestructionSystem.destroyEntities(toDestroyImmediate);
     }
     let start = 0;
     let oldEnd = oldLen - 1;
