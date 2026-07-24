@@ -641,43 +641,70 @@ function matchEntity(conditionNode, thenFn, elseFn) {
 }
 var MAP_ENTITY_TO_DESTROY = [];
 var MAP_ENTITY_SET = /* @__PURE__ */ new Set();
+var MAP_TEMP_CACHES = /* @__PURE__ */ new Map();
+var MAP_KEYS_CACHE = [];
 function mapEntity(listNode, keyFn, renderFn) {
   const entityCache = /* @__PURE__ */ new Map();
   let prevList = [];
   createEffect(() => {
     const list = read(listNode);
     const len = list.length;
-    if (prevList.length === len && len > 0) {
-      let diffIdx1 = -1;
-      let diffIdx2 = -1;
-      let isPureSwap = true;
-      for (let i = 0; i < len; i++) {
-        if (prevList[i] !== list[i]) {
-          if (diffIdx1 === -1) diffIdx1 = i;
-          else if (diffIdx2 === -1) diffIdx2 = i;
-          else {
-            isPureSwap = false;
-            break;
-          }
+    const prevLen = prevList.length;
+    let startDiff = -1;
+    let endDiff = -1;
+    const minLen = Math.min(len, prevLen);
+    for (let i = 0; i < minLen; i++) {
+      if (prevList[i] !== list[i]) {
+        if (startDiff === -1) startDiff = i;
+        endDiff = i;
+      }
+    }
+    if (len !== prevLen) {
+      if (startDiff === -1) startDiff = minLen;
+      endDiff = Math.max(len, prevLen) - 1;
+    }
+    if (startDiff !== -1 && len === prevLen) {
+      let isPureMove = true;
+      const diffCount = endDiff - startDiff + 1;
+      MAP_KEYS_CACHE.length = 0;
+      MAP_ENTITY_SET.clear();
+      for (let i = startDiff; i <= endDiff; i++) {
+        const key = keyFn(list[i]);
+        MAP_KEYS_CACHE.push(key);
+        MAP_ENTITY_SET.add(key);
+      }
+      for (let i = startDiff; i <= endDiff; i++) {
+        const prevItem = prevList[i];
+        if (prevItem === void 0 || !MAP_ENTITY_SET.has(keyFn(prevItem))) {
+          isPureMove = false;
+          break;
         }
       }
-      if (isPureSwap && diffIdx1 !== -1 && diffIdx2 !== -1) {
-        const prevKey1 = keyFn(prevList[diffIdx1]);
-        const prevKey2 = keyFn(prevList[diffIdx2]);
-        const cache1 = entityCache.get(prevKey1);
-        const cache2 = entityCache.get(prevKey2);
-        if (cache1 && cache2) {
-          write(cache1.indexNode, diffIdx1);
-          write(cache2.indexNode, diffIdx2);
-          const newKey1 = keyFn(list[diffIdx1]);
-          const newKey2 = keyFn(list[diffIdx2]);
-          entityCache.delete(prevKey1);
-          entityCache.delete(prevKey2);
-          entityCache.set(newKey1, cache1);
-          entityCache.set(newKey2, cache2);
-          prevList = list.slice();
-          return;
+      if (isPureMove) {
+        MAP_TEMP_CACHES.clear();
+        try {
+          for (let i = startDiff; i <= endDiff; i++) {
+            const prevKey = keyFn(prevList[i]);
+            MAP_TEMP_CACHES.set(prevKey, entityCache.get(prevKey));
+            entityCache.delete(prevKey);
+          }
+          for (let i = startDiff; i <= endDiff; i++) {
+            const cacheIndex = i - startDiff;
+            const newKey = MAP_KEYS_CACHE[cacheIndex];
+            const cache = MAP_TEMP_CACHES.get(newKey);
+            if (cache) {
+              if (cache.indexNode.value !== i) {
+                write(cache.indexNode, i);
+              }
+              entityCache.set(newKey, cache);
+            }
+          }
+        } finally {
+          MAP_TEMP_CACHES.clear();
+          MAP_KEYS_CACHE.length = 0;
         }
+        prevList = list.slice();
+        return;
       }
     }
     MAP_ENTITY_SET.clear();
