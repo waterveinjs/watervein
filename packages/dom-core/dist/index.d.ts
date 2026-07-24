@@ -40,6 +40,8 @@ export declare const mountToHead: (rootElement: HTMLElement) => HTMLElement;
  * @param rootElement Elements to be mounted
  */
 export declare const mountToRoot: (rootElement: HTMLElement) => HTMLElement;
+export declare const registerEntityElement: (element: HTMLElement, entityId: number) => void;
+export declare const unmount: (target: HTMLElement | number) => void;
 export type ReactiveProp<T> = T | Node$1<T> | (() => T);
 export type CSSStyleKeys = {
 	[K in keyof CSSStyleDeclaration]: CSSStyleDeclaration[K] extends Function ? never : K;

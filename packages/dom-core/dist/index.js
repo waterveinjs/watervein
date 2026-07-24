@@ -48,6 +48,46 @@ function Show(condition, thenFn, elseFn) {
   );
   return wrapper;
 }
+function getLIS(arr) {
+  const p = arr.slice();
+  const result = [0];
+  let i, j, u, v, c;
+  const len = arr.length;
+  for (i = 0; i < len; i++) {
+    const arrI = arr[i];
+    if (arrI !== -1) {
+      j = result[result.length - 1];
+      if (arr[j] < arrI) {
+        p[i] = j;
+        result.push(i);
+        continue;
+      }
+      u = 0;
+      v = result.length - 1;
+      while (u < v) {
+        c = u + v >> 1;
+        if (arr[result[c]] < arrI) {
+          u = c + 1;
+        } else {
+          v = c;
+        }
+      }
+      if (arrI < arr[result[u]]) {
+        if (u > 0) {
+          p[i] = result[u - 1];
+        }
+        result[u] = i;
+      }
+    }
+  }
+  u = result.length;
+  v = result[u - 1];
+  while (u-- > 0) {
+    result[u] = v;
+    v = p[v];
+  }
+  return result;
+}
 function For(listNode, keyFn, renderFn, tagName = "span") {
   const marker = document.createTextNode("");
   const wrapper = document.createElement(tagName);
@@ -55,15 +95,19 @@ function For(listNode, keyFn, renderFn, tagName = "span") {
     wrapper.style.display = "contents";
   }
   wrapper.appendChild(marker);
+  let oldKeys = [];
   let entityCache = /* @__PURE__ */ new Map();
   const toDestroy = [];
   createEffect(() => {
     const list = read(listNode);
-    const len = list.length;
+    const newLen = list.length;
+    const oldLen = oldKeys.length;
     const newCache = /* @__PURE__ */ new Map();
-    for (let i = 0; i < len; i++) {
+    const newKeys = new Array(newLen);
+    for (let i = 0; i < newLen; i++) {
       const item = list[i];
       const key = keyFn(item);
+      newKeys[i] = key;
       const cached = entityCache.get(key);
       if (cached) {
         untrack(() => {
@@ -96,17 +140,49 @@ function For(listNode, keyFn, renderFn, tagName = "span") {
     if (toDestroy.length > 0) {
       DestructionSystem.destroyEntities(toDestroy);
     }
-    let anchor = marker;
-    for (let i = len - 1; i >= 0; i--) {
-      const key = keyFn(list[i]);
-      const entry = newCache.get(key);
-      if (!entry) continue;
-      if (entry.dom.nextSibling !== anchor) {
-        wrapper.insertBefore(entry.dom, anchor);
+    let start = 0;
+    let oldEnd = oldLen - 1;
+    let newEnd = newLen - 1;
+    while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
+      start++;
+    }
+    while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[newEnd]) {
+      oldEnd--;
+      newEnd--;
+    }
+    const count = newEnd - start + 1;
+    if (count > 0) {
+      const source = new Array(count).fill(-1);
+      const keyIndexMap = /* @__PURE__ */ new Map();
+      for (let i = start; i <= newEnd; i++) {
+        keyIndexMap.set(newKeys[i], i);
       }
-      anchor = entry.dom;
+      for (let i = start; i <= oldEnd; i++) {
+        const oldKey = oldKeys[i];
+        if (keyIndexMap.has(oldKey)) {
+          const newIdx = keyIndexMap.get(oldKey);
+          source[newIdx - start] = i;
+        }
+      }
+      const lis = getLIS(source);
+      let lisIdx = lis.length - 1;
+      let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
+      for (let i = count - 1; i >= 0; i--) {
+        const currentIndex = start + i;
+        const key = newKeys[currentIndex];
+        const entry = newCache.get(key);
+        if (source[i] === -1) {
+          wrapper.insertBefore(entry.dom, anchor);
+        } else if (lisIdx < 0 || i !== lis[lisIdx]) {
+          wrapper.insertBefore(entry.dom, anchor);
+        } else {
+          lisIdx--;
+        }
+        anchor = entry.dom;
+      }
     }
     entityCache = newCache;
+    oldKeys = newKeys;
   });
   return wrapper;
 }
@@ -116,6 +192,30 @@ var mount = (target, rootElement) => target.appendChild(rootElement);
 var mountToBody = (rootElement) => document.body.appendChild(rootElement);
 var mountToHead = (rootElement) => document.head.appendChild(rootElement);
 var mountToRoot = (rootElement) => document.documentElement.appendChild(rootElement);
+
+// src/unmount.ts
+import { DestructionSystem as DestructionSystem2 } from "@watervein/core";
+var elementEntityMap = /* @__PURE__ */ new WeakMap();
+var registerEntityElement = (element2, entityId) => {
+  elementEntityMap.set(element2, entityId);
+};
+var unmount = (target) => {
+  let entityId = null;
+  let elementToRemove = null;
+  if (typeof target === "number") {
+    entityId = target;
+  } else {
+    elementToRemove = target;
+    entityId = elementEntityMap.get(target) ?? null;
+  }
+  if (elementToRemove) {
+    elementToRemove.remove();
+    elementEntityMap.delete(elementToRemove);
+  }
+  if (entityId !== null) {
+    DestructionSystem2.destroyEntity(entityId);
+  }
+};
 
 // src/index.ts
 var WV_NODE_TAG = 1465273924;
@@ -278,5 +378,7 @@ export {
   mount,
   mountToBody,
   mountToHead,
-  mountToRoot
+  mountToRoot,
+  registerEntityElement,
+  unmount
 };

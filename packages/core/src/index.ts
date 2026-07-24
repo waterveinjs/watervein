@@ -51,6 +51,9 @@ let ENTITY_COUNT = 0;
 const entityRegistry = new Map<number, Node[]>();
 let currentEntityId: number | null = null;
 
+const entityChildrenMap = new Map<number, Set<number>>();
+const entityParentMap = new Map<number, number | null>();
+
 let isBatching = false;
 let raFID: number | null = null;
 
@@ -58,6 +61,13 @@ export function createEntity(): number {
     const id = ENTITY_COUNT++;
     entityRegistry.set(id, []);
     entityParentMap.set(id, currentEntityId);
+    entityChildrenMap.set(id, new Set());
+    if (currentEntityId !== null) {
+        const children = entityChildrenMap.get(currentEntityId);
+        if (children) {
+            children.add(id);
+        }
+    }
     return id;
 }
 
@@ -534,32 +544,44 @@ export const DataSystem = {
 
 export const DestructionSystem = {
     destroyEntity(entityId: number) {
-        const nodes = entityRegistry.get(entityId);
-        if (!nodes || nodes.length === 0) return;
-
-        const nLen = nodes.length;
-        const destroying = new Set<number>();
-        for (let i = 0; i < nLen; i++) {
-            destroying.add(nodes[i].id);
-        }
-
-        for (let i = 0; i < nLen; i++) {
-            this._cleanupNode(nodes[i], destroying);
-        }
-        entityRegistry.delete(entityId);
-        entityParentMap.delete(entityId);
+        this.destroyEntities([entityId]);
     },
 
     destroyEntities(entityIds: number[]) {
         const len = entityIds.length;
         if (len === 0) return;
 
+        const allTargetEntityIds = new Set<number>();
+        const collectRecursively = (id: number) => {
+            if (allTargetEntityIds.has(id)) return;
+            allTargetEntityIds.add(id);
+            const children = entityChildrenMap.get(id);
+            if (children) {
+                for (const childId of children) {
+                    collectRecursively(childId);
+                }
+            }
+        };
+        for (let i = 0; i < len; i++) {
+            collectRecursively(entityIds[i]);
+        }
+
+        for (const eId of allTargetEntityIds) {
+            const parentId = entityParentMap.get(eId);
+            if (parentId !== undefined && parentId !== null && !allTargetEntityIds.has(parentId)) {
+                const parentChildren = entityChildrenMap.get(parentId);
+                if (parentChildren) {
+                    parentChildren.delete(eId);
+                }
+            }
+        }
+
         const allCollectedNodes: Node[] = [];
         const destroying = new Set<number>();
         let maxDepth = 0;
 
-        for (let e = 0; e < len; e++) {
-            const nodes = entityRegistry.get(entityIds[e]);
+        for (const eId of allTargetEntityIds) {
+            const nodes = entityRegistry.get(eId);
             if (nodes) {
                 const nLen = nodes.length;
                 for (let i = 0; i < nLen; i++) {
@@ -574,30 +596,51 @@ export const DestructionSystem = {
         }
 
         const totalNodes = allCollectedNodes.length;
-        if (totalNodes === 0) return;
 
-        const depthBuckets: Node[][] = Array.from({ length: maxDepth + 1 }, () => []);
-        for (let i = 0; i < totalNodes; i++) {
-            const node = allCollectedNodes[i];
-            depthBuckets[node.depth].push(node);
-        }
+        if (totalNodes > 0) {
+            const depthBuckets: Node[][] = Array.from({ length: maxDepth + 1 }, () => []);
+            for (let i = 0; i < totalNodes; i++) {
+                const node = allCollectedNodes[i];
+                depthBuckets[node.depth].push(node);
+            }
 
-        for (let d = maxDepth; d >= 0; d--) {
-            const bucketNodes = depthBuckets[d];
-            const bLen = bucketNodes.length;
-            for (let i = 0; i < bLen; i++) {
-                this._cleanupNode(bucketNodes[i], destroying);
+            for (let d = maxDepth; d >= 0; d--) {
+                const bucketNodes = depthBuckets[d];
+                const bLen = bucketNodes.length;
+                for (let i = 0; i < bLen; i++) {
+                    this._cleanupNode(bucketNodes[i], destroying);
+                }
             }
         }
 
-        for (let e = 0; e < len; e++) {
-            entityRegistry.delete(entityIds[e]);
+        for (const eId of allTargetEntityIds) {
+            entityRegistry.delete(eId);
+            entityParentMap.delete(eId);
+            entityChildrenMap.delete(eId);
+            errorBoundaryRegistry.delete(eId);
+            cleanupEntityEvents(eId);
+        }
+
+        let hasRemainingDirty = false;
+        for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
+            if (buckets[d] && buckets[d].length > 0) {
+                hasRemainingDirty = true;
+                break;
+            }
+        }
+        if (!hasRemainingDirty) {
+            minDirtyDepth = Infinity;
+            maxDirtyDepth = -1;
         }
     },
 
     _cleanupNode(node: Node, destroying: Set<number> | null = null) {
         if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {
-            (node.value as () => void)();
+            try {
+                (node.value as () => void)();
+            } catch (err) {
+                console.error(`[watervein] Error during effect cleanup on node ${node.id}:`, err);
+            }
         }
 
         const ss = node.subsDense;
@@ -861,7 +904,6 @@ export function cleanupEntityEvents(entityId: number) {
     }
 }
 
-const entityParentMap = new Map<number, number | null>();
 const errorBoundaryRegistry = new Map<number, (err: any) => void>();
 
 export function registerErrorBoundary(entityId: number, handler: (err: any) => void) {

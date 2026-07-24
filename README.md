@@ -37,7 +37,7 @@ Watervein is managed as a monorepo, split into core reactivity and DOM rendering
 - [`@watervein/dom-core`](./packages/dom-core) — The DOM core. Provides basic DOM manipulation functions.
 - [`@watervein/dom`](./packages/dom) — The DOM rendering bindings. Provides graph-driven template utilities like `For`, `Show`, and element builders.
 
-> **Note on tag coverage**: `@watervein/dom` currently exposes a generic `element()` factory plus a growing set of tag shorthands (`div`, `span`, `button`, etc.). If you rely on a shorthand not yet exported (e.g. `tr`, `td`, `a`, `input`), fall back to `element("tag", props, children)` or check the package's `dist/index.d.ts` for the current export list.
+> **Note on tag coverage**: `@watervein/dom` currently exposes a generic `element()` factory plus a growing set of tag shorthands (`div`, `span`, `button`, etc.). If you rely on a shorthand not yet exported (e.g. `tr`, `td`, `a`, `input`), fall back to `element("tag", props, children)`. Missing a tag you need? Opening a PR to add tag shorthands to `@watervein/dom` is an excellent 'good first issue' for new contributors!
 
 ---
 

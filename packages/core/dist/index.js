@@ -22,12 +22,21 @@ var maxDirtyDepth = -1;
 var ENTITY_COUNT = 0;
 var entityRegistry = /* @__PURE__ */ new Map();
 var currentEntityId = null;
+var entityChildrenMap = /* @__PURE__ */ new Map();
+var entityParentMap = /* @__PURE__ */ new Map();
 var isBatching = false;
 var raFID = null;
 function createEntity() {
   const id = ENTITY_COUNT++;
   entityRegistry.set(id, []);
   entityParentMap.set(id, currentEntityId);
+  entityChildrenMap.set(id, /* @__PURE__ */ new Set());
+  if (currentEntityId !== null) {
+    const children = entityChildrenMap.get(currentEntityId);
+    if (children) {
+      children.add(id);
+    }
+  }
   return id;
 }
 function withEntity(entityId, fn) {
@@ -456,27 +465,39 @@ var DataSystem = {
 };
 var DestructionSystem = {
   destroyEntity(entityId) {
-    const nodes = entityRegistry.get(entityId);
-    if (!nodes || nodes.length === 0) return;
-    const nLen = nodes.length;
-    const destroying = /* @__PURE__ */ new Set();
-    for (let i = 0; i < nLen; i++) {
-      destroying.add(nodes[i].id);
-    }
-    for (let i = 0; i < nLen; i++) {
-      this._cleanupNode(nodes[i], destroying);
-    }
-    entityRegistry.delete(entityId);
-    entityParentMap.delete(entityId);
+    this.destroyEntities([entityId]);
   },
   destroyEntities(entityIds) {
     const len = entityIds.length;
     if (len === 0) return;
+    const allTargetEntityIds = /* @__PURE__ */ new Set();
+    const collectRecursively = (id) => {
+      if (allTargetEntityIds.has(id)) return;
+      allTargetEntityIds.add(id);
+      const children = entityChildrenMap.get(id);
+      if (children) {
+        for (const childId of children) {
+          collectRecursively(childId);
+        }
+      }
+    };
+    for (let i = 0; i < len; i++) {
+      collectRecursively(entityIds[i]);
+    }
+    for (const eId of allTargetEntityIds) {
+      const parentId = entityParentMap.get(eId);
+      if (parentId !== void 0 && parentId !== null && !allTargetEntityIds.has(parentId)) {
+        const parentChildren = entityChildrenMap.get(parentId);
+        if (parentChildren) {
+          parentChildren.delete(eId);
+        }
+      }
+    }
     const allCollectedNodes = [];
     const destroying = /* @__PURE__ */ new Set();
     let maxDepth = 0;
-    for (let e = 0; e < len; e++) {
-      const nodes = entityRegistry.get(entityIds[e]);
+    for (const eId of allTargetEntityIds) {
+      const nodes = entityRegistry.get(eId);
       if (nodes) {
         const nLen = nodes.length;
         for (let i = 0; i < nLen; i++) {
@@ -490,26 +511,46 @@ var DestructionSystem = {
       }
     }
     const totalNodes = allCollectedNodes.length;
-    if (totalNodes === 0) return;
-    const depthBuckets = Array.from({ length: maxDepth + 1 }, () => []);
-    for (let i = 0; i < totalNodes; i++) {
-      const node = allCollectedNodes[i];
-      depthBuckets[node.depth].push(node);
-    }
-    for (let d = maxDepth; d >= 0; d--) {
-      const bucketNodes = depthBuckets[d];
-      const bLen = bucketNodes.length;
-      for (let i = 0; i < bLen; i++) {
-        this._cleanupNode(bucketNodes[i], destroying);
+    if (totalNodes > 0) {
+      const depthBuckets = Array.from({ length: maxDepth + 1 }, () => []);
+      for (let i = 0; i < totalNodes; i++) {
+        const node = allCollectedNodes[i];
+        depthBuckets[node.depth].push(node);
+      }
+      for (let d = maxDepth; d >= 0; d--) {
+        const bucketNodes = depthBuckets[d];
+        const bLen = bucketNodes.length;
+        for (let i = 0; i < bLen; i++) {
+          this._cleanupNode(bucketNodes[i], destroying);
+        }
       }
     }
-    for (let e = 0; e < len; e++) {
-      entityRegistry.delete(entityIds[e]);
+    for (const eId of allTargetEntityIds) {
+      entityRegistry.delete(eId);
+      entityParentMap.delete(eId);
+      entityChildrenMap.delete(eId);
+      errorBoundaryRegistry.delete(eId);
+      cleanupEntityEvents(eId);
+    }
+    let hasRemainingDirty = false;
+    for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
+      if (buckets[d] && buckets[d].length > 0) {
+        hasRemainingDirty = true;
+        break;
+      }
+    }
+    if (!hasRemainingDirty) {
+      minDirtyDepth = Infinity;
+      maxDirtyDepth = -1;
     }
   },
   _cleanupNode(node, destroying = null) {
     if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {
-      node.value();
+      try {
+        node.value();
+      } catch (err) {
+        console.error(`[watervein] Error during effect cleanup on node ${node.id}:`, err);
+      }
     }
     const ss = node.subsDense;
     if (ss !== null) {
@@ -725,7 +766,6 @@ function cleanupEntityEvents(entityId) {
     registry.delete(entityId);
   }
 }
-var entityParentMap = /* @__PURE__ */ new Map();
 var errorBoundaryRegistry = /* @__PURE__ */ new Map();
 function registerErrorBoundary(entityId, handler) {
   errorBoundaryRegistry.set(entityId, handler);

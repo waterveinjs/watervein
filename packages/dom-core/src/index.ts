@@ -203,3 +203,4 @@ function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
 
 export { Show, For } from './base.js';
 export { mount, mountToBody, mountToHead, mountToRoot } from './mount.js'
+export { unmount, registerEntityElement } from './unmount.js';

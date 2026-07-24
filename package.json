@@ -8,9 +8,9 @@
     "bt": "pnpm build && pnpm test",
     "bench": "pnpm --filter @watervein/benchmark run dev",
     "example": "pnpm --filter @watervein/example run dev",
-    "test": "vitest run",
+    "test": "NODE_OPTIONS=--expose-gc vitest run",
     "test:pnpm": "pnpm --filter \"./packages/*\" test",
-    "test:watch": "vitest"
+    "test:watch": "NODE_OPTIONS=--expose-gc vitest"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
