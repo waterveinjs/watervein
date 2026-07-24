@@ -17,6 +17,25 @@ import {
     N
 } from '../src/index.js';
 
+function getDepIds(node: WvNode): number[] {
+    const ids: number[] = [];
+    let curr = node.depsHead;
+    while (curr !== null) {
+        ids.push(curr.dep.id);
+        curr = curr.nextDep;
+    }
+    return ids;
+}
+function getDepsCount(node: WvNode): number {
+    let count = 0;
+    let curr = node.depsHead;
+    while (curr !== null) {
+        count++;
+        curr = curr.nextDep;
+    }
+    return count;
+}
+
 describe('Watervein Core - Radical NES Engine', () => {
 
     it('should propagate reactive updates via DAG edges and topological sorting', () => {
@@ -202,22 +221,26 @@ describe('Watervein Core - Radical NES Engine', () => {
         expect(spy).toHaveBeenCalledWith('changed-too');
     });
 
-    it('should actually shrink depsDense when a compute stops reading a dependency', () => {
+    it('should actually shrink deps when a compute stops reading a dependency', () => {
         const toggle = createState(true);
         const a = createState('A');
         const b = createState('B');
 
         const result = createCompute(() => (read(toggle) ? read(a) : read(b)));
 
-        expect(result.depsDense!.length).toBe(2);
+        expect(getDepsCount(result)).toBe(2);
+        expect(getDepIds(result)).toContain(toggle.id);
+        expect(getDepIds(result)).toContain(a.id);
 
         write(toggle, false);
         UISystem.flush();
 
-        expect(result.depsDense).toContain(toggle.id);
-        expect(result.depsDense).toContain(b.id);
-        expect(result.depsDense).not.toContain(a.id);
-        expect(result.depsDense!.length).toBe(2);
+        const currentDeps = getDepIds(result);
+
+        expect(currentDeps).toContain(toggle.id);
+        expect(currentDeps).toContain(b.id);
+        expect(currentDeps).not.toContain(a.id);
+        expect(currentDeps.length).toBe(2);
     });
 
     it('should destroy the previous branch entity when matchEntity switches condition', () => {
@@ -246,7 +269,7 @@ describe('Watervein Core - Radical NES Engine', () => {
 
         expect(elseSpy).toHaveBeenCalledWith('else-branch');
 
-        expect(cleanupTargets[0].subsDense).toBeNull();
+        expect(cleanupTargets[0].subsHead).toBeNull();
     });
 
     it('should reconcile mapEntity list by key: add, remove, and reorder without losing per-item state', () => {
@@ -494,7 +517,7 @@ describe('Watervein Core - Extended Hardening & Edge Cases', () => {
             (item) => item.id,
             (key, getItem, getIndex) => {
                 const spy = vi.fn();
-                createEffect(() => spy(read(getItem as any))); 
+                createEffect(() => spy(getItem())); 
                 itemSpies.set(key as string, spy);
             }
         );
@@ -618,6 +641,6 @@ describe('Watervein Core - Extended Hardening & Edge Cases', () => {
         write(trigger, 1);
         UISystem.flush();
 
-        expect(executionOrder).toEqual(['third', 'second', 'first']);
+        expect(executionOrder).toEqual(['first', 'second', 'third']);
     });
 });

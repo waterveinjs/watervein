@@ -372,8 +372,8 @@ describe('Watervein Core - createResource', () => {
             }
         });
 
-        expect(resource.subsDense).toBeNull();
-        expect(resource.depsDense).toBeNull();
+        expect(resource.subsHead).toBeNull();
+        expect(resource.depsHead).toBeNull();
     });
 
     it('processes alternating async resolution in unpredictable order (stale-while-revalidate stress test)', async () => {
