@@ -188,6 +188,11 @@ document.getElementById("run")!.addEventListener("click", () => {
 
 ## Architecture
 
+![ac_r](assets/readme/ac_r.png)
+
+<details>
+<summary>Mermeid Source Code</summary>
+
 ```mermaid
 graph LR
     subgraph Traditional [Traditional Component Tree]
@@ -225,9 +230,11 @@ graph LR
 
     Traditional -- Flatten --> Watervein
 
-    style Rerender fill:#f9f,stroke:#333,stroke-width:2px
-    style Mutation fill:#bbf,stroke:#333,stroke-width:2px
+    style Rerender fill:#f9f,stroke:#333,stroke-width:2px,color:#000;
+    style Mutation fill:#bbf,stroke:#333,stroke-width:2px,color:#000;
 ```
+
+</details>
 
 Traditional frameworks model your application as a **Tree of Components**, requiring virtual DOM diffing or template analysis to isolate mutations.
 
@@ -238,6 +245,11 @@ At the engine level (`@watervein/core`), state (`createState`), derivations (`cr
 
 * **Entity Isolation**: States and computations can be bound to flat entity IDs (`createEntity`). There are no lexical component scopes.
 * **Downstream-Only Propagation**: When a state changes via `write()`, the engine walks the graph edges downstream and marks dependent nodes as dirty. Only terminal nodes directly bound to a text block, property, or conditional block are scheduled for patching.
+
+![ac_1](assets/readme/ac_1.png)
+
+<details>
+<summary>Mermeid Source Code</summary>
 
 ```mermaid
 graph LR
@@ -256,12 +268,19 @@ graph LR
 
     Queue ~~~ Native
 
-    style Queue fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style Native fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
+    style Queue fill:#fff3cd,stroke:#ffc107,stroke-width:1px,color:#000
+    style Native fill:#e2e3e5,stroke:#6c757d,stroke-width:1px,color:#000
 ```
+
+</details>
 
 ### 2. Flushing Pipeline
 Watervein decouples state changes from the browser's paint cycle. Multiple `write()` calls can be grouped inside `batch()`, which defers scheduling until the batch completes.
+
+![ac_2](assets/readme/ac_2.png)
+
+<details>
+<summary>Mermeid Source Code</summary>
 
 ```mermaid
 graph LR
@@ -274,11 +293,13 @@ graph LR
     Recalc --> Flush
     Flush --> Commit
 
-    style Writes fill:#f8d7da,stroke:#dc3545,stroke-width:1px
-    style Recalc fill:#cce5ff,stroke:#004085,stroke-width:1px
-    style Flush fill:#e2e3e5,stroke:#383d41,stroke-width:1px
-    style Commit fill:#d4edda,stroke:#155724,stroke-width:1px
+    style Writes fill:#f8d7da,stroke:#dc3545,stroke-width:1px,color:#000
+    style Recalc fill:#cce5ff,stroke:#004085,stroke-width:1px,color:#000
+    style Flush fill:#e2e3e5,stroke:#383d41,stroke-width:1px,color:#000
+    style Commit fill:#d4edda,stroke:#155724,stroke-width:1px,color:#000
 ```
+
+</details>
 
 `UISystem.flush()` performs a synchronous topological sweep across dirtied nodes, ordered by graph depth.
 
@@ -286,6 +307,11 @@ graph LR
 
 ### 3. Layered DOM Decoupling
 To keep the core engine free of DOM assumptions while still offering an ergonomic authoring experience, the repository splits the rendering pipeline into three packages:
+
+![ac_3](assets/readme/ac_3.png)
+
+<details>
+<summary>Mermeid Source Code</summary>
 
 ```mermaid
 graph TD
@@ -298,10 +324,12 @@ graph TD
     DSL -- "Lowering Properties" --> Core
     Core -- "Direct Invocations" --> Engine
 
-    style DSL fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px
-    style Core fill:#edf2f7,stroke:#4a5568,stroke-width:1px
-    style Engine fill:#f7fafc,stroke:#718096,stroke-width:1px
+    style DSL fill:#e8f4fd,stroke:#2b6cb0,stroke-width:1px,color:#000
+    style Core fill:#edf2f7,stroke:#4a5568,stroke-width:1px,color:#000
+    style Engine fill:#f7fafc,stroke:#718096,stroke-width:1px,color:#000
 ```
+
+</details>
 
 * **`@watervein/dom`**: Provides declarative prop shorthands (e.g. `{ class: { active: someNode } }`) on top of standard tag functions.
 * **`@watervein/dom-core`**: Implements the low-level element binding logic (`element`, `Show`, `For`, `mount`) that `@watervein/dom` wraps.
