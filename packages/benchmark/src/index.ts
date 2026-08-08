@@ -38,12 +38,15 @@ function forceGC() {
     if ((window as any).gc) (window as any).gc();
 }
 
+// メインスレッドを解放してイベントループを回すユーティリティ
+const yieldMainThread = () => new Promise(resolve => setTimeout(resolve, 10));
+
 async function withMemoryTracking<T>(
     label: string,
     fn: () => T
 ): Promise<{ result: T; time: number; memory: string }> {
     forceGC();
-    await new Promise(r => setTimeout(r, 50));
+    await yieldMainThread();
     const before = getMemory();
 
     const start = performance.now();
@@ -51,7 +54,7 @@ async function withMemoryTracking<T>(
     const time = performance.now() - start;
 
     forceGC();
-    await new Promise(r => setTimeout(r, 50));
+    await yieldMainThread();
     const after = getMemory();
 
     return { result, time, memory: formatMemoryDelta(before, after) };
@@ -63,7 +66,7 @@ const SCALE_LEVELS: ScaleLevel[] = [
     { name: "SMALL",   nodeCount: 100 },
     { name: "MIDDLE",  nodeCount: 1_000 },
     { name: "LARGE",   nodeCount: 10_000 },
-    { name: "HUGE", nodeCount: 100_000 },
+    { name: "HUGE",    nodeCount: 100_000 },
 ];
 
 const BenchmarkSystem = {
@@ -553,7 +556,7 @@ async function runScaleSuite() {
         {
             const before = getMemory();
             forceGC();
-            await new Promise(r => setTimeout(r, 30));
+            await yieldMainThread();
             const beforeAfterGC = getMemory();
 
             const { time, entityId } = BenchmarkSystem.runGraphConstruction(n);
@@ -563,6 +566,7 @@ async function runScaleSuite() {
 
             DestructionSystem.destroyEntity(entityId);
         }
+        await yieldMainThread();
 
         {
             const stateCount = Math.min(n, 2000);
@@ -570,6 +574,7 @@ async function runScaleSuite() {
             const time = BenchmarkSystem.runHighFrequencyUpdate(stateCount, iterations);
             console.log(`[HIGH FREQUENCY UPDATE] state=${stateCount} iter=${iterations}: ${time.toFixed(2)}ms`);
         }
+        await yieldMainThread();
 
         {
             const entityCount = Math.min(n, 10000);
@@ -577,6 +582,7 @@ async function runScaleSuite() {
             const batchedTime = BenchmarkSystem.runMassDestructionBatched(entityCount);
             console.log(`[DESTROY ENTITY] individual=${individualTime.toFixed(2)}ms / batched=${batchedTime.toFixed(2)}ms (${(individualTime/batchedTime).toFixed(1)}x)`);
         }
+        await yieldMainThread();
 
         {
             const itemCount = Math.min(n, 10000);
@@ -586,6 +592,7 @@ async function runScaleSuite() {
             const after = getMemory();
             console.log(`[PARTIAL REPLACE] 10% replace=${time10.toFixed(2)}ms / 50% replace=${time50.toFixed(2)}ms | ${formatMemoryDelta(before, after)}`);
         }
+        await yieldMainThread();
 
         {
             const fanCount = Math.min(n, 50000);
@@ -593,24 +600,28 @@ async function runScaleSuite() {
             const fanInTime  = BenchmarkSystem.runFanInBenchmark(fanCount);
             console.log(`[Fan-Out/In] n=${fanCount}: out=${fanOutTime.toFixed(2)}ms in=${fanInTime.toFixed(2)}ms`);
         }
+        await yieldMainThread();
 
         {
             const diamondWidth = Math.min(n, 5000);
             const { time: diamondTime } = BenchmarkSystem.runDiamondProblem(diamondWidth);
             console.log(`[DIAMOND PROBLEM] width=${diamondWidth}: ${diamondTime.toFixed(2)}ms`);
         }
+        await yieldMainThread();
 
         {
             const cleanupIterations = Math.min(n, 2000);
             const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(cleanupIterations);
             console.log(`[UNUSED EDGE CLEANUP] iter=${cleanupIterations}: ${cleanupTime.toFixed(2)}ms`);
         }
+        await yieldMainThread();
 
         {
             const listResetCount = Math.min(n, 5000);
             const resetTime = BenchmarkSystem.runForListReset(listResetCount);
             console.log(`[FOR LIST RESET] items=${listResetCount}: ${resetTime.toFixed(2)}ms`);
         }
+        await yieldMainThread();
 
         {
             const createCount = Math.min(n, 50000);
@@ -621,71 +632,96 @@ async function runScaleSuite() {
             const after = getMemory();
             console.log(`[CREATE COST] state=${stateTime.toFixed(2)}ms compute=${computeTime.toFixed(2)}ms effect=${effectTime.toFixed(2)}ms | ${formatMemoryDelta(before, after)}`);
         }
+        await yieldMainThread();
     }
 
     console.log("\n=== BENCHMARK END ===");
 }
 
-(window as any).runWaterveinBenchmark = () => {
+(window as any).runWaterveinBenchmark = async () => {
     console.log("=== PERFORMANCE TEST START ===");
 
     const { time: constTime, entityId } = BenchmarkSystem.runGraphConstruction(10000);
     console.log(`[1] Building a Massive DAG with 10,000 Nodes: ${constTime.toFixed(2)} ms`);
     DestructionSystem.destroyEntity(entityId);
+    await yieldMainThread();
 
     const updateTime = BenchmarkSystem.runHighFrequencyUpdate(2000, 50);
     console.log(`[2] 2,000 signals x 50 batch updates (100,000 patches total): ${updateTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const destroyTime = BenchmarkSystem.runMassDestruction(5000);
     console.log(`[3] Batch Memory Release for 5,000 Entities (10,000 Nodes) (Individually): ${destroyTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const destroyBatchedTime = BenchmarkSystem.runMassDestructionBatched(5000);
     console.log(`[3b] Batch memory release for 5,000 entities (10,000 nodes): ${destroyBatchedTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const dsl0Time = BenchmarkSystem.runDsl0Construction(1000);
     console.log(`[DOM-CORE] Mounting 1,000 elements using raw DOM (raw arrow functions): ${dsl0Time.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const dsl1Time = BenchmarkSystem.runDsl1Construction(1000);
     console.log(`[DOM] Mounting 1,000 elements using DSL1 (Node direct passing): ${dsl1Time.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const overhead = dsl1Time - dsl0Time;
     console.log(`[Analyze] Pure Overhead from the dom Mapping Abstraction: ${overhead.toFixed(2)} ms (Per element ${(overhead / 1000 * 1000).toFixed(2)} 𝝁s)`);
 
     const reorderTime = BenchmarkSystem.runForReorderPerformance(1000);
     console.log(`[For Optimization] Batch Reverse Sort (Reorder) of 1,000 DOM Elements: ${reorderTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const replace10 = BenchmarkSystem.runPartialReplace(1000, 0.1);
     const replace50 = BenchmarkSystem.runPartialReplace(1000, 0.5);
     console.log(`[Partially Replace] 1,000 out of 1,000 elements replaced (10%): ${replace10.toFixed(2)} ms / 50%: ${replace50.toFixed(2)} ms`);
+    await yieldMainThread();
 
     console.log(`[4] Dynamic Dependency: ${BenchmarkSystem.runDynamicDependency(100000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[5] Fan-Out (1 -> 10000): ${BenchmarkSystem.runFanOutBenchmark(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[6] Fan-In (10000 -> 1): ${BenchmarkSystem.runFanInBenchmark(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[7] Deep Chain (10000): ${BenchmarkSystem.runDeepChain(1000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[8] Read (10000): ${BenchmarkSystem.runRead(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[8] Flush (10000): ${BenchmarkSystem.runFlush(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[9] Write (10000): ${BenchmarkSystem.runWrite(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[10] create-state (10000): ${BenchmarkSystem.runCreateState(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[11] create-compute (10000): ${BenchmarkSystem.runCreateCompute(10000).toFixed(2)} ms`);
+    await yieldMainThread();
     console.log(`[12] create-effect (10000): ${BenchmarkSystem.runCreateEffect(10000).toFixed(2)} ms`);
+    await yieldMainThread();
 
     const diamondRes = BenchmarkSystem.runDiamondProblem(2000);
     console.log(`[13] Diamond Problem (Width 2,000): ${diamondRes.time.toFixed(2)} ms (Glitch Free: ${diamondRes.glitchesPrevented})`);
+    await yieldMainThread();
 
     const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(5000);
     console.log(`[14] Dynamic Edge Cleanup (5,000 toggles): ${cleanupTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const redundantTime = BenchmarkSystem.runRedundantWriteFiltering(50000);
     console.log(`[15] Redundant Write Filtering (50,000 identical writes): ${redundantTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const dslProps = BenchmarkSystem.runDslStaticVsDynamic(1000);
     console.log(`[16] DSL Property parsing (1,000 el) -> Static: ${dslProps.staticTime.toFixed(2)} ms / Dynamic: ${dslProps.dynamicTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const listResetTime = BenchmarkSystem.runForListReset(1000);
     console.log(`[17] For-Loop List Clear & Re-populate (1,000 elements): ${listResetTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const itemPropTime = BenchmarkSystem.runForItemPropUpdate(1000, 5000);
     console.log(`[18] For-Loop Single Item Property Update (5,000 writes): ${itemPropTime.toFixed(2)} ms`);
+    await yieldMainThread();
 
     const crossEntityTime = BenchmarkSystem.runCrossEntityDependency(2000);
     console.log(`[19] Cross-Entity Dependency & Cascade Destroy (2,000 entities): ${crossEntityTime.toFixed(2)} ms`);

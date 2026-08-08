@@ -1,47 +1,105 @@
-const NODE_TYPE_STATE    = 0;
-const NODE_TYPE_COMPUTE  = 1;
-const NODE_TYPE_EFFECT   = 2;
-let nextAvailableNodeType = 3;
+export const NODE_TYPE_STATE   = 0;
+export const NODE_TYPE_COMPUTE = 1;
+export const NODE_TYPE_EFFECT  = 2;
+let nextAvailableNodeType      = 3;
 
 const WV_NODE_TAG = 0x57564E44;
 
 let NODE_ID_COUNTER = 0;
 
-export type Edge = {
-    dep: Node;
-    sub: Node;
-    nextSub: Edge | null;
-    prevSub: Edge | null;
-    nextDep: Edge | null;
-    prevDep: Edge | null;
-};
+let DEFAULT_EDGE_CAPACITY = 256;
+let edgeCapacity = DEFAULT_EDGE_CAPACITY;
+let edgePoolInitialized = false;
 
-const edgePool: Edge[] = [];
+let edgeDep     = new Int32Array(edgeCapacity);
+let edgeSub     = new Int32Array(edgeCapacity);
+let edgeNextSub = new Int32Array(edgeCapacity);
+let edgePrevSub = new Int32Array(edgeCapacity);
+let edgeNextDep = new Int32Array(edgeCapacity);
+let edgePrevDep = new Int32Array(edgeCapacity);
 
-function createEdge(dep: Node, sub: Node): Edge {
-    const edge = edgePool.length > 0 ? edgePool.pop()! : {
-        dep: null as any, sub: null as any,
-        nextSub: null, prevSub: null,
-        nextDep: null, prevDep: null
+export const NULL_EDGE = -1;
+let edgeFreeListHead = NULL_EDGE;
+let nextUnallocatedEdgeId = 0;
+
+export function initCapacity(options: { edgeCapacity?: number }): void {
+    if (edgePoolInitialized) {
+        throw new Error('[watervein] initCapacity() must be called before any node or edge is created, and can only be called once.');
+    }
+    if (nextUnallocatedEdgeId !== 0 || NODE_ID_COUNTER !== 0) {
+        throw new Error('[watervein] initCapacity() must be called before any node or edge is created.');
+    }
+
+    const requestedEdgeCapacity = options.edgeCapacity ?? DEFAULT_EDGE_CAPACITY;
+    if (requestedEdgeCapacity < 1) {
+        throw new Error('[watervein] edgeCapacity must be a positive integer.');
+    }
+
+    edgeCapacity = requestedEdgeCapacity;
+    edgeDep     = new Int32Array(edgeCapacity);
+    edgeSub     = new Int32Array(edgeCapacity);
+    edgeNextSub = new Int32Array(edgeCapacity);
+    edgePrevSub = new Int32Array(edgeCapacity);
+    edgeNextDep = new Int32Array(edgeCapacity);
+    edgePrevDep = new Int32Array(edgeCapacity);
+
+    edgePoolInitialized = true;
+}
+
+function ensureEdgeCapacity(minCapacity: number) {
+    edgePoolInitialized = true;
+    if (minCapacity < edgeCapacity) return;
+    let newCap = edgeCapacity + (edgeCapacity >> 1) + 1;
+    while (newCap <= minCapacity) newCap += (newCap >> 1) + 1;
+
+    const expandInt32 = (old: Int32Array) => {
+        const n = new Int32Array(newCap);
+        n.set(old);
+        return n;
     };
-    edge.dep = dep;
-    edge.sub = sub;
-    edge.nextSub = edge.prevSub = edge.nextDep = edge.prevDep = null;
-    return edge;
+
+    edgeDep     = expandInt32(edgeDep);
+    edgeSub     = expandInt32(edgeSub);
+    edgeNextSub = expandInt32(edgeNextSub);
+    edgePrevSub = expandInt32(edgePrevSub);
+    edgeNextDep = expandInt32(edgeNextDep);
+    edgePrevDep = expandInt32(edgePrevDep);
+
+    edgeCapacity = newCap;
 }
 
-function releaseEdge(edge: Edge) {
-    edge.dep = null as any;
-    edge.sub = null as any;
-    edge.nextSub = edge.prevSub = edge.nextDep = edge.prevDep = null;
-    edgePool.push(edge);
+function allocEdge(depId: number, subId: number): number {
+    edgePoolInitialized = true;
+    let edgeId: number;
+    if (edgeFreeListHead !== NULL_EDGE) {
+        edgeId = edgeFreeListHead;
+        edgeFreeListHead = edgeNextSub[edgeId];
+    } else {
+        edgeId = nextUnallocatedEdgeId++;
+        if (edgeId >= edgeCapacity) {
+            ensureEdgeCapacity(edgeId + 1);
+        }
+    }
+
+    edgeDep[edgeId]     = depId;
+    edgeSub[edgeId]     = subId;
+    edgeNextSub[edgeId] = NULL_EDGE;
+    edgePrevSub[edgeId] = NULL_EDGE;
+    edgeNextDep[edgeId] = NULL_EDGE;
+    edgePrevDep[edgeId] = NULL_EDGE;
+
+    return edgeId;
 }
 
-
-
+function freeEdge(edgeId: number) {
+    edgeDep[edgeId]     = -1;
+    edgeSub[edgeId]     = -1;
+    edgeNextSub[edgeId] = edgeFreeListHead;
+    edgeFreeListHead    = edgeId;
+}
 
 export type Node<T = any> = {
-    __wv:           typeof WV_NODE_TAG;
+    readonly __wv:  typeof WV_NODE_TAG;
     type:           number;
     id:             number;
     dirty:          boolean;
@@ -52,12 +110,9 @@ export type Node<T = any> = {
     value:          T;
     entityId:       number | null;
     compute:        (() => T) | null;
-
-    
-    subsHead:       Edge | null; 
-    depsHead:       Edge | null; 
-
-    pendingDeps:    Node[];
+    subsHead:       number;
+    depsHead:       number;
+    pendingDeps:    (Node | null)[];
 };
 
 export type ResourceResult<T> = {
@@ -67,12 +122,13 @@ export type ResourceResult<T> = {
 };
 
 const allNodes: (Node | undefined)[] = [];
-export function N(id: number): Node { 
+
+export function N(id: number): Node {
     const node = allNodes[id];
     if (!node || node.id === -1) {
         throw new Error(`[watervein] Node with id ${id} is undefined or destroyed.`);
     }
-    return node; 
+    return node;
 }
 
 let trackingVersion     = 0;
@@ -88,7 +144,7 @@ const entityRegistry = new Map<number, Node[]>();
 let currentEntityId: number | null = null;
 
 const entityChildrenMap = new Map<number, Set<number>>();
-const entityParentMap = new Map<number, number | null>();
+const entityParentMap   = new Map<number, number | null>();
 
 let isBatching = false;
 let raFID: number | null = null;
@@ -100,9 +156,7 @@ export function createEntity(): number {
     entityChildrenMap.set(id, new Set());
     if (currentEntityId !== null) {
         const children = entityChildrenMap.get(currentEntityId);
-        if (children) {
-            children.add(id);
-        }
+        if (children) children.add(id);
     }
     return id;
 }
@@ -120,22 +174,24 @@ const freeNodeIds: number[] = [];
 
 function createNode<T>(type: number, value: T, compute: (() => T) | null = null): Node<T> {
     const id = freeNodeIds.length > 0 ? freeNodeIds.pop()! : NODE_ID_COUNTER++;
+
     const node: Node<T> = {
         __wv:           WV_NODE_TAG,
-        type,
-        id,
+        type:           type,
+        id:             id,
         dirty:          false,
         depth:          0,
         watchedVersion: -1,
         bucketIdx:      -1,
         pendingDepsLen: 0,
-        value,
+        value:          value,
         entityId:       currentEntityId,
-        compute,
-        subsHead:       null,
-        depsHead:       null,
-        pendingDeps:    type === NODE_TYPE_STATE ? [] : new Array(8),
+        compute:        compute,
+        subsHead:       NULL_EDGE,
+        depsHead:       NULL_EDGE,
+        pendingDeps:    new Array(8),
     };
+
     allNodes[node.id] = node;
     if (currentEntityId !== null) {
         entityRegistry.get(currentEntityId)!.push(node);
@@ -143,50 +199,56 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
     return node;
 }
 
+function linkEdge(dep: Node, sub: Node): number {
+    if (dep.type === -1 || sub.type === -1) return NULL_EDGE;
 
+    const edgeId = allocEdge(dep.id, sub.id);
 
-
-function linkEdge(dep: Node, sub: Node): Edge | null {
-    if (!dep || !sub || dep.type === -1 || sub.type === -1) return null;
-
-    const edge = createEdge(dep, sub);
-
-    edge.nextSub = dep.subsHead;
-    if (dep.subsHead !== null && dep.subsHead !== undefined) {
-        dep.subsHead.prevSub = edge;
+    edgeNextSub[edgeId] = dep.subsHead;
+    if (dep.subsHead !== NULL_EDGE) {
+        edgePrevSub[dep.subsHead] = edgeId;
     }
-    dep.subsHead = edge;
+    dep.subsHead = edgeId;
 
-    edge.nextDep = sub.depsHead;
-    if (sub.depsHead !== null && sub.depsHead !== undefined) {
-        sub.depsHead.prevDep = edge;
+    edgeNextDep[edgeId] = sub.depsHead;
+    if (sub.depsHead !== NULL_EDGE) {
+        edgePrevDep[sub.depsHead] = edgeId;
     }
-    sub.depsHead = edge;
+    sub.depsHead = edgeId;
 
-    return edge;
+    return edgeId;
 }
 
-function unlinkEdge(edge: Edge) {
-    if (!edge) return;
-    const { dep, sub } = edge;
+function unlinkEdge(edgeId: number) {
+    if (edgeId === NULL_EDGE) return;
 
-    if (edge.prevSub !== null) edge.prevSub.nextSub = edge.nextSub;
-    else if (dep && dep.type !== -1) dep.subsHead = edge.nextSub;
+    const depId = edgeDep[edgeId];
+    const subId = edgeSub[edgeId];
+    const prevS = edgePrevSub[edgeId];
+    const nextS = edgeNextSub[edgeId];
+    const prevD = edgePrevDep[edgeId];
+    const nextD = edgeNextDep[edgeId];
 
-    if (edge.nextSub !== null) edge.nextSub.prevSub = edge.prevSub;
+    const depNode = allNodes[depId];
+    const subNode = allNodes[subId];
 
-    if (edge.prevDep !== null) edge.prevDep.nextDep = edge.nextDep;
-    else if (sub && sub.type !== -1) sub.depsHead = edge.nextDep;
+    if (prevS !== NULL_EDGE) edgeNextSub[prevS] = nextS;
+    else if (depNode && depNode.type !== -1) depNode.subsHead = nextS;
 
-    if (edge.nextDep !== null) edge.nextDep.prevDep = edge.prevDep;
+    if (nextS !== NULL_EDGE) edgePrevSub[nextS] = prevS;
 
-    releaseEdge(edge);
+    if (prevD !== NULL_EDGE) edgeNextDep[prevD] = nextD;
+    else if (subNode && subNode.type !== -1) subNode.depsHead = nextD;
+
+    if (nextD !== NULL_EDGE) edgePrevDep[nextD] = prevD;
+
+    freeEdge(edgeId);
 }
 
 let edgeCommitVersion = 0;
 
 function commitEdges(sub: Node) {
-    if (!sub || sub.type === -1) return;
+    if (sub.type === -1) return;
 
     const pending = sub.pendingDeps;
     const pLen    = sub.pendingDepsLen;
@@ -195,79 +257,90 @@ function commitEdges(sub: Node) {
     const pendingStamp  = edgeCommitVersion;
     const existingStamp = pendingStamp + 1;
 
-    for (let i = 0; i < pLen; i++) {
-        const dep = pending[i];
-        if (dep && dep.type !== -1) {
-            dep.watchedVersion = pendingStamp;
+    try {
+        for (let i = 0; i < pLen; i++) {
+            const dep = pending[i];
+            if (dep && dep.type !== -1) {
+                dep.watchedVersion = pendingStamp;
+            }
         }
-    }
 
-    let edge = sub.depsHead;
-    while (edge !== null) {
-        const nextEdge = edge.nextDep;
-        if (edge.dep) {
-            if (edge.dep.type === -1 || edge.dep.watchedVersion !== pendingStamp) {
-                unlinkEdge(edge);
+        let edgeId = sub.depsHead;
+        while (edgeId !== NULL_EDGE) {
+            const nextEdgeId = edgeNextDep[edgeId];
+            const depNodeId  = edgeDep[edgeId];
+            const depNode    = allNodes[depNodeId];
+
+            if (depNode && depNode.type !== -1 && depNode.watchedVersion === pendingStamp) {
+                depNode.watchedVersion = existingStamp;
             } else {
-                edge.dep.watchedVersion = pendingStamp + 1;
+                unlinkEdge(edgeId);
             }
-        } else {
-            unlinkEdge(edge);
+            edgeId = nextEdgeId;
         }
-        edge = nextEdge;
-    }
 
-    for (let i = 0; i < pLen; i++) {
-        const dep = pending[i];
-        if (dep && dep.type !== -1 && dep.watchedVersion !== existingStamp) {
-            linkEdge(dep, sub);
-            dep.watchedVersion = existingStamp;
-            if (sub.depth <= dep.depth) {
-                sub.depth = dep.depth + 1;
-                propagateDepth(sub);
+        for (let i = 0; i < pLen; i++) {
+            const dep = pending[i];
+            if (dep && dep.type !== -1 && dep.watchedVersion !== existingStamp) {
+                linkEdge(dep, sub);
+                dep.watchedVersion = existingStamp;
+                if (sub.depth <= dep.depth) {
+                    sub.depth = dep.depth + 1;
+                    propagateDepth(sub);
+                }
             }
         }
+    } finally {
+        sub.pendingDepsLen = 0;
     }
-
-    sub.pendingDepsLen = 0;
 }
 
-const PROPAGATE_QUEUE: Node[] = new Array(1024);
+const PROPAGATE_QUEUE: (Node | undefined)[] = new Array(2048);
 
 function propagateDepth(start: Node) {
     PROPAGATE_QUEUE[0] = start;
     let head = 0;
     let tail = 1;
+    const visitMarker = ++trackingVersion;
 
-    const visitMarker = ++trackingVersion; 
+    try {
+        while (head < tail) {
+            const node = PROPAGATE_QUEUE[head]!;
+            PROPAGATE_QUEUE[head++] = undefined;
 
-    while (head < tail) {
-        const node = PROPAGATE_QUEUE[head++];
-        let edge = node.subsHead;
-        while (edge !== null) {
-            const sub = edge.sub;
-            if (sub.id === start.id) {
-                throw new Error(`[watervein] A circular reference was detected during depth propagation (node ${sub.id}).`);
-            }
-            if (sub.depth <= node.depth) {
-                sub.depth = node.depth + 1;
-                if (sub.watchedVersion !== visitMarker) {
-                    sub.watchedVersion = visitMarker;
-                    if (tail >= PROPAGATE_QUEUE.length) {
-                        PROPAGATE_QUEUE.length *= 2;
+            let edgeId = node.subsHead;
+            while (edgeId !== NULL_EDGE) {
+                const subId = edgeSub[edgeId];
+                const subNode = allNodes[subId];
+
+                if (subNode && subNode.type !== -1) {
+                    if (subId === start.id) {
+                        throw new Error(
+                            `[watervein] A circular reference was detected during depth propagation (node ${subId}).`
+                        );
                     }
-                    PROPAGATE_QUEUE[tail++] = sub;
+
+                    if (subNode.depth <= node.depth) {
+                        subNode.depth = node.depth + 1;
+                        if (subNode.watchedVersion !== visitMarker) {
+                            subNode.watchedVersion = visitMarker;
+                            if (tail >= PROPAGATE_QUEUE.length) {
+                                PROPAGATE_QUEUE.length *= 2;
+                            }
+                            PROPAGATE_QUEUE[tail++] = subNode;
+                        }
+                    }
                 }
+                edgeId = edgeNextSub[edgeId];
             }
-            edge = edge.nextSub;
         }
+    } finally {
+        for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = undefined;
     }
-    
-    for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = undefined as any;
 }
 
-const nextTick = typeof requestAnimationFrame !== 'undefined' 
-    ? requestAnimationFrame 
+const nextTick = typeof requestAnimationFrame !== 'undefined'
+    ? requestAnimationFrame
     : (cb: FrameRequestCallback) => setTimeout(cb, 0);
 
 function scheduleNode(node: Node) {
@@ -289,9 +362,12 @@ function scheduleNode(node: Node) {
 let evaluationStack: Set<number> | null = null;
 if (import.meta.env.DEV) evaluationStack = new Set<number>();
 
+let activeCompute: Node | null = null;
 function executeCompute(node: Node) {
     trackingVersion++;
     node.pendingDepsLen = 0;
+    const prevActive = activeCompute;
+    activeCompute = node;
     try {
         const oldValue = node.value;
         const newValue = node.compute!();
@@ -299,13 +375,15 @@ function executeCompute(node: Node) {
 
         if (oldValue !== newValue) {
             node.value = newValue;
-            let edge = node.subsHead;
-            while (edge !== null) {
-                if (edge.sub) scheduleNode(edge.sub);
-                edge = edge.nextSub;
+            let edgeId = node.subsHead;
+            while (edgeId !== NULL_EDGE) {
+                const subNode = allNodes[edgeSub[edgeId]];
+                if (subNode) scheduleNode(subNode);
+                edgeId = edgeNextSub[edgeId];
             }
         }
     } finally {
+        activeCompute = prevActive;
         if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
     }
 }
@@ -326,11 +404,12 @@ function executeEffect(node: Node) {
 export function writeRaw<T>(node: Node<T>, value: T) {
     if (node.value === value) return;
     node.value = value;
-    let edge = node.subsHead;
-    if (edge !== null) {
-        while (edge !== null) {
-            scheduleNode(edge.sub);
-            edge = edge.nextSub;
+    let edgeId = node.subsHead;
+    if (edgeId !== NULL_EDGE) {
+        while (edgeId !== NULL_EDGE) {
+            const subNode = allNodes[edgeSub[edgeId]];
+            if (subNode) scheduleNode(subNode);
+            edgeId = edgeNextSub[edgeId];
         }
         if (raFID === null && !isBatching) {
             raFID = nextTick(flush) as any;
@@ -338,9 +417,26 @@ export function writeRaw<T>(node: Node<T>, value: T) {
     }
 }
 
+function forceCleanupBuckets() {
+    minDirtyDepth = Infinity;
+    maxDirtyDepth = -1;
+    for (let i = 0; i < buckets.length; i++) {
+        if (buckets[i]) {
+            while (buckets[i].length > 0) {
+                const n = buckets[i].pop();
+                if (n) {
+                    n.dirty = false;
+                    n.bucketIdx = -1;
+                }
+            }
+        }
+    }
+}
+
 export function flush() {
     raFID = null;
     let d = minDirtyDepth;
+
     while (d <= maxDirtyDepth) {
         const bucket = buckets[d];
         if (bucket && bucket.length > 0) {
@@ -352,7 +448,7 @@ export function flush() {
 
             node.bucketIdx = -1;
             node.dirty     = false;
-            
+
             if (import.meta.env.DEV) {
                 try {
                     if      (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
@@ -375,22 +471,44 @@ export function flush() {
                         currentSearchId = entityParentMap.get(currentSearchId) ?? null;
                     }
 
+                    forceCleanupBuckets();
+                    raFID = null;
+
                     if (handler) {
-                        minDirtyDepth = Infinity;
-                        maxDirtyDepth = -1;
-                        handler(err); 
+                        handler(err);
                         return;
                     }
 
-                    minDirtyDepth = Infinity;
-                    maxDirtyDepth = -1;
-                    throw err; 
+                    throw err;
                 }
             } else {
-                if      (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
-                else if (node.type === NODE_TYPE_EFFECT)  executeEffect(node);
+                try {
+                    if      (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
+                    else if (node.type === NODE_TYPE_EFFECT)  executeEffect(node);
+                } catch (err) {
+                    let currentSearchId: number | null = node.entityId;
+                    let handler: ((err: any) => void) | undefined = undefined;
+
+                    while (currentSearchId !== null) {
+                        if (errorBoundaryRegistry.has(currentSearchId)) {
+                            handler = errorBoundaryRegistry.get(currentSearchId);
+                            break;
+                        }
+                        currentSearchId = entityParentMap.get(currentSearchId) ?? null;
+                    }
+
+                    forceCleanupBuckets();
+                    raFID = null;
+
+                    if (handler) {
+                        handler(err);
+                        return;
+                    }
+
+                    throw err;
+                }
             }
-            
+
             if (minDirtyDepth < d) {
                 d = minDirtyDepth;
                 continue;
@@ -399,8 +517,10 @@ export function flush() {
             d++;
         }
     }
+
     minDirtyDepth = Infinity;
     maxDirtyDepth = -1;
+    raFID = null;
 }
 
 export function createState<T>(initial: T): Node<T> {
@@ -416,10 +536,10 @@ export function createCompute<T>(fn: () => T): Node<T> {
             evaluationStack.add(node.id);
         }
         pushTrackingNode(node);
-        try { 
-            return (node.value = fn()); 
-        } finally { 
-            popTrackingNode(); 
+        try {
+            return (node.value = fn());
+        } finally {
+            popTrackingNode();
             if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
         }
     });
@@ -444,10 +564,10 @@ export function createEffect(fn: () => void): Node<void> {
             evaluationStack.add(node.id);
         }
         pushTrackingNode(node);
-        try { 
-            return (node.value = fn()); 
-        } finally { 
-            popTrackingNode(); 
+        try {
+            return (node.value = fn());
+        } finally {
+            popTrackingNode();
             if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
         }
     });
@@ -495,8 +615,8 @@ export function read<T>(node: Node<T>): T {
     if (import.meta.env.DEV && !isNode(node)) {
         throw new Error('[watervein] read() was called with a value that is not a reactive Node.');
     }
-    if (currentTrackingNode !== null && currentTrackingNode !== node) {
-        const trk = currentTrackingNode;
+    const trk = currentTrackingNode;
+    if (trk !== null && trk !== node) {
         const idx = trk.pendingDepsLen;
         if (idx > 0 && trk.pendingDeps[idx - 1] === node) {
             return node.value;
@@ -504,7 +624,7 @@ export function read<T>(node: Node<T>): T {
         if (idx >= trk.pendingDeps.length) {
             trk.pendingDeps.length *= 2;
         }
-        trk.pendingDeps[idx] = node; 
+        trk.pendingDeps[idx] = node;
         trk.pendingDepsLen   = idx + 1;
     }
     return node.value;
@@ -513,10 +633,11 @@ export function read<T>(node: Node<T>): T {
 export function write<T>(node: Node<T>, value: T) {
     if (node.value === value) return;
     node.value = value;
-    let edge = node.subsHead;
-    while (edge !== null) {
-        scheduleNode(edge.sub);
-        edge = edge.nextSub;
+    let edgeId = node.subsHead;
+    while (edgeId !== NULL_EDGE) {
+        const subNode = allNodes[edgeSub[edgeId]];
+        if (subNode) scheduleNode(subNode);
+        edgeId = edgeNextSub[edgeId];
     }
 }
 
@@ -542,11 +663,11 @@ export const DataSystem = {
     schedule:       scheduleNode,
     propagateDepth,
     cleanupEdges:   (node: Node) => {
-        let edge = node.depsHead;
-        while (edge !== null) {
-            const nextEdge = edge.nextDep;
-            unlinkEdge(edge);
-            edge = nextEdge;
+        let edgeId = node.depsHead;
+        while (edgeId !== NULL_EDGE) {
+            const nextEdgeId = edgeNextDep[edgeId];
+            unlinkEdge(edgeId);
+            edgeId = nextEdgeId;
         }
     },
 };
@@ -652,24 +773,20 @@ export const DestructionSystem = {
             }
         }
 
-        let subEdge = node.subsHead;
-        node.subsHead = null;
-        while (subEdge !== null) {
-            const next = subEdge.nextSub;
-            if (!destroying || !subEdge.sub || !destroying.has(subEdge.sub.id)) {
-                unlinkEdge(subEdge);
-            }
-            subEdge = next;
+        let subEdgeId = node.subsHead;
+        node.subsHead = NULL_EDGE;
+        while (subEdgeId !== NULL_EDGE) {
+            const next = edgeNextSub[subEdgeId];
+            unlinkEdge(subEdgeId);
+            subEdgeId = next;
         }
 
-        let depEdge = node.depsHead;
-        node.depsHead = null;
-        while (depEdge !== null) {
-            const next = depEdge.nextDep;
-            if (!destroying || !depEdge.dep || !destroying.has(depEdge.dep.id)) {
-                unlinkEdge(depEdge);
-            }
-            depEdge = next;
+        let depEdgeId = node.depsHead;
+        node.depsHead = NULL_EDGE;
+        while (depEdgeId !== NULL_EDGE) {
+            const next = edgeNextDep[depEdgeId];
+            unlinkEdge(depEdgeId);
+            depEdgeId = next;
         }
 
         if (node.bucketIdx !== -1) {
@@ -760,7 +877,6 @@ export function mapEntity<T>(
 
         if (startDiff !== -1 && len === prevLen) {
             let isPureMove = true;
-            const diffCount = endDiff - startDiff + 1;
 
             MAP_KEYS_CACHE.length = 0;
             MAP_ENTITY_SET.clear();
@@ -805,12 +921,12 @@ export function mapEntity<T>(
                 return;
             }
         }
-        
+
         MAP_ENTITY_SET.clear();
         for (let i = 0; i < len; i++) {
             MAP_ENTITY_SET.add(keyFn(list[i]));
         }
-        
+
         MAP_ENTITY_TO_DESTROY.length = 0;
         for (const [key, cache] of entityCache) {
             if (!MAP_ENTITY_SET.has(key)) {
@@ -826,22 +942,22 @@ export function mapEntity<T>(
             const item = list[i];
             const key = keyFn(item);
             const cached = entityCache.get(key);
-            
+
             if (cached) {
                 if (cached.itemNode.value === item && cached.indexNode.value === i) {
-                    continue; 
+                    continue;
                 }
                 if (cached.itemNode.value !== item) write(cached.itemNode, item);
                 if (cached.indexNode.value !== i) write(cached.indexNode, i);
             } else {
                 const entityId = createEntity();
-                
+
                 withEntity(entityId, () => {
                     const itemNode = createState(item);
                     const indexNode = createState(i);
-                    
+
                     entityCache.set(key, { entityId, itemNode, indexNode });
-                    
+
                     const getItem = () => read(itemNode);
                     const getIndex = () => read(indexNode);
 
@@ -865,8 +981,8 @@ export function batch(fn: () => void) {
     }
     isBatching = true;
     let hasError = false;
-    try { 
-        fn(); 
+    try {
+        fn();
     } catch (e) {
         hasError = true;
         throw e;
@@ -879,7 +995,6 @@ export function batch(fn: () => void) {
 }
 
 export const eventRegistry = new Map<string, Map<number, EventListener>>();
-const activeDelegatedEvents = new Set<string>();
 
 export function getCurrentEntityId(): number | null {
     return currentEntityId;
@@ -917,4 +1032,24 @@ export function registerErrorBoundary(entityId: number, handler: (err: any) => v
 
 export function unregisterErrorBoundary(entityId: number) {
     errorBoundaryRegistry.delete(entityId);
+}
+
+export function getDependencyIds(node: Node): number[] {
+    const ids: number[] = [];
+    let edgeId = node.depsHead;
+    while (edgeId !== NULL_EDGE) {
+        ids.push(edgeDep[edgeId]);
+        edgeId = edgeNextDep[edgeId];
+    }
+    return ids;
+}
+
+export function getDependencyCount(node: Node): number {
+    let count = 0;
+    let edgeId = node.depsHead;
+    while (edgeId !== NULL_EDGE) {
+        count++;
+        edgeId = edgeNextDep[edgeId];
+    }
+    return count;
 }

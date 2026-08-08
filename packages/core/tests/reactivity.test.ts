@@ -14,26 +14,16 @@ import {
     untrack,
     mapEntity,
     matchEntity,
-    N
+    getDependencyIds,
+    getDependencyCount,
+    NULL_EDGE
 } from '../src/index.js';
 
 function getDepIds(node: WvNode): number[] {
-    const ids: number[] = [];
-    let curr = node.depsHead;
-    while (curr !== null) {
-        ids.push(curr.dep.id);
-        curr = curr.nextDep;
-    }
-    return ids;
+    return getDependencyIds(node);
 }
 function getDepsCount(node: WvNode): number {
-    let count = 0;
-    let curr = node.depsHead;
-    while (curr !== null) {
-        count++;
-        curr = curr.nextDep;
-    }
-    return count;
+    return getDependencyCount(node);
 }
 
 describe('Watervein Core - Radical NES Engine', () => {
@@ -269,7 +259,7 @@ describe('Watervein Core - Radical NES Engine', () => {
 
         expect(elseSpy).toHaveBeenCalledWith('else-branch');
 
-        expect(cleanupTargets[0].subsHead).toBeNull();
+        expect(cleanupTargets[0].subsHead).toBe(NULL_EDGE);
     });
 
     it('should reconcile mapEntity list by key: add, remove, and reorder without losing per-item state', () => {

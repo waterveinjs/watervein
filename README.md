@@ -463,7 +463,7 @@ pnpm test
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 Korphere
+[MIT](LICENSE) — Copyright (c) 2026 KoHaRxnP
 
 ## Future Roadmap & Ecosystem Vision
 

@@ -5,26 +5,81 @@ var NODE_TYPE_EFFECT = 2;
 var nextAvailableNodeType = 3;
 var WV_NODE_TAG = 1465273924;
 var NODE_ID_COUNTER = 0;
-var edgePool = [];
-function createEdge(dep, sub) {
-  const edge = edgePool.length > 0 ? edgePool.pop() : {
-    dep: null,
-    sub: null,
-    nextSub: null,
-    prevSub: null,
-    nextDep: null,
-    prevDep: null
-  };
-  edge.dep = dep;
-  edge.sub = sub;
-  edge.nextSub = edge.prevSub = edge.nextDep = edge.prevDep = null;
-  return edge;
+var DEFAULT_EDGE_CAPACITY = 256;
+var edgeCapacity = DEFAULT_EDGE_CAPACITY;
+var edgePoolInitialized = false;
+var edgeDep = new Int32Array(edgeCapacity);
+var edgeSub = new Int32Array(edgeCapacity);
+var edgeNextSub = new Int32Array(edgeCapacity);
+var edgePrevSub = new Int32Array(edgeCapacity);
+var edgeNextDep = new Int32Array(edgeCapacity);
+var edgePrevDep = new Int32Array(edgeCapacity);
+var NULL_EDGE = -1;
+var edgeFreeListHead = NULL_EDGE;
+var nextUnallocatedEdgeId = 0;
+function initCapacity(options) {
+  if (edgePoolInitialized) {
+    throw new Error("[watervein] initCapacity() must be called before any node or edge is created, and can only be called once.");
+  }
+  if (nextUnallocatedEdgeId !== 0 || NODE_ID_COUNTER !== 0) {
+    throw new Error("[watervein] initCapacity() must be called before any node or edge is created.");
+  }
+  const requestedEdgeCapacity = options.edgeCapacity ?? DEFAULT_EDGE_CAPACITY;
+  if (requestedEdgeCapacity < 1) {
+    throw new Error("[watervein] edgeCapacity must be a positive integer.");
+  }
+  edgeCapacity = requestedEdgeCapacity;
+  edgeDep = new Int32Array(edgeCapacity);
+  edgeSub = new Int32Array(edgeCapacity);
+  edgeNextSub = new Int32Array(edgeCapacity);
+  edgePrevSub = new Int32Array(edgeCapacity);
+  edgeNextDep = new Int32Array(edgeCapacity);
+  edgePrevDep = new Int32Array(edgeCapacity);
+  edgePoolInitialized = true;
 }
-function releaseEdge(edge) {
-  edge.dep = null;
-  edge.sub = null;
-  edge.nextSub = edge.prevSub = edge.nextDep = edge.prevDep = null;
-  edgePool.push(edge);
+function ensureEdgeCapacity(minCapacity) {
+  edgePoolInitialized = true;
+  if (minCapacity < edgeCapacity) return;
+  let newCap = edgeCapacity + (edgeCapacity >> 1) + 1;
+  while (newCap <= minCapacity) newCap += (newCap >> 1) + 1;
+  const expandInt32 = (old) => {
+    const n = new Int32Array(newCap);
+    n.set(old);
+    return n;
+  };
+  edgeDep = expandInt32(edgeDep);
+  edgeSub = expandInt32(edgeSub);
+  edgeNextSub = expandInt32(edgeNextSub);
+  edgePrevSub = expandInt32(edgePrevSub);
+  edgeNextDep = expandInt32(edgeNextDep);
+  edgePrevDep = expandInt32(edgePrevDep);
+  edgeCapacity = newCap;
+}
+function allocEdge(depId, subId) {
+  edgePoolInitialized = true;
+  let edgeId;
+  if (edgeFreeListHead !== NULL_EDGE) {
+    edgeId = edgeFreeListHead;
+    edgeFreeListHead = edgeNextSub[edgeId];
+  } else {
+    edgeId = nextUnallocatedEdgeId++;
+    if (edgeId >= edgeCapacity) {
+      ensureEdgeCapacity(edgeId + 1);
+    }
+  }
+  edgeDep[edgeId] = depId;
+  edgeSub[edgeId] = subId;
+  edgeNextSub[edgeId] = NULL_EDGE;
+  edgePrevSub[edgeId] = NULL_EDGE;
+  edgeNextDep[edgeId] = NULL_EDGE;
+  edgePrevDep[edgeId] = NULL_EDGE;
+  return edgeId;
+}
+function freeEdge(edgeId) {
+  edgeDep[edgeId] = -1;
+  edgeSub[edgeId] = -1;
+  edgeNextSub[edgeId] = edgeFreeListHead;
+  edgeFreeListHead = edgeId;
 }
 var allNodes = [];
 function N(id) {
@@ -54,9 +109,7 @@ function createEntity() {
   entityChildrenMap.set(id, /* @__PURE__ */ new Set());
   if (currentEntityId !== null) {
     const children = entityChildrenMap.get(currentEntityId);
-    if (children) {
-      children.add(id);
-    }
+    if (children) children.add(id);
   }
   return id;
 }
@@ -87,9 +140,9 @@ function createNode(type, value, compute = null) {
     value,
     entityId: currentEntityId,
     compute,
-    subsHead: null,
-    depsHead: null,
-    pendingDeps: type === NODE_TYPE_STATE ? [] : new Array(8)
+    subsHead: NULL_EDGE,
+    depsHead: NULL_EDGE,
+    pendingDeps: new Array(8)
   };
   allNodes[node.id] = node;
   if (currentEntityId !== null) {
@@ -98,100 +151,117 @@ function createNode(type, value, compute = null) {
   return node;
 }
 function linkEdge(dep, sub) {
-  if (!dep || !sub || dep.type === -1 || sub.type === -1) return null;
-  const edge = createEdge(dep, sub);
-  edge.nextSub = dep.subsHead;
-  if (dep.subsHead !== null && dep.subsHead !== void 0) {
-    dep.subsHead.prevSub = edge;
+  if (dep.type === -1 || sub.type === -1) return NULL_EDGE;
+  const edgeId = allocEdge(dep.id, sub.id);
+  edgeNextSub[edgeId] = dep.subsHead;
+  if (dep.subsHead !== NULL_EDGE) {
+    edgePrevSub[dep.subsHead] = edgeId;
   }
-  dep.subsHead = edge;
-  edge.nextDep = sub.depsHead;
-  if (sub.depsHead !== null && sub.depsHead !== void 0) {
-    sub.depsHead.prevDep = edge;
+  dep.subsHead = edgeId;
+  edgeNextDep[edgeId] = sub.depsHead;
+  if (sub.depsHead !== NULL_EDGE) {
+    edgePrevDep[sub.depsHead] = edgeId;
   }
-  sub.depsHead = edge;
-  return edge;
+  sub.depsHead = edgeId;
+  return edgeId;
 }
-function unlinkEdge(edge) {
-  if (!edge) return;
-  const { dep, sub } = edge;
-  if (edge.prevSub !== null) edge.prevSub.nextSub = edge.nextSub;
-  else if (dep && dep.type !== -1) dep.subsHead = edge.nextSub;
-  if (edge.nextSub !== null) edge.nextSub.prevSub = edge.prevSub;
-  if (edge.prevDep !== null) edge.prevDep.nextDep = edge.nextDep;
-  else if (sub && sub.type !== -1) sub.depsHead = edge.nextDep;
-  if (edge.nextDep !== null) edge.nextDep.prevDep = edge.prevDep;
-  releaseEdge(edge);
+function unlinkEdge(edgeId) {
+  if (edgeId === NULL_EDGE) return;
+  const depId = edgeDep[edgeId];
+  const subId = edgeSub[edgeId];
+  const prevS = edgePrevSub[edgeId];
+  const nextS = edgeNextSub[edgeId];
+  const prevD = edgePrevDep[edgeId];
+  const nextD = edgeNextDep[edgeId];
+  const depNode = allNodes[depId];
+  const subNode = allNodes[subId];
+  if (prevS !== NULL_EDGE) edgeNextSub[prevS] = nextS;
+  else if (depNode && depNode.type !== -1) depNode.subsHead = nextS;
+  if (nextS !== NULL_EDGE) edgePrevSub[nextS] = prevS;
+  if (prevD !== NULL_EDGE) edgeNextDep[prevD] = nextD;
+  else if (subNode && subNode.type !== -1) subNode.depsHead = nextD;
+  if (nextD !== NULL_EDGE) edgePrevDep[nextD] = prevD;
+  freeEdge(edgeId);
 }
 var edgeCommitVersion = 0;
 function commitEdges(sub) {
-  if (!sub || sub.type === -1) return;
+  if (sub.type === -1) return;
   const pending = sub.pendingDeps;
   const pLen = sub.pendingDepsLen;
   edgeCommitVersion += 2;
   const pendingStamp = edgeCommitVersion;
   const existingStamp = pendingStamp + 1;
-  for (let i = 0; i < pLen; i++) {
-    const dep = pending[i];
-    if (dep && dep.type !== -1) {
-      dep.watchedVersion = pendingStamp;
+  try {
+    for (let i = 0; i < pLen; i++) {
+      const dep = pending[i];
+      if (dep && dep.type !== -1) {
+        dep.watchedVersion = pendingStamp;
+      }
     }
-  }
-  let edge = sub.depsHead;
-  while (edge !== null) {
-    const nextEdge = edge.nextDep;
-    if (edge.dep) {
-      if (edge.dep.type === -1 || edge.dep.watchedVersion !== pendingStamp) {
-        unlinkEdge(edge);
+    let edgeId = sub.depsHead;
+    while (edgeId !== NULL_EDGE) {
+      const nextEdgeId = edgeNextDep[edgeId];
+      const depNodeId = edgeDep[edgeId];
+      const depNode = allNodes[depNodeId];
+      if (depNode && depNode.type !== -1 && depNode.watchedVersion === pendingStamp) {
+        depNode.watchedVersion = existingStamp;
       } else {
-        edge.dep.watchedVersion = pendingStamp + 1;
+        unlinkEdge(edgeId);
       }
-    } else {
-      unlinkEdge(edge);
+      edgeId = nextEdgeId;
     }
-    edge = nextEdge;
-  }
-  for (let i = 0; i < pLen; i++) {
-    const dep = pending[i];
-    if (dep && dep.type !== -1 && dep.watchedVersion !== existingStamp) {
-      linkEdge(dep, sub);
-      dep.watchedVersion = existingStamp;
-      if (sub.depth <= dep.depth) {
-        sub.depth = dep.depth + 1;
-        propagateDepth(sub);
+    for (let i = 0; i < pLen; i++) {
+      const dep = pending[i];
+      if (dep && dep.type !== -1 && dep.watchedVersion !== existingStamp) {
+        linkEdge(dep, sub);
+        dep.watchedVersion = existingStamp;
+        if (sub.depth <= dep.depth) {
+          sub.depth = dep.depth + 1;
+          propagateDepth(sub);
+        }
       }
     }
+  } finally {
+    sub.pendingDepsLen = 0;
   }
-  sub.pendingDepsLen = 0;
 }
-var PROPAGATE_QUEUE = new Array(1024);
+var PROPAGATE_QUEUE = new Array(2048);
 function propagateDepth(start) {
   PROPAGATE_QUEUE[0] = start;
   let head = 0;
   let tail = 1;
   const visitMarker = ++trackingVersion;
-  while (head < tail) {
-    const node = PROPAGATE_QUEUE[head++];
-    let edge = node.subsHead;
-    while (edge !== null) {
-      const sub = edge.sub;
-      if (sub.id === start.id) {
-        throw new Error(`[watervein] A circular reference was detected during depth propagation (node ${sub.id}).`);
-      }
-      if (sub.depth <= node.depth) {
-        sub.depth = node.depth + 1;
-        if (sub.watchedVersion !== visitMarker) {
-          sub.watchedVersion = visitMarker;
-          if (tail >= PROPAGATE_QUEUE.length) {
-            PROPAGATE_QUEUE.length *= 2;
+  try {
+    while (head < tail) {
+      const node = PROPAGATE_QUEUE[head];
+      PROPAGATE_QUEUE[head++] = void 0;
+      let edgeId = node.subsHead;
+      while (edgeId !== NULL_EDGE) {
+        const subId = edgeSub[edgeId];
+        const subNode = allNodes[subId];
+        if (subNode && subNode.type !== -1) {
+          if (subId === start.id) {
+            throw new Error(
+              `[watervein] A circular reference was detected during depth propagation (node ${subId}).`
+            );
           }
-          PROPAGATE_QUEUE[tail++] = sub;
+          if (subNode.depth <= node.depth) {
+            subNode.depth = node.depth + 1;
+            if (subNode.watchedVersion !== visitMarker) {
+              subNode.watchedVersion = visitMarker;
+              if (tail >= PROPAGATE_QUEUE.length) {
+                PROPAGATE_QUEUE.length *= 2;
+              }
+              PROPAGATE_QUEUE[tail++] = subNode;
+            }
+          }
         }
+        edgeId = edgeNextSub[edgeId];
       }
-      edge = edge.nextSub;
     }
+  } finally {
+    for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = void 0;
   }
-  for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = void 0;
 }
 var nextTick = typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
 function scheduleNode(node) {
@@ -211,22 +281,27 @@ function scheduleNode(node) {
 }
 var evaluationStack = null;
 if (import.meta.env.DEV) evaluationStack = /* @__PURE__ */ new Set();
+var activeCompute = null;
 function executeCompute(node) {
   trackingVersion++;
   node.pendingDepsLen = 0;
+  const prevActive = activeCompute;
+  activeCompute = node;
   try {
     const oldValue = node.value;
     const newValue = node.compute();
     commitEdges(node);
     if (oldValue !== newValue) {
       node.value = newValue;
-      let edge = node.subsHead;
-      while (edge !== null) {
-        if (edge.sub) scheduleNode(edge.sub);
-        edge = edge.nextSub;
+      let edgeId = node.subsHead;
+      while (edgeId !== NULL_EDGE) {
+        const subNode = allNodes[edgeSub[edgeId]];
+        if (subNode) scheduleNode(subNode);
+        edgeId = edgeNextSub[edgeId];
       }
     }
   } finally {
+    activeCompute = prevActive;
     if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
   }
 }
@@ -245,14 +320,30 @@ function executeEffect(node) {
 function writeRaw(node, value) {
   if (node.value === value) return;
   node.value = value;
-  let edge = node.subsHead;
-  if (edge !== null) {
-    while (edge !== null) {
-      scheduleNode(edge.sub);
-      edge = edge.nextSub;
+  let edgeId = node.subsHead;
+  if (edgeId !== NULL_EDGE) {
+    while (edgeId !== NULL_EDGE) {
+      const subNode = allNodes[edgeSub[edgeId]];
+      if (subNode) scheduleNode(subNode);
+      edgeId = edgeNextSub[edgeId];
     }
     if (raFID === null && !isBatching) {
       raFID = nextTick(flush);
+    }
+  }
+}
+function forceCleanupBuckets() {
+  minDirtyDepth = Infinity;
+  maxDirtyDepth = -1;
+  for (let i = 0; i < buckets.length; i++) {
+    if (buckets[i]) {
+      while (buckets[i].length > 0) {
+        const n = buckets[i].pop();
+        if (n) {
+          n.dirty = false;
+          n.bucketIdx = -1;
+        }
+      }
     }
   }
 }
@@ -288,19 +379,36 @@ Entity ID: ${node.entityId ?? "Global"}
             }
             currentSearchId = entityParentMap.get(currentSearchId) ?? null;
           }
+          forceCleanupBuckets();
+          raFID = null;
           if (handler) {
-            minDirtyDepth = Infinity;
-            maxDirtyDepth = -1;
             handler(err);
             return;
           }
-          minDirtyDepth = Infinity;
-          maxDirtyDepth = -1;
           throw err;
         }
       } else {
-        if (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
-        else if (node.type === NODE_TYPE_EFFECT) executeEffect(node);
+        try {
+          if (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
+          else if (node.type === NODE_TYPE_EFFECT) executeEffect(node);
+        } catch (err) {
+          let currentSearchId = node.entityId;
+          let handler = void 0;
+          while (currentSearchId !== null) {
+            if (errorBoundaryRegistry.has(currentSearchId)) {
+              handler = errorBoundaryRegistry.get(currentSearchId);
+              break;
+            }
+            currentSearchId = entityParentMap.get(currentSearchId) ?? null;
+          }
+          forceCleanupBuckets();
+          raFID = null;
+          if (handler) {
+            handler(err);
+            return;
+          }
+          throw err;
+        }
       }
       if (minDirtyDepth < d) {
         d = minDirtyDepth;
@@ -312,6 +420,7 @@ Entity ID: ${node.entityId ?? "Global"}
   }
   minDirtyDepth = Infinity;
   maxDirtyDepth = -1;
+  raFID = null;
 }
 function createState(initial) {
   return createNode(NODE_TYPE_STATE, initial);
@@ -396,8 +505,8 @@ function read(node) {
   if (import.meta.env.DEV && !isNode(node)) {
     throw new Error("[watervein] read() was called with a value that is not a reactive Node.");
   }
-  if (currentTrackingNode !== null && currentTrackingNode !== node) {
-    const trk = currentTrackingNode;
+  const trk = currentTrackingNode;
+  if (trk !== null && trk !== node) {
     const idx = trk.pendingDepsLen;
     if (idx > 0 && trk.pendingDeps[idx - 1] === node) {
       return node.value;
@@ -413,10 +522,11 @@ function read(node) {
 function write(node, value) {
   if (node.value === value) return;
   node.value = value;
-  let edge = node.subsHead;
-  while (edge !== null) {
-    scheduleNode(edge.sub);
-    edge = edge.nextSub;
+  let edgeId = node.subsHead;
+  while (edgeId !== NULL_EDGE) {
+    const subNode = allNodes[edgeSub[edgeId]];
+    if (subNode) scheduleNode(subNode);
+    edgeId = edgeNextSub[edgeId];
   }
 }
 function untrack(fn) {
@@ -440,11 +550,11 @@ var DataSystem = {
   schedule: scheduleNode,
   propagateDepth,
   cleanupEdges: (node) => {
-    let edge = node.depsHead;
-    while (edge !== null) {
-      const nextEdge = edge.nextDep;
-      unlinkEdge(edge);
-      edge = nextEdge;
+    let edgeId = node.depsHead;
+    while (edgeId !== NULL_EDGE) {
+      const nextEdgeId = edgeNextDep[edgeId];
+      unlinkEdge(edgeId);
+      edgeId = nextEdgeId;
     }
   }
 };
@@ -537,23 +647,19 @@ var DestructionSystem = {
         console.error(`[watervein] Error during effect cleanup on node ${node.id}:`, err);
       }
     }
-    let subEdge = node.subsHead;
-    node.subsHead = null;
-    while (subEdge !== null) {
-      const next = subEdge.nextSub;
-      if (!destroying || !subEdge.sub || !destroying.has(subEdge.sub.id)) {
-        unlinkEdge(subEdge);
-      }
-      subEdge = next;
+    let subEdgeId = node.subsHead;
+    node.subsHead = NULL_EDGE;
+    while (subEdgeId !== NULL_EDGE) {
+      const next = edgeNextSub[subEdgeId];
+      unlinkEdge(subEdgeId);
+      subEdgeId = next;
     }
-    let depEdge = node.depsHead;
-    node.depsHead = null;
-    while (depEdge !== null) {
-      const next = depEdge.nextDep;
-      if (!destroying || !depEdge.dep || !destroying.has(depEdge.dep.id)) {
-        unlinkEdge(depEdge);
-      }
-      depEdge = next;
+    let depEdgeId = node.depsHead;
+    node.depsHead = NULL_EDGE;
+    while (depEdgeId !== NULL_EDGE) {
+      const next = edgeNextDep[depEdgeId];
+      unlinkEdge(depEdgeId);
+      depEdgeId = next;
     }
     if (node.bucketIdx !== -1) {
       const bucket = buckets[node.depth];
@@ -624,7 +730,6 @@ function mapEntity(listNode, keyFn, renderFn) {
     }
     if (startDiff !== -1 && len === prevLen) {
       let isPureMove = true;
-      const diffCount = endDiff - startDiff + 1;
       MAP_KEYS_CACHE.length = 0;
       MAP_ENTITY_SET.clear();
       for (let i = startDiff; i <= endDiff; i++) {
@@ -759,10 +864,32 @@ function registerErrorBoundary(entityId, handler) {
 function unregisterErrorBoundary(entityId) {
   errorBoundaryRegistry.delete(entityId);
 }
+function getDependencyIds(node) {
+  const ids = [];
+  let edgeId = node.depsHead;
+  while (edgeId !== NULL_EDGE) {
+    ids.push(edgeDep[edgeId]);
+    edgeId = edgeNextDep[edgeId];
+  }
+  return ids;
+}
+function getDependencyCount(node) {
+  let count = 0;
+  let edgeId = node.depsHead;
+  while (edgeId !== NULL_EDGE) {
+    count++;
+    edgeId = edgeNextDep[edgeId];
+  }
+  return count;
+}
 export {
   DataSystem,
   DestructionSystem,
   N,
+  NODE_TYPE_COMPUTE,
+  NODE_TYPE_EFFECT,
+  NODE_TYPE_STATE,
+  NULL_EDGE,
   UISystem,
   batch,
   cleanupEntityEvents,
@@ -774,7 +901,10 @@ export {
   eventRegistry,
   flush,
   getCurrentEntityId,
+  getDependencyCount,
+  getDependencyIds,
   handleDelegatedEvent,
+  initCapacity,
   isNode,
   mapEntity,
   matchEntity,
