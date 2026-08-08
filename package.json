@@ -13,13 +13,13 @@
     "test:watch": "NODE_OPTIONS=--expose-gc vitest"
   },
   "devDependencies": {
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.2",
     "dts-bundle-generator": "^9.5.1",
     "esbuild": "^0.28.1",
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^20.11.1",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
-    "vite": "^8.1.0",
-    "vitest": "^4.1.9"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
   }
 }
