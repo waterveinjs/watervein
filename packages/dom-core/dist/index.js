@@ -57,12 +57,17 @@ function Show(condition, thenFn, elseFn) {
 }
 function getLIS(arr) {
   const p = arr.slice();
-  const result = [0];
+  const result = [];
   let i, j, u, v, c;
   const len = arr.length;
   for (i = 0; i < len; i++) {
     const arrI = arr[i];
     if (arrI !== -1) {
+      if (result.length === 0) {
+        p[i] = -1;
+        result.push(i);
+        continue;
+      }
       j = result[result.length - 1];
       if (arr[j] < arrI) {
         p[i] = j;
@@ -88,6 +93,7 @@ function getLIS(arr) {
     }
   }
   u = result.length;
+  if (u === 0) return [];
   v = result[u - 1];
   while (u-- > 0) {
     result[u] = v;

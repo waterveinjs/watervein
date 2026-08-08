@@ -66,13 +66,18 @@ export const leaveHooks = new WeakMap<HTMLElement, (resolve: () => void) => void
 
 function getLIS(arr: number[]): number[] {
     const p = arr.slice();
-    const result = [0];
+    const result: number[] = [];
     let i, j, u, v, c;
     const len = arr.length;
 
     for (i = 0; i < len; i++) {
         const arrI = arr[i];
         if (arrI !== -1) {
+            if (result.length === 0) {
+                p[i] = -1;
+                result.push(i);
+                continue;
+            }
             j = result[result.length - 1];
             if (arr[j] < arrI) {
                 p[i] = j;
@@ -98,6 +103,7 @@ function getLIS(arr: number[]): number[] {
         }
     }
     u = result.length;
+    if (u === 0) return [];
     v = result[u - 1];
     while (u-- > 0) {
         result[u] = v;

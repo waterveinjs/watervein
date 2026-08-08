@@ -38,7 +38,6 @@ function forceGC() {
     if ((window as any).gc) (window as any).gc();
 }
 
-// メインスレッドを解放してイベントループを回すユーティリティ
 const yieldMainThread = () => new Promise(resolve => setTimeout(resolve, 10));
 
 async function withMemoryTracking<T>(
