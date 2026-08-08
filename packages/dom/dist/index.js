@@ -17,44 +17,41 @@ import {
   element as el0
 } from "@watervein/dom-core";
 function element(tag, props, children) {
-  const el = el0(tag, props, children);
-  if (props) {
-    const keys = Object.keys(props);
-    const len = keys.length;
-    const entityId = getCurrentEntityId();
-    for (let i2 = 0; i2 < len; i2++) {
-      const key = keys[i2];
+  if (!props) {
+    return el0(tag, void 0, children);
+  }
+  const coreProps = {};
+  for (const key of Object.keys(props)) {
+    const value = props[key];
+    if (key === "style" && value) {
+      coreProps.style = isNode(value) ? () => read(value) : value;
+    } else if ((key === "class" || key === "className") && value) {
+      coreProps[key] = parseDsl1Class(value);
+    } else {
+      coreProps[key] = value;
+    }
+  }
+  const el = el0(tag, coreProps, children);
+  const entityId = getCurrentEntityId();
+  if (entityId !== null) {
+    for (const key of Object.keys(props)) {
       const value = props[key];
       if (key.startsWith("on") && typeof value === "function") {
         const eventName = key.slice(2).toLowerCase();
-        if (entityId !== null) {
-          if (!eventRegistry.has(eventName)) {
-            eventRegistry.set(eventName, /* @__PURE__ */ new Map());
-            document.body.addEventListener(eventName, handleDelegatedEvent);
-          }
-          eventRegistry.get(eventName).set(entityId, value);
-          el.setAttribute("data-wv-eid", String(entityId));
-        } else {
-          el.addEventListener(eventName, value);
+        if (!eventRegistry.has(eventName)) {
+          eventRegistry.set(eventName, /* @__PURE__ */ new Map());
+          document.body.addEventListener(eventName, handleDelegatedEvent);
         }
-      } else if (key === "style" && value) {
-        if (isNode(value)) {
-          props[key] = (() => read(value));
-        }
-      } else if ((key === "class" || key === "className") && value) {
-        props[key] = parseDsl1Class(value);
+        eventRegistry.get(eventName).set(entityId, value);
+        el.setAttribute("data-wv-eid", String(entityId));
       }
     }
   }
   return el;
 }
 function parseDsl1Class(classVal) {
-  if (isNode(classVal)) return classVal;
-  if (typeof classVal === "object" && !Array.isArray(classVal)) {
-    return classVal;
-  }
-  if (Array.isArray(classVal)) {
-    return classVal;
+  if (isNode(classVal)) {
+    return () => read(classVal);
   }
   return classVal;
 }
