@@ -46,7 +46,7 @@ export function element<K extends keyof HTMLElementTagNameMap>(
             const key = keys[i];
             const value = props[key];
 
-            if (key[0] === 'o' && key[1] === 'n') {
+            if (key.startsWith("on")) {
                 el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
             } 
             else if (key === "style" && value) {
@@ -135,7 +135,7 @@ function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
         if (typeof styleValue === "function" || isWvNode(styleValue)) {
             createEffect(() => {
                 const computedValue = String(isWvNode(styleValue) ? read(styleValue) : (styleValue as Function)());
-                if (styleKey[0] === '-' && styleKey[1] === '-') {
+                if (styleKey.startsWith("--")) {
                     el.style.setProperty(styleKey, computedValue);
                 } else {
                     elStyle[styleKey] = computedValue;
