@@ -882,48 +882,77 @@ export function mapEntity<T>(
                     MAP_KEYS_CACHE.push(i);
                 }
             }
+            const changedCount = MAP_KEYS_CACHE.length;
 
-            let isPureMove = true;
-            MAP_ENTITY_SET.clear();
-            for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
-                MAP_ENTITY_SET.add(keyFn(list[MAP_KEYS_CACHE[k]]));
-            }
-            for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
-                const prevItem = prevList[MAP_KEYS_CACHE[k]];
-                if (prevItem === undefined || !MAP_ENTITY_SET.has(keyFn(prevItem))) {
-                    isPureMove = false;
-                    break;
-                }
+            const oldKeysLocal = new Array(changedCount);
+            const newKeysLocal = new Array(changedCount);
+            for (let k = 0; k < changedCount; k++) {
+                const i = MAP_KEYS_CACHE[k];
+                oldKeysLocal[k] = keyFn(prevList[i]);
+                newKeysLocal[k] = keyFn(list[i]);
             }
 
-            if (isPureMove) {
-                MAP_TEMP_CACHES.clear();
-                try {
-                    for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
-                        const i = MAP_KEYS_CACHE[k];
-                        const prevKey = keyFn(prevList[i]);
-                        MAP_TEMP_CACHES.set(prevKey, entityCache.get(prevKey));
-                        entityCache.delete(prevKey);
-                    }
-                    for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
-                        const i = MAP_KEYS_CACHE[k];
-                        const newKey = keyFn(list[i]);
-                        const cache = MAP_TEMP_CACHES.get(newKey);
+            MAP_ENTITY_TO_DESTROY.length = 0;
+            MAP_TEMP_CACHES.clear();
+
+            try {
+                for (let k = 0; k < changedCount; k++) {
+                    const oldKey = oldKeysLocal[k];
+                    if (oldKey !== newKeysLocal[k] && !MAP_TEMP_CACHES.has(oldKey)) {
+                        const cache = entityCache.get(oldKey);
                         if (cache) {
-                            if (cache.indexNode.value !== i) {
-                                write(cache.indexNode, i);
-                            }
-                            entityCache.set(newKey, cache);
+                            MAP_TEMP_CACHES.set(oldKey, cache);
+                            entityCache.delete(oldKey);
                         }
                     }
-                } finally {
-                    MAP_TEMP_CACHES.clear();
-                    MAP_KEYS_CACHE.length = 0;
                 }
 
-                prevList = list.slice();
-                return;
+                for (let k = 0; k < changedCount; k++) {
+                    const i = MAP_KEYS_CACHE[k];
+                    const oldKey = oldKeysLocal[k];
+                    const newKey = newKeysLocal[k];
+                    const item = list[i];
+
+                    if (oldKey === newKey) {
+                        const cache = entityCache.get(newKey);
+                        if (cache) {
+                            if (cache.itemNode.value !== item) write(cache.itemNode, item);
+                            if (cache.indexNode.value !== i) write(cache.indexNode, i);
+                        }
+                        continue;
+                    }
+
+                    const moved = MAP_TEMP_CACHES.get(newKey);
+                    if (moved) {
+                        if (moved.itemNode.value !== item) write(moved.itemNode, item);
+                        if (moved.indexNode.value !== i) write(moved.indexNode, i);
+                        entityCache.set(newKey, moved);
+                        MAP_TEMP_CACHES.delete(newKey);
+                    } else {
+                        const entityId = createEntity();
+                        withEntity(entityId, () => {
+                            const itemNode = createState(item);
+                            const indexNode = createState(i);
+                            entityCache.set(newKey, { entityId, itemNode, indexNode });
+                            renderFn(newKey, () => read(itemNode), () => read(indexNode));
+                        });
+                    }
+                }
+
+                for (const [, cache] of MAP_TEMP_CACHES) {
+                    MAP_ENTITY_TO_DESTROY.push(cache.entityId);
+                }
+                if (MAP_ENTITY_TO_DESTROY.length > 0) {
+                    DestructionSystem.destroyEntities(MAP_ENTITY_TO_DESTROY);
+                }
+            } finally {
+                MAP_TEMP_CACHES.clear();
+                MAP_KEYS_CACHE.length = 0;
+                MAP_ENTITY_TO_DESTROY.length = 0;
             }
+
+            prevList = list.slice();
+            return;
         }
 
         MAP_ENTITY_SET.clear();
