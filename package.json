@@ -10,7 +10,12 @@
     "example": "pnpm --filter @watervein/example run dev",
     "test": "NODE_OPTIONS=--expose-gc vitest run",
     "test:pnpm": "pnpm --filter \"./packages/*\" test",
-    "test:watch": "NODE_OPTIONS=--expose-gc vitest"
+    "test:watch": "NODE_OPTIONS=--expose-gc vitest",
+    "bump": "node scripts/bump.js",
+    "bump:patch": "node scripts/bump.js patch",
+    "bump:minor": "node scripts/bump.js minor",
+    "bump:major": "node scripts/bump.js major"
+    
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
