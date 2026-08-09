@@ -23,8 +23,6 @@
     "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/*",
     "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check"
   },
-  "dependencies": {},
-  "devDependencies": {},
   "publishConfig": {
     "access": "public"
   },

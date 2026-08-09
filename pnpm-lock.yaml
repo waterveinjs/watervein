@@ -52,7 +52,7 @@ importers:
   packages/core: {}
 
   packages/dom:
-    dependencies:
+    devDependencies:
       '@watervein/core':
         specifier: workspace:*
         version: link:../core
@@ -61,7 +61,7 @@ importers:
         version: link:../dom-core
 
   packages/dom-core:
-    dependencies:
+    devDependencies:
       '@watervein/core':
         specifier: workspace:*
         version: link:../core

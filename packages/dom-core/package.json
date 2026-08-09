@@ -23,10 +23,12 @@
     "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/*",
     "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check"
   },
-  "dependencies": {
+  "peerDependencies": {
     "@watervein/core": "workspace:*"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@watervein/core": "workspace:*"
+  },
   "publishConfig": {
     "access": "public"
   }
