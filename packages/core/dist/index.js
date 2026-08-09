@@ -729,16 +729,19 @@ function mapEntity(listNode, keyFn, renderFn) {
       endDiff = Math.max(len, prevLen) - 1;
     }
     if (startDiff !== -1 && len === prevLen) {
-      let isPureMove = true;
       MAP_KEYS_CACHE.length = 0;
-      MAP_ENTITY_SET.clear();
       for (let i = startDiff; i <= endDiff; i++) {
-        const key = keyFn(list[i]);
-        MAP_KEYS_CACHE.push(key);
-        MAP_ENTITY_SET.add(key);
+        if (prevList[i] !== list[i]) {
+          MAP_KEYS_CACHE.push(i);
+        }
       }
-      for (let i = startDiff; i <= endDiff; i++) {
-        const prevItem = prevList[i];
+      let isPureMove = true;
+      MAP_ENTITY_SET.clear();
+      for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
+        MAP_ENTITY_SET.add(keyFn(list[MAP_KEYS_CACHE[k]]));
+      }
+      for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
+        const prevItem = prevList[MAP_KEYS_CACHE[k]];
         if (prevItem === void 0 || !MAP_ENTITY_SET.has(keyFn(prevItem))) {
           isPureMove = false;
           break;
@@ -747,14 +750,15 @@ function mapEntity(listNode, keyFn, renderFn) {
       if (isPureMove) {
         MAP_TEMP_CACHES.clear();
         try {
-          for (let i = startDiff; i <= endDiff; i++) {
+          for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
+            const i = MAP_KEYS_CACHE[k];
             const prevKey = keyFn(prevList[i]);
             MAP_TEMP_CACHES.set(prevKey, entityCache.get(prevKey));
             entityCache.delete(prevKey);
           }
-          for (let i = startDiff; i <= endDiff; i++) {
-            const cacheIndex = i - startDiff;
-            const newKey = MAP_KEYS_CACHE[cacheIndex];
+          for (let k = 0; k < MAP_KEYS_CACHE.length; k++) {
+            const i = MAP_KEYS_CACHE[k];
+            const newKey = keyFn(list[i]);
             const cache = MAP_TEMP_CACHES.get(newKey);
             if (cache) {
               if (cache.indexNode.value !== i) {
