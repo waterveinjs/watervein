@@ -48,8 +48,8 @@ export function element<K extends keyof HTMLElementTagNameMap>(
 
             if (key.startsWith("on")) {
                 el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
-            } 
-            else if (key === "style" && value) {
+            }
+            else if (key === "style" && value !== undefined && value !== null) {
                 if (isWvNode(value)) {
                     createEffect(() => { el.style.cssText = String(read(value)); });
                 }
@@ -58,7 +58,7 @@ export function element<K extends keyof HTMLElementTagNameMap>(
                     createEffect(() => { el.style.cssText = String((value as Function)()); });
                 }
             }
-            else if ((key === "class" || key === "className") && value) {
+            else if ((key === "class" || key === "className") && value !== undefined && value !== null) {
                 applyReactiveClass(el, value);
             } 
             else if (typeof value === "function" || isWvNode(value)) {
@@ -202,5 +202,5 @@ function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
 }
 
 export { Show, For } from './base.js';
-export { mount, mountToBody, mountToHead, mountToRoot } from './mount.js'
+export { mount, mountToBody, mountToHead, mountToRoot } from './mount.js';
 export { unmount, registerEntityElement } from './unmount.js';
