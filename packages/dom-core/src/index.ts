@@ -143,7 +143,7 @@ function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
             });
         } else {
             const staticValue = String(styleValue);
-            if (styleKey[0] === '-' && styleKey[1] === '-') {
+            if (styleKey.startsWith("--")) {
                 el.style.setProperty(styleKey, staticValue);
             } else {
                 elStyle[styleKey] = staticValue;
