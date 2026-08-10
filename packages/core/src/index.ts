@@ -102,34 +102,40 @@ function freeEdge(edgeId: number) {
     edgeFreeListHead    = edgeId;
 }
 
-function compactEdgePoolIfNeeded() {
-    if (activeEdgeCount === 0) {
-        const targetCapacity = Math.max(DEFAULT_EDGE_CAPACITY, Math.floor(edgeCapacity / 2));
-        edgeCapacity = DEFAULT_EDGE_CAPACITY;
-
-        if (edgeCapacity > targetCapacity) {
-            edgeDep     = new Int32Array(edgeCapacity);
-            edgeSub     = new Int32Array(edgeCapacity);
-            edgeNextSub = new Int32Array(edgeCapacity);
-            edgePrevSub = new Int32Array(edgeCapacity);
-            edgeNextDep = new Int32Array(edgeCapacity);
-            edgePrevDep = new Int32Array(edgeCapacity);
-
-            edgeFreeListHead = NULL_EDGE;
-            nextUnallocatedEdgeId = 0;
-        }
+function compactEdgePoolIfNeeded(nodesEmpty: boolean) {
+    if (import.meta.env.DEV && nodesEmpty && activeEdgeCount !== 0) {
+        console.error(
+            `[watervein] Invariant violation: all nodes destroyed but activeEdgeCount=${activeEdgeCount}. ` +
+            `This indicates a leaked edge reference.`
+        );
     }
+
+    if (activeEdgeCount !== 0) return;
+    if (edgeCapacity <= DEFAULT_EDGE_CAPACITY) return;
+
+    const newCapacity = Math.max(DEFAULT_EDGE_CAPACITY, Math.floor(edgeCapacity / 2));
+    edgeCapacity = newCapacity;
+    edgeDep     = new Int32Array(edgeCapacity);
+    edgeSub     = new Int32Array(edgeCapacity);
+    edgeNextSub = new Int32Array(edgeCapacity);
+    edgePrevSub = new Int32Array(edgeCapacity);
+    edgeNextDep = new Int32Array(edgeCapacity);
+    edgePrevDep = new Int32Array(edgeCapacity);
+
+    edgeFreeListHead = NULL_EDGE;
+    nextUnallocatedEdgeId = 0;
 }
 
-function trimSparseArrays() {
+function trimSparseArrays(): boolean {
     while (allNodes.length > 0 && allNodes[allNodes.length - 1] === undefined) {
         allNodes.pop();
     }
-
-    if (allNodes.length === 0) {
+    const isEmpty = allNodes.length === 0;
+    if (isEmpty) {
         NODE_ID_COUNTER = 0;
         freeNodeIds.length = 0;
     }
+    return isEmpty;
 }
 
 export type Node<T = any> = {
@@ -228,7 +234,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         compute:        compute,
         subsHead:       NULL_EDGE,
         depsHead:       NULL_EDGE,
-        pendingDeps:    type === NODE_TYPE_STATE ? null : new Array(8),
+        pendingDeps:    null,
     };
 
     allNodes[node.id] = node;
@@ -876,9 +882,8 @@ export const DestructionSystem = {
             buckets.length = 0;
         }
 
-        trimSparseArrays();
-
-        compactEdgePoolIfNeeded();
+        const nodesEmpty = trimSparseArrays();
+        compactEdgePoolIfNeeded(nodesEmpty);
     },
 
     _cleanupNode(node: Node, destroying: Set<number> | null = null) {
@@ -939,16 +944,6 @@ export const DestructionSystem = {
         node.id = -1;
     }
 };
-
-export function addChildEntity(parentId: number, childId: number) {
-    let children = entityChildrenMap.get(parentId);
-    if (!children) {
-        children = new Set();
-        entityChildrenMap.set(parentId, children);
-    }
-    children.add(childId);
-    entityParentMap.set(childId, parentId);
-}
 
 export function matchEntity(
     conditionNode: Node<boolean>,

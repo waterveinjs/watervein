@@ -84,30 +84,35 @@ function freeEdge(edgeId) {
   edgeNextSub[edgeId] = edgeFreeListHead;
   edgeFreeListHead = edgeId;
 }
-function compactEdgePoolIfNeeded() {
-  if (activeEdgeCount === 0) {
-    const targetCapacity = Math.max(DEFAULT_EDGE_CAPACITY, Math.floor(edgeCapacity / 2));
-    edgeCapacity = DEFAULT_EDGE_CAPACITY;
-    if (edgeCapacity > targetCapacity) {
-      edgeDep = new Int32Array(edgeCapacity);
-      edgeSub = new Int32Array(edgeCapacity);
-      edgeNextSub = new Int32Array(edgeCapacity);
-      edgePrevSub = new Int32Array(edgeCapacity);
-      edgeNextDep = new Int32Array(edgeCapacity);
-      edgePrevDep = new Int32Array(edgeCapacity);
-      edgeFreeListHead = NULL_EDGE;
-      nextUnallocatedEdgeId = 0;
-    }
+function compactEdgePoolIfNeeded(nodesEmpty) {
+  if (import.meta.env.DEV && nodesEmpty && activeEdgeCount !== 0) {
+    console.error(
+      `[watervein] Invariant violation: all nodes destroyed but activeEdgeCount=${activeEdgeCount}. This indicates a leaked edge reference.`
+    );
   }
+  if (activeEdgeCount !== 0) return;
+  if (edgeCapacity <= DEFAULT_EDGE_CAPACITY) return;
+  const newCapacity = Math.max(DEFAULT_EDGE_CAPACITY, Math.floor(edgeCapacity / 2));
+  edgeCapacity = newCapacity;
+  edgeDep = new Int32Array(edgeCapacity);
+  edgeSub = new Int32Array(edgeCapacity);
+  edgeNextSub = new Int32Array(edgeCapacity);
+  edgePrevSub = new Int32Array(edgeCapacity);
+  edgeNextDep = new Int32Array(edgeCapacity);
+  edgePrevDep = new Int32Array(edgeCapacity);
+  edgeFreeListHead = NULL_EDGE;
+  nextUnallocatedEdgeId = 0;
 }
 function trimSparseArrays() {
   while (allNodes.length > 0 && allNodes[allNodes.length - 1] === void 0) {
     allNodes.pop();
   }
-  if (allNodes.length === 0) {
+  const isEmpty = allNodes.length === 0;
+  if (isEmpty) {
     NODE_ID_COUNTER = 0;
     freeNodeIds.length = 0;
   }
+  return isEmpty;
 }
 var allNodes = [];
 function N(id) {
@@ -174,7 +179,7 @@ function createNode(type, value, compute = null) {
     compute,
     subsHead: NULL_EDGE,
     depsHead: NULL_EDGE,
-    pendingDeps: type === NODE_TYPE_STATE ? null : new Array(8)
+    pendingDeps: null
   };
   allNodes[node.id] = node;
   if (currentEntityId !== null) {
@@ -740,8 +745,8 @@ var DestructionSystem = {
       maxDirtyDepth = -1;
       buckets.length = 0;
     }
-    trimSparseArrays();
-    compactEdgePoolIfNeeded();
+    const nodesEmpty = trimSparseArrays();
+    compactEdgePoolIfNeeded(nodesEmpty);
   },
   _cleanupNode(node, destroying = null) {
     if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {
@@ -793,15 +798,6 @@ var DestructionSystem = {
     node.id = -1;
   }
 };
-function addChildEntity(parentId, childId) {
-  let children = entityChildrenMap.get(parentId);
-  if (!children) {
-    children = /* @__PURE__ */ new Set();
-    entityChildrenMap.set(parentId, children);
-  }
-  children.add(childId);
-  entityParentMap.set(childId, parentId);
-}
 function matchEntity(conditionNode, thenFn, elseFn) {
   let currentActiveEntityId = null;
   createEffect(() => {
@@ -1050,7 +1046,6 @@ export {
   NODE_TYPE_STATE,
   NULL_EDGE,
   UISystem,
-  addChildEntity,
   batch,
   cleanupEntityEvents,
   createCompute,
