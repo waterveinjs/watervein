@@ -246,9 +246,9 @@ function element(tag, props, children) {
     for (let i = 0; i < len; i++) {
       const key = keys[i];
       const value = props[key];
-      if (key[0] === "o" && key[1] === "n") {
+      if (key.startsWith("on")) {
         el.addEventListener(key.slice(2).toLowerCase(), value);
-      } else if (key === "style" && value) {
+      } else if (key === "style" && value !== void 0 && value !== null) {
         if (isWvNode(value)) {
           createEffect2(() => {
             el.style.cssText = String(read2(value));
@@ -259,7 +259,7 @@ function element(tag, props, children) {
             el.style.cssText = String(value());
           });
         }
-      } else if ((key === "class" || key === "className") && value) {
+      } else if ((key === "class" || key === "className") && value !== void 0 && value !== null) {
         applyReactiveClass(el, value);
       } else if (typeof value === "function" || isWvNode(value)) {
         createEffect2(() => {
@@ -325,7 +325,7 @@ function applyReactiveStyle(el, styleObj) {
     if (typeof styleValue === "function" || isWvNode(styleValue)) {
       createEffect2(() => {
         const computedValue = String(isWvNode(styleValue) ? read2(styleValue) : styleValue());
-        if (styleKey[0] === "-" && styleKey[1] === "-") {
+        if (styleKey.startsWith("--")) {
           el.style.setProperty(styleKey, computedValue);
         } else {
           elStyle[styleKey] = computedValue;
@@ -333,7 +333,7 @@ function applyReactiveStyle(el, styleObj) {
       });
     } else {
       const staticValue = String(styleValue);
-      if (styleKey[0] === "-" && styleKey[1] === "-") {
+      if (styleKey.startsWith("--")) {
         el.style.setProperty(styleKey, staticValue);
       } else {
         elStyle[styleKey] = staticValue;
