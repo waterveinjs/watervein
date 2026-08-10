@@ -840,6 +840,13 @@ export const DestructionSystem = {
             freeEntityIds.push(eId);
         }
 
+        if (entityRegistry.size === 0) {
+            ENTITY_COUNT = 0;
+            freeEntityIds.length = 0;
+            entityChildrenMap.clear();
+            entityParentMap.clear();
+        }
+
         let hasRemainingDirty = false;
         for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
             if (buckets[d] && buckets[d].length > 0) {
@@ -850,9 +857,15 @@ export const DestructionSystem = {
         if (!hasRemainingDirty) {
             minDirtyDepth = Infinity;
             maxDirtyDepth = -1;
+            buckets.length = 0;
         }
 
         trimSparseArrays();
+
+        if (freeNodeIds.length > 1024) {
+            freeNodeIds.length = 0;
+        }
+
         compactEdgePoolIfNeeded();
     },
 
@@ -952,6 +965,22 @@ export function mapEntity<T>(
     createEffect(() => {
         const list = read(listNode);
         const len = list.length;
+        
+        if (len === 0) {
+            if (entityCache.size > 0) {
+                MAP_ENTITY_TO_DESTROY.length = 0;
+                for (const cache of entityCache.values()) {
+                    MAP_ENTITY_TO_DESTROY.push(cache.entityId);
+                }
+                if (MAP_ENTITY_TO_DESTROY.length > 0) {
+                    DestructionSystem.destroyEntities(MAP_ENTITY_TO_DESTROY);
+                }
+                entityCache.clear();
+            }
+            prevList = [];
+            return;
+        }
+        
         const prevLen = prevList.length;
 
         let startDiff = -1;
@@ -1146,8 +1175,11 @@ export function handleDelegatedEvent(e: Event) {
 }
 
 export function cleanupEntityEvents(entityId: number) {
-    for (const registry of eventRegistry.values()) {
+    for (const [eventType, registry] of eventRegistry.entries()) {
         registry.delete(entityId);
+        if (registry.size === 0) {
+            eventRegistry.delete(eventType);
+        }
     }
 }
 
