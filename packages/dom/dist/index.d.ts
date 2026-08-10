@@ -190,11 +190,11 @@ export type Dsl1Props = {
 	className?: Dsl1Class;
 	[key: string]: any;
 };
-export type Dsl1Child = HTMLElement | Text | string | number | Node$1<any> | (() => any);
+export type Dsl1Child = Node | string | number | Node$1<any> | (() => any);
 export declare function element<K extends keyof HTMLElementTagNameMap>(tag: K, props?: Dsl1Props, children?: Dsl1Child | Dsl1Child[]): HTMLElementTagNameMap[K];
 export declare function errorBoundary(normalFactory: () => HTMLElement, fallbackFactory: (error: any) => HTMLElement): HTMLElement;
 export declare function scope<T extends (...args: any[]) => HTMLElement>(f: T): T;
 export declare function Show(condition: Node$1<boolean> | (() => boolean), thenFn: () => HTMLElement, elseFn?: () => HTMLElement): HTMLElement;
-export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement, tagName?: string): HTMLElement;
+export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): Node;
 
 export {};

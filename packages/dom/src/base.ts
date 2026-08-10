@@ -29,7 +29,7 @@ export type Dsl1Props = {
     [key: string]: any;
 };
 
-export type Dsl1Child = HTMLElement | Text | string | number | WvNode<any> | (() => any);
+export type Dsl1Child = Node | string | number | WvNode<any> | (() => any);
 
 export function element<K extends keyof HTMLElementTagNameMap>(
     tag: K,

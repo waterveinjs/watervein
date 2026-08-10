@@ -101,17 +101,16 @@ function getLIS(arr) {
   }
   return result;
 }
-function For(listNode, keyFn, renderFn, tagName = "span") {
-  const marker = document.createTextNode("");
-  const wrapper = document.createElement(tagName);
-  if (tagName === "span") {
-    wrapper.style.display = "contents";
-  }
-  wrapper.appendChild(marker);
+function For(listNode, keyFn, renderFn) {
+  const marker = document.createComment("wv-for");
+  let isInitial = true;
+  let initialFragment = document.createDocumentFragment();
   let oldKeys = [];
   let entityCache = /* @__PURE__ */ new Map();
   createEffect(() => {
     const list = read(listNode);
+    const parent = marker.parentNode;
+    if (!isInitial && !parent) return;
     const newLen = list.length;
     const oldLen = oldKeys.length;
     const newCache = /* @__PURE__ */ new Map();
@@ -156,51 +155,60 @@ function For(listNode, keyFn, renderFn, tagName = "span") {
     if (toDestroyImmediate.length > 0) {
       DestructionSystem.destroyEntities(toDestroyImmediate);
     }
-    let start = 0;
-    let oldEnd = oldLen - 1;
-    let newEnd = newLen - 1;
-    while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
-      start++;
-    }
-    while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[newEnd]) {
-      oldEnd--;
-      newEnd--;
-    }
-    const count = newEnd - start + 1;
-    if (count > 0) {
-      const source = new Array(count).fill(-1);
-      const keyIndexMap = /* @__PURE__ */ new Map();
-      for (let i = start; i <= newEnd; i++) {
-        keyIndexMap.set(newKeys[i], i);
+    if (isInitial) {
+      for (let i = 0; i < newLen; i++) {
+        const entry = newCache.get(newKeys[i]);
+        initialFragment.appendChild(entry.dom);
       }
-      for (let i = start; i <= oldEnd; i++) {
-        const oldKey = oldKeys[i];
-        if (keyIndexMap.has(oldKey)) {
-          const newIdx = keyIndexMap.get(oldKey);
-          source[newIdx - start] = i;
-        }
+      initialFragment.appendChild(marker);
+      isInitial = false;
+    } else if (parent) {
+      let start = 0;
+      let oldEnd = oldLen - 1;
+      let newEnd = newLen - 1;
+      while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
+        start++;
       }
-      const lis = getLIS(source);
-      let lisIdx = lis.length - 1;
-      let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
-      for (let i = count - 1; i >= 0; i--) {
-        const currentIndex = start + i;
-        const key = newKeys[currentIndex];
-        const entry = newCache.get(key);
-        if (source[i] === -1) {
-          wrapper.insertBefore(entry.dom, anchor);
-        } else if (lisIdx < 0 || i !== lis[lisIdx]) {
-          wrapper.insertBefore(entry.dom, anchor);
-        } else {
-          lisIdx--;
+      while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
+        oldEnd--;
+        newEnd--;
+      }
+      const count = newEnd - start + 1;
+      if (count > 0) {
+        const source = new Array(count).fill(-1);
+        const keyIndexMap = /* @__PURE__ */ new Map();
+        for (let i = start; i <= newEnd; i++) {
+          keyIndexMap.set(newKeys[i], i);
         }
-        anchor = entry.dom;
+        for (let i = start; i <= oldEnd; i++) {
+          const oldKey = oldKeys[i];
+          if (keyIndexMap.has(oldKey)) {
+            const newIdx = keyIndexMap.get(oldKey);
+            source[newIdx - start] = i;
+          }
+        }
+        const lis = getLIS(source);
+        let lisIdx = lis.length - 1;
+        let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
+        for (let i = count - 1; i >= 0; i--) {
+          const currentIndex = start + i;
+          const key = newKeys[currentIndex];
+          const entry = newCache.get(key);
+          if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
+            parent.insertBefore(entry.dom, anchor);
+          } else {
+            lisIdx--;
+          }
+          anchor = entry.dom;
+        }
       }
     }
     entityCache = newCache;
     oldKeys = newKeys;
   });
-  return wrapper;
+  const res = initialFragment;
+  initialFragment = null;
+  return res;
 }
 
 // src/mount.ts
@@ -309,7 +317,7 @@ function appendChild(parent, child) {
     createEffect2(() => {
       textNode.nodeValue = String(isWvNode(child) ? read2(child) : child());
     });
-  } else if (child instanceof HTMLElement || child instanceof Text) {
+  } else if (child instanceof Node) {
     parent.appendChild(child);
   } else if (child !== null && child !== void 0) {
     parent.appendChild(document.createTextNode(String(child)));

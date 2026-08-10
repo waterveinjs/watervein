@@ -245,8 +245,8 @@ function scope(f) {
 function Show(condition, thenFn, elseFn) {
   return show0(condition, thenFn, elseFn);
 }
-function For(listNode, keyFn, renderFn, tagName = "span") {
-  return for0(listNode, keyFn, renderFn, tagName);
+function For(listNode, keyFn, renderFn) {
+  return for0(listNode, keyFn, renderFn);
 }
 export {
   For,

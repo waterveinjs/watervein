@@ -24,7 +24,7 @@ export type ReactiveProps = {
 
 import { Node as WvNode } from '@watervein/core';
 
-type Child = HTMLElement | Text | string | number | WvNode<any> | (() => any);
+type Child = Node | string | number | WvNode<any> | (() => any);
 
 const WV_NODE_TAG = 0x57564E44;
 
@@ -116,7 +116,7 @@ function appendChild(parent: HTMLElement, child: Child) {
         createEffect(() => {
             textNode.nodeValue = String(isWvNode(child) ? read(child) : (child as Function)());
         });
-    } else if (child instanceof HTMLElement || child instanceof Text) {
+    } else if (child instanceof Node) {
         parent.appendChild(child);
     } else if (child !== null && child !== undefined) {
         parent.appendChild(document.createTextNode(String(child)));

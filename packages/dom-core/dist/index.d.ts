@@ -18,7 +18,7 @@ export type Node$1<T = any> = {
 	pendingDeps: (Node$1 | null)[];
 };
 export declare function Show(condition: Node$1 | (() => boolean), thenFn: () => HTMLElement, elseFn?: () => HTMLElement): HTMLElement;
-export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement, tagName?: string): HTMLElement;
+export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): Node;
 /**
  * Application Custom Root Mount
  * @param target The element that serves as the root of the mount
@@ -60,7 +60,7 @@ export type ReactiveProps = {
 	className?: ReactiveClass;
 	[key: string]: any;
 };
-export type Child = HTMLElement | Text | string | number | Node$1<any> | (() => any);
+export type Child = Node | string | number | Node$1<any> | (() => any);
 export declare function element<K extends keyof HTMLElementTagNameMap>(tag: K, props?: ReactiveProps, children?: Child | Child[]): HTMLElementTagNameMap[K];
 
 export {};

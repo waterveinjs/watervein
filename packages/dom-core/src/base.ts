@@ -121,21 +121,21 @@ type Entry<T> = {
 export function For<T>(
     listNode: WvNode<T[]>,
     keyFn: (item: T) => any,
-    renderFn: (getItem: () => T) => HTMLElement,
-    tagName: string = "span"
-): HTMLElement {
-    const marker = document.createTextNode("");
-    const wrapper = document.createElement(tagName);
-    if (tagName === "span") {
-        wrapper.style.display = "contents";
-    }
-    wrapper.appendChild(marker);
+    renderFn: (getItem: () => T) => HTMLElement
+): Node {
+    const marker = document.createComment("wv-for");
+    let isInitial = true;
+    let initialFragment: DocumentFragment | null = document.createDocumentFragment();
 
     let oldKeys: any[] = [];
     let entityCache = new Map<any, Entry<T>>();
 
     createEffect(() => {
         const list = read(listNode);
+        const parent = marker.parentNode;
+
+        if (!isInitial && !parent) return;
+
         const newLen = list.length;
         const oldLen = oldKeys.length;
 
@@ -187,55 +187,62 @@ export function For<T>(
             DestructionSystem.destroyEntities(toDestroyImmediate);
         }
 
-        let start = 0;
-        let oldEnd = oldLen - 1;
-        let newEnd = newLen - 1;
+        if (isInitial) {
+            for (let i = 0; i < newLen; i++) {
+                const entry = newCache.get(newKeys[i])!;
+                initialFragment!.appendChild(entry.dom);
+            }
+            initialFragment!.appendChild(marker);
+            isInitial = false;
+        } else if (parent) {
+            let start = 0;
+            let oldEnd = oldLen - 1;
+            let newEnd = newLen - 1;
 
-        while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
-            start++;
-        }
-        while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[newEnd]) {
-            oldEnd--;
-            newEnd--;
-        }
-
-        const count = newEnd - start + 1;
-        if (count > 0) {
-            const source = new Array<number>(count).fill(-1);
-            const keyIndexMap = new Map<any, number>();
-
-            for (let i = start; i <= newEnd; i++) {
-                keyIndexMap.set(newKeys[i], i);
+            while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
+                start++;
+            }
+            while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
+                oldEnd--;
+                newEnd--;
             }
 
-            for (let i = start; i <= oldEnd; i++) {
-                const oldKey = oldKeys[i];
-                if (keyIndexMap.has(oldKey)) {
-                    const newIdx = keyIndexMap.get(oldKey)!;
-                    source[newIdx - start] = i;
+            const count = newEnd - start + 1;
+            if (count > 0) {
+                const source = new Array<number>(count).fill(-1);
+                const keyIndexMap = new Map<any, number>();
+
+                for (let i = start; i <= newEnd; i++) {
+                    keyIndexMap.set(newKeys[i], i);
                 }
-            }
 
-            const lis = getLIS(source);
-            let lisIdx = lis.length - 1;
-
-            let anchor: Node = newEnd + 1 < newLen 
-                ? newCache.get(newKeys[newEnd + 1])!.dom 
-                : marker;
-
-            for (let i = count - 1; i >= 0; i--) {
-                const currentIndex = start + i;
-                const key = newKeys[currentIndex];
-                const entry = newCache.get(key)!;
-
-                if (source[i] === -1) {
-                    wrapper.insertBefore(entry.dom, anchor);
-                } else if (lisIdx < 0 || i !== lis[lisIdx]) {
-                    wrapper.insertBefore(entry.dom, anchor);
-                } else {
-                    lisIdx--;
+                for (let i = start; i <= oldEnd; i++) {
+                    const oldKey = oldKeys[i];
+                    if (keyIndexMap.has(oldKey)) {
+                        const newIdx = keyIndexMap.get(oldKey)!;
+                        source[newIdx - start] = i;
+                    }
                 }
-                anchor = entry.dom;
+
+                const lis = getLIS(source);
+                let lisIdx = lis.length - 1;
+
+                let anchor: Node = newEnd + 1 < newLen 
+                    ? newCache.get(newKeys[newEnd + 1])!.dom 
+                    : marker;
+
+                for (let i = count - 1; i >= 0; i--) {
+                    const currentIndex = start + i;
+                    const key = newKeys[currentIndex];
+                    const entry = newCache.get(key)!;
+
+                    if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
+                        parent.insertBefore(entry.dom, anchor);
+                    } else {
+                        lisIdx--;
+                    }
+                    anchor = entry.dom;
+                }
             }
         }
 
@@ -243,5 +250,7 @@ export function For<T>(
         oldKeys = newKeys;
     });
 
-    return wrapper;
+    const res = initialFragment;
+    initialFragment = null;
+    return res!;
 }

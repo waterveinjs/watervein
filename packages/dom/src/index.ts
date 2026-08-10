@@ -17,10 +17,9 @@ export function Show(
 export function For<T>(
     listNode: WvNode<T[]>,
     keyFn: (item: T) => any,
-    renderFn: (getItem: () => T) => HTMLElement,
-    tagName: string = "span"
-): HTMLElement {
-    return for0(listNode, keyFn, renderFn, tagName);
+    renderFn: (getItem: () => T) => HTMLElement
+): Node {
+    return for0(listNode, keyFn, renderFn);
 }
 
 export { mount, mountToBody, mountToHead, mountToRoot, unmount } from '@watervein/dom-core';

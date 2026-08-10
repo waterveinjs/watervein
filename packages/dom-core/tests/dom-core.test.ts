@@ -174,7 +174,7 @@ describe('Watervein DOM - For', () => {
 
     it('renders one DOM element per item in initial order', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -183,15 +183,18 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        document.body.appendChild(container);
+
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['A', 'B', 'C']);
     });
 
     it('removes the DOM element for items removed from the list', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -200,12 +203,15 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
 
         write(list, [{ id: 1, label: 'A' }, { id: 3, label: 'C' }]);
         UISystem.flush();
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['A', 'C']);
     });
 
@@ -213,7 +219,7 @@ describe('Watervein DOM - For', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
         const renderCalls = vi.fn();
 
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -223,9 +229,12 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
 
-        const firstDivs = Array.from(wrapper.querySelectorAll('div'));
+        document.body.appendChild(container);
+
+        const firstDivs = Array.from(container.querySelectorAll('div'));
         renderCalls.mockClear();
 
         write(list, [{ id: 1, label: 'A-updated' }, { id: 2, label: 'B' }]);
@@ -233,14 +242,14 @@ describe('Watervein DOM - For', () => {
 
         expect(renderCalls).not.toHaveBeenCalled();
 
-        const secondDivs = Array.from(wrapper.querySelectorAll('div'));
+        const secondDivs = Array.from(container.querySelectorAll('div'));
         expect(secondDivs[0]).toBe(firstDivs[0]);
         expect(secondDivs[1]).toBe(firstDivs[1]);
     });
 
     it('reflects updated item data through getItem() without recreating the DOM node', () => {
         const list = makeList([{ id: 1, label: 'A' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -251,19 +260,22 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
 
-        expect(wrapper.querySelector('div')!.textContent).toBe('A');
+        document.body.appendChild(container);
+
+        expect(container.querySelector('div')!.textContent).toBe('A');
 
         write(list, [{ id: 1, label: 'A-updated' }]);
         UISystem.flush();
 
-        expect(wrapper.querySelector('div')!.textContent).toBe('A-updated');
+        expect(container.querySelector('div')!.textContent).toBe('A-updated');
     });
 
     it('reorders existing DOM elements to match new list order (no new items involved)', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -272,18 +284,21 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
 
         write(list, [{ id: 3, label: 'C' }, { id: 1, label: 'A' }, { id: 2, label: 'B' }]);
         UISystem.flush();
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['C', 'A', 'B']);
     });
 
     it('appends a brand-new item at the end even when there were zero prior items', () => {
         const list = makeList([]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -292,18 +307,21 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
 
         write(list, [{ id: 1, label: 'A' }]);
         UISystem.flush();
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['A']);
     });
 
     it('inserts a new item in the middle at the correct position within a single flush', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 3, label: 'C' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -312,18 +330,21 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
 
         write(list, [{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
         UISystem.flush();
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['A', 'B', 'C']);
     });
 
     it('handles a complete swap of the entire list correctly', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -332,18 +353,21 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
 
         write(list, [{ id: 3, label: 'X' }, { id: 4, label: 'Y' }]);
         UISystem.flush();
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['X', 'Y']);
     });
 
     it('clears all DOM elements when the list becomes empty', () => {
         const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -352,13 +376,16 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
-        expect(wrapper.querySelectorAll('div').length).toBe(2);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
+        expect(container.querySelectorAll('div').length).toBe(2);
 
         write(list, []);
         UISystem.flush();
 
-        expect(wrapper.querySelectorAll('div').length).toBe(0);
+        expect(container.querySelectorAll('div').length).toBe(0);
     });
 
     it('handles complex shuffle, delete, and insert operations combined in a single flush', () => {
@@ -368,7 +395,7 @@ describe('Watervein DOM - For', () => {
             { id: 3, label: 'C' },
             { id: 4, label: 'D' }
         ]);
-        const wrapper = For(
+        const f = For(
             list,
             (item) => item.id,
             (getItem) => {
@@ -377,7 +404,10 @@ describe('Watervein DOM - For', () => {
                 return d;
             }
         );
-        document.body.appendChild(wrapper);
+        const container = document.createElement('div');
+        container.appendChild(f);
+
+        document.body.appendChild(container);
 
         write(list, [
             { id: 4, label: 'D' },
@@ -387,7 +417,7 @@ describe('Watervein DOM - For', () => {
         ]);
         UISystem.flush();
 
-        const labels = Array.from(wrapper.querySelectorAll('div')).map((d) => d.textContent);
+        const labels = Array.from(container.querySelectorAll('div')).map((d) => d.textContent);
         expect(labels).toEqual(['D', 'E', 'A', 'C']);
     });
 
