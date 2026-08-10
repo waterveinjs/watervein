@@ -14,6 +14,7 @@ var edgeNextSub = new Int32Array(edgeCapacity);
 var edgePrevSub = new Int32Array(edgeCapacity);
 var edgeNextDep = new Int32Array(edgeCapacity);
 var edgePrevDep = new Int32Array(edgeCapacity);
+var activeEdgeCount = 0;
 var NULL_EDGE = -1;
 var edgeFreeListHead = NULL_EDGE;
 var nextUnallocatedEdgeId = 0;
@@ -56,6 +57,7 @@ function ensureEdgeCapacity(minCapacity) {
   edgeCapacity = newCap;
 }
 function allocEdge(depId, subId) {
+  activeEdgeCount++;
   edgePoolInitialized = true;
   let edgeId;
   if (edgeFreeListHead !== NULL_EDGE) {
@@ -76,10 +78,33 @@ function allocEdge(depId, subId) {
   return edgeId;
 }
 function freeEdge(edgeId) {
+  activeEdgeCount--;
   edgeDep[edgeId] = -1;
   edgeSub[edgeId] = -1;
   edgeNextSub[edgeId] = edgeFreeListHead;
   edgeFreeListHead = edgeId;
+}
+function compactEdgePoolIfNeeded() {
+  if (edgeCapacity > DEFAULT_EDGE_CAPACITY && activeEdgeCount === 0) {
+    edgeCapacity = DEFAULT_EDGE_CAPACITY;
+    edgeDep = new Int32Array(edgeCapacity);
+    edgeSub = new Int32Array(edgeCapacity);
+    edgeNextSub = new Int32Array(edgeCapacity);
+    edgePrevSub = new Int32Array(edgeCapacity);
+    edgeNextDep = new Int32Array(edgeCapacity);
+    edgePrevDep = new Int32Array(edgeCapacity);
+    edgeFreeListHead = NULL_EDGE;
+    nextUnallocatedEdgeId = 0;
+  }
+}
+function trimSparseArrays() {
+  while (allNodes.length > 0 && allNodes[allNodes.length - 1] === void 0) {
+    allNodes.pop();
+  }
+  if (allNodes.length === 0) {
+    NODE_ID_COUNTER = 0;
+    freeNodeIds.length = 0;
+  }
 }
 var allNodes = [];
 function N(id) {
@@ -693,6 +718,8 @@ var DestructionSystem = {
       minDirtyDepth = Infinity;
       maxDirtyDepth = -1;
     }
+    trimSparseArrays();
+    compactEdgePoolIfNeeded();
   },
   _cleanupNode(node, destroying = null) {
     if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {

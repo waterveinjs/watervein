@@ -18,6 +18,8 @@ let edgePrevSub = new Int32Array(edgeCapacity);
 let edgeNextDep = new Int32Array(edgeCapacity);
 let edgePrevDep = new Int32Array(edgeCapacity);
 
+let activeEdgeCount = 0;
+
 export const NULL_EDGE = -1;
 let edgeFreeListHead = NULL_EDGE;
 let nextUnallocatedEdgeId = 0;
@@ -69,6 +71,7 @@ function ensureEdgeCapacity(minCapacity: number) {
 }
 
 function allocEdge(depId: number, subId: number): number {
+    activeEdgeCount++;
     edgePoolInitialized = true;
     let edgeId: number;
     if (edgeFreeListHead !== NULL_EDGE) {
@@ -92,10 +95,38 @@ function allocEdge(depId: number, subId: number): number {
 }
 
 function freeEdge(edgeId: number) {
+    activeEdgeCount--;
     edgeDep[edgeId]     = -1;
     edgeSub[edgeId]     = -1;
     edgeNextSub[edgeId] = edgeFreeListHead;
     edgeFreeListHead    = edgeId;
+}
+
+function compactEdgePoolIfNeeded() {
+    if (edgeCapacity > DEFAULT_EDGE_CAPACITY && activeEdgeCount === 0) {
+        edgeCapacity = DEFAULT_EDGE_CAPACITY;
+
+        edgeDep     = new Int32Array(edgeCapacity);
+        edgeSub     = new Int32Array(edgeCapacity);
+        edgeNextSub = new Int32Array(edgeCapacity);
+        edgePrevSub = new Int32Array(edgeCapacity);
+        edgeNextDep = new Int32Array(edgeCapacity);
+        edgePrevDep = new Int32Array(edgeCapacity);
+
+        edgeFreeListHead = NULL_EDGE;
+        nextUnallocatedEdgeId = 0;
+    }
+}
+
+function trimSparseArrays() {
+    while (allNodes.length > 0 && allNodes[allNodes.length - 1] === undefined) {
+        allNodes.pop();
+    }
+
+    if (allNodes.length === 0) {
+        NODE_ID_COUNTER = 0;
+        freeNodeIds.length = 0;
+    }
 }
 
 export type Node<T = any> = {
@@ -820,6 +851,9 @@ export const DestructionSystem = {
             minDirtyDepth = Infinity;
             maxDirtyDepth = -1;
         }
+
+        trimSparseArrays();
+        compactEdgePoolIfNeeded();
     },
 
     _cleanupNode(node: Node, destroying: Set<number> | null = null) {
