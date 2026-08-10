@@ -532,7 +532,7 @@ function createResource(sourceNode, fetcher) {
   return resourceNode;
 }
 function createSelector(sourceNode) {
-  const keyToSubs = [];
+  const keyToSubs = /* @__PURE__ */ new Map();
   let prevId = untrack(() => read(sourceNode));
   createEffect(() => {
     const nextId = read(sourceNode);
@@ -541,8 +541,8 @@ function createSelector(sourceNode) {
     const n = nextId;
     prevId = nextId;
     const notify = (id) => {
-      if (id < 0) return;
-      const subs = keyToSubs[id];
+      if (id === null || id < 0) return;
+      const subs = keyToSubs.get(id);
       if (subs) {
         let writeIdx = 0;
         for (let i = 0; i < subs.length; i++) {
@@ -553,7 +553,11 @@ function createSelector(sourceNode) {
             subs[writeIdx++] = subId;
           }
         }
-        subs.length = writeIdx;
+        if (writeIdx === 0) {
+          keyToSubs.delete(id);
+        } else {
+          subs.length = writeIdx;
+        }
       }
     };
     notify(p);
@@ -562,9 +566,10 @@ function createSelector(sourceNode) {
   return (id) => {
     const trk = currentTrackingNode;
     if (trk !== null) {
-      let subs = keyToSubs[id];
+      let subs = keyToSubs.get(id);
       if (!subs) {
-        subs = keyToSubs[id] = [];
+        subs = [];
+        keyToSubs.set(id, subs);
       }
       let found = false;
       let writeIdx = 0;

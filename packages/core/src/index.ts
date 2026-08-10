@@ -645,7 +645,7 @@ export function createResource<S, T>(
 }
 
 export function createSelector(sourceNode: Node<number>): (id: number) => boolean {
-    const keyToSubs: number[][] = [];
+    const keyToSubs = new Map<number, number[]>();
     let prevId = untrack(() => read(sourceNode));
 
     createEffect(() => {
@@ -656,9 +656,9 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
         const n = nextId;
         prevId = nextId;
 
-        const notify = (id: number) => {
-            if (id < 0) return;
-            const subs = keyToSubs[id];
+        const notify = (id: number | null) => {
+            if (id === null || id < 0) return;
+            const subs = keyToSubs.get(id);
             if (subs) {
                 let writeIdx = 0;
                 for (let i = 0; i < subs.length; i++) {
@@ -669,7 +669,11 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
                         subs[writeIdx++] = subId;
                     }
                 }
-                subs.length = writeIdx;
+                if (writeIdx === 0) {
+                    keyToSubs.delete(id);
+                } else {
+                    subs.length = writeIdx;
+                }
             }
         };
 
@@ -680,9 +684,10 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
     return (id: number): boolean => {
         const trk = currentTrackingNode;
         if (trk !== null) {
-            let subs = keyToSubs[id];
+            let subs = keyToSubs.get(id);
             if (!subs) {
-                subs = keyToSubs[id] = [];
+                subs = [];
+                keyToSubs.set(id, subs);
             }
             let found = false;
             let writeIdx = 0;
