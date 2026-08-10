@@ -100,10 +100,11 @@ var entityRegistry = /* @__PURE__ */ new Map();
 var currentEntityId = null;
 var entityChildrenMap = /* @__PURE__ */ new Map();
 var entityParentMap = /* @__PURE__ */ new Map();
+var freeEntityIds = [];
 var isBatching = false;
 var raFID = null;
 function createEntity() {
-  const id = ENTITY_COUNT++;
+  const id = freeEntityIds.length > 0 ? freeEntityIds.pop() : ENTITY_COUNT++;
   entityRegistry.set(id, []);
   entityParentMap.set(id, currentEntityId);
   entityChildrenMap.set(id, /* @__PURE__ */ new Set());
@@ -517,10 +518,16 @@ function createSelector(sourceNode) {
       if (id < 0) return;
       const subs = keyToSubs[id];
       if (subs) {
+        let writeIdx = 0;
         for (let i = 0; i < subs.length; i++) {
-          const node = allNodes[subs[i]];
-          if (node && node.type !== -1) scheduleNode(node);
+          const subId = subs[i];
+          const node = allNodes[subId];
+          if (node && node.type !== -1) {
+            scheduleNode(node);
+            subs[writeIdx++] = subId;
+          }
         }
+        subs.length = writeIdx;
       }
     };
     notify(p);
@@ -664,6 +671,14 @@ var DestructionSystem = {
       entityChildrenMap.delete(eId);
       errorBoundaryRegistry.delete(eId);
       cleanupEntityEvents(eId);
+    }
+    for (const eId of allTargetEntityIds) {
+      entityRegistry.delete(eId);
+      entityParentMap.delete(eId);
+      entityChildrenMap.delete(eId);
+      errorBoundaryRegistry.delete(eId);
+      cleanupEntityEvents(eId);
+      freeEntityIds.push(eId);
     }
     let hasRemainingDirty = false;
     for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
@@ -873,7 +888,7 @@ function mapEntity(listNode, keyFn, renderFn) {
         });
       }
     }
-    prevList = list.slice();
+    prevList = len === 0 ? [] : list.slice();
   });
 }
 function isNode(value) {

@@ -146,11 +146,13 @@ let currentEntityId: number | null = null;
 const entityChildrenMap = new Map<number, Set<number>>();
 const entityParentMap   = new Map<number, number | null>();
 
+const freeEntityIds: number[] = [];
+
 let isBatching = false;
 let raFID: number | null = null;
 
 export function createEntity(): number {
-    const id = ENTITY_COUNT++;
+    const id = freeEntityIds.length > 0 ? freeEntityIds.pop()! : ENTITY_COUNT++;
     entityRegistry.set(id, []);
     entityParentMap.set(id, currentEntityId);
     entityChildrenMap.set(id, new Set());
@@ -626,10 +628,16 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
             if (id < 0) return;
             const subs = keyToSubs[id];
             if (subs) {
+                let writeIdx = 0;
                 for (let i = 0; i < subs.length; i++) {
-                    const node = allNodes[subs[i]];
-                    if (node && node.type !== -1) scheduleNode(node);
+                    const subId = subs[i];
+                    const node = allNodes[subId];
+                    if (node && node.type !== -1) {
+                        scheduleNode(node);
+                        subs[writeIdx++] = subId;
+                    }
                 }
+                subs.length = writeIdx;
             }
         };
 
@@ -789,6 +797,14 @@ export const DestructionSystem = {
             entityChildrenMap.delete(eId);
             errorBoundaryRegistry.delete(eId);
             cleanupEntityEvents(eId);
+        }
+        for (const eId of allTargetEntityIds) {
+            entityRegistry.delete(eId);
+            entityParentMap.delete(eId);
+            entityChildrenMap.delete(eId);
+            errorBoundaryRegistry.delete(eId);
+            cleanupEntityEvents(eId);
+            freeEntityIds.push(eId);
         }
 
         let hasRemainingDirty = false;
@@ -1039,7 +1055,7 @@ export function mapEntity<T>(
             }
         }
 
-        prevList = list.slice();
+        prevList = len === 0 ? [] : list.slice();
     });
 }
 
