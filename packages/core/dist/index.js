@@ -540,9 +540,18 @@ function createSelector(sourceNode) {
       if (!subs) {
         subs = keyToSubs[id] = [];
       }
-      if (subs.indexOf(trk.id) === -1) {
-        subs.push(trk.id);
+      let found = false;
+      let writeIdx = 0;
+      for (let i = 0; i < subs.length; i++) {
+        const subId = subs[i];
+        const node = allNodes[subId];
+        if (node && node.type !== -1) {
+          if (subId === trk.id) found = true;
+          subs[writeIdx++] = subId;
+        }
       }
+      subs.length = writeIdx;
+      if (!found) subs.push(trk.id);
     }
     return untrack(() => read(sourceNode)) === id;
   };
@@ -671,13 +680,6 @@ var DestructionSystem = {
       entityChildrenMap.delete(eId);
       errorBoundaryRegistry.delete(eId);
       cleanupEntityEvents(eId);
-    }
-    for (const eId of allTargetEntityIds) {
-      entityRegistry.delete(eId);
-      entityParentMap.delete(eId);
-      entityChildrenMap.delete(eId);
-      errorBoundaryRegistry.delete(eId);
-      cleanupEntityEvents(eId);
       freeEntityIds.push(eId);
     }
     let hasRemainingDirty = false;
@@ -700,6 +702,7 @@ var DestructionSystem = {
         console.error(`[watervein] Error during effect cleanup on node ${node.id}:`, err);
       }
     }
+    node.value = null;
     let subEdgeId = node.subsHead;
     node.subsHead = NULL_EDGE;
     while (subEdgeId !== NULL_EDGE) {
