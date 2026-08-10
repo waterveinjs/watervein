@@ -173,14 +173,24 @@ function unlinkEdge(edgeId) {
   const nextS = edgeNextSub[edgeId];
   const prevD = edgePrevDep[edgeId];
   const nextD = edgeNextDep[edgeId];
-  const depNode = allNodes[depId];
-  const subNode = allNodes[subId];
-  if (prevS !== NULL_EDGE) edgeNextSub[prevS] = nextS;
-  else if (depNode && depNode.type !== -1) depNode.subsHead = nextS;
-  if (nextS !== NULL_EDGE) edgePrevSub[nextS] = prevS;
-  if (prevD !== NULL_EDGE) edgeNextDep[prevD] = nextD;
-  else if (subNode && subNode.type !== -1) subNode.depsHead = nextD;
-  if (nextD !== NULL_EDGE) edgePrevDep[nextD] = prevD;
+  if (prevS !== NULL_EDGE) {
+    edgeNextSub[prevS] = nextS;
+  } else {
+    const depNode = allNodes[depId];
+    if (depNode) depNode.subsHead = nextS;
+  }
+  if (nextS !== NULL_EDGE) {
+    edgePrevSub[nextS] = prevS;
+  }
+  if (prevD !== NULL_EDGE) {
+    edgeNextDep[prevD] = nextD;
+  } else {
+    const subNode = allNodes[subId];
+    if (subNode) subNode.depsHead = nextD;
+  }
+  if (nextD !== NULL_EDGE) {
+    edgePrevDep[nextD] = prevD;
+  }
   freeEdge(edgeId);
 }
 var edgeCommitVersion = 0;
@@ -189,6 +199,15 @@ function commitEdges(sub) {
   const pending = sub.pendingDeps;
   const pLen = sub.pendingDepsLen;
   edgeCommitVersion += 2;
+  if (edgeCommitVersion > 9007199254740900) {
+    edgeCommitVersion = 2;
+    for (let i = 0; i < allNodes.length; i++) {
+      const node = allNodes[i];
+      if (node) {
+        node.watchedVersion = 0;
+      }
+    }
+  }
   const pendingStamp = edgeCommitVersion;
   const existingStamp = pendingStamp + 1;
   try {
@@ -225,7 +244,8 @@ function commitEdges(sub) {
     sub.pendingDepsLen = 0;
   }
 }
-var PROPAGATE_QUEUE = new Array(2048);
+var INITIAL_QUEUE_CAPACITY = 2048;
+var PROPAGATE_QUEUE = new Array(INITIAL_QUEUE_CAPACITY);
 function propagateDepth(start) {
   PROPAGATE_QUEUE[0] = start;
   let head = 0;
@@ -249,9 +269,6 @@ function propagateDepth(start) {
             subNode.depth = node.depth + 1;
             if (subNode.watchedVersion !== visitMarker) {
               subNode.watchedVersion = visitMarker;
-              if (tail >= PROPAGATE_QUEUE.length) {
-                PROPAGATE_QUEUE.length *= 2;
-              }
               PROPAGATE_QUEUE[tail++] = subNode;
             }
           }
@@ -260,7 +277,9 @@ function propagateDepth(start) {
       }
     }
   } finally {
-    for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = void 0;
+    for (let i = head; i < tail; i++) {
+      PROPAGATE_QUEUE[i] = void 0;
+    }
   }
 }
 var nextTick = typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
@@ -347,6 +366,32 @@ function forceCleanupBuckets() {
     }
   }
 }
+function handleFlushError(node, err) {
+  if (import.meta.env.DEV) {
+    console.error(
+      `[watervein-error] Exception caught during flush (Node ID: ${node.id}, Type: ${node.type}).
+Entity ID: ${node.entityId ?? "Global"}
+`,
+      err
+    );
+  }
+  let currentSearchId = node.entityId;
+  let handler = void 0;
+  while (currentSearchId !== null) {
+    if (errorBoundaryRegistry.has(currentSearchId)) {
+      handler = errorBoundaryRegistry.get(currentSearchId);
+      break;
+    }
+    currentSearchId = entityParentMap.get(currentSearchId) ?? null;
+  }
+  forceCleanupBuckets();
+  raFID = null;
+  if (handler) {
+    handler(err);
+    return;
+  }
+  throw err;
+}
 function flush() {
   raFID = null;
   let d = minDirtyDepth;
@@ -359,60 +404,18 @@ function flush() {
       }
       node.bucketIdx = -1;
       node.dirty = false;
-      if (import.meta.env.DEV) {
-        try {
-          if (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
-          else if (node.type === NODE_TYPE_EFFECT) executeEffect(node);
-        } catch (err) {
-          console.error(
-            `[watervein-error] Exception caught during flush at depth ${d} (Node ID: ${node.id}, Type: ${node.type}).
-Entity ID: ${node.entityId ?? "Global"}
-`,
-            err
-          );
-          let currentSearchId = node.entityId;
-          let handler = void 0;
-          while (currentSearchId !== null) {
-            if (errorBoundaryRegistry.has(currentSearchId)) {
-              handler = errorBoundaryRegistry.get(currentSearchId);
-              break;
-            }
-            currentSearchId = entityParentMap.get(currentSearchId) ?? null;
-          }
-          forceCleanupBuckets();
-          raFID = null;
-          if (handler) {
-            handler(err);
-            return;
-          }
-          throw err;
+      try {
+        if (node.type === NODE_TYPE_COMPUTE) {
+          executeCompute(node);
+        } else if (node.type === NODE_TYPE_EFFECT) {
+          executeEffect(node);
         }
-      } else {
-        try {
-          if (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
-          else if (node.type === NODE_TYPE_EFFECT) executeEffect(node);
-        } catch (err) {
-          let currentSearchId = node.entityId;
-          let handler = void 0;
-          while (currentSearchId !== null) {
-            if (errorBoundaryRegistry.has(currentSearchId)) {
-              handler = errorBoundaryRegistry.get(currentSearchId);
-              break;
-            }
-            currentSearchId = entityParentMap.get(currentSearchId) ?? null;
-          }
-          forceCleanupBuckets();
-          raFID = null;
-          if (handler) {
-            handler(err);
-            return;
-          }
-          throw err;
-        }
+      } catch (err) {
+        handleFlushError(node, err);
+        return;
       }
       if (minDirtyDepth < d) {
         d = minDirtyDepth;
-        continue;
       }
     } else {
       d++;
@@ -511,9 +514,6 @@ function read(node) {
     if (idx > 0 && trk.pendingDeps[idx - 1] === node) {
       return node.value;
     }
-    if (idx >= trk.pendingDeps.length) {
-      trk.pendingDeps.length *= 2;
-    }
     trk.pendingDeps[idx] = node;
     trk.pendingDepsLen = idx + 1;
   }
@@ -525,7 +525,9 @@ function write(node, value) {
   let edgeId = node.subsHead;
   while (edgeId !== NULL_EDGE) {
     const subNode = allNodes[edgeSub[edgeId]];
-    if (subNode) scheduleNode(subNode);
+    if (subNode && subNode.type !== -1) {
+      scheduleNode(subNode);
+    }
     edgeId = edgeNextSub[edgeId];
   }
 }

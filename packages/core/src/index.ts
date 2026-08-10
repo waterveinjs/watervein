@@ -229,18 +229,26 @@ function unlinkEdge(edgeId: number) {
     const prevD = edgePrevDep[edgeId];
     const nextD = edgeNextDep[edgeId];
 
-    const depNode = allNodes[depId];
-    const subNode = allNodes[subId];
+    if (prevS !== NULL_EDGE) { edgeNextSub[prevS] = nextS;
+    } else {
+        const depNode = allNodes[depId];
+        if (depNode) depNode.subsHead = nextS;
+    }
 
-    if (prevS !== NULL_EDGE) edgeNextSub[prevS] = nextS;
-    else if (depNode && depNode.type !== -1) depNode.subsHead = nextS;
+    if (nextS !== NULL_EDGE) {
+        edgePrevSub[nextS] = prevS;
+    }
 
-    if (nextS !== NULL_EDGE) edgePrevSub[nextS] = prevS;
+    if (prevD !== NULL_EDGE) {
+        edgeNextDep[prevD] = nextD;
+    } else {
+        const subNode = allNodes[subId];
+        if (subNode) subNode.depsHead = nextD;
+    }
 
-    if (prevD !== NULL_EDGE) edgeNextDep[prevD] = nextD;
-    else if (subNode && subNode.type !== -1) subNode.depsHead = nextD;
-
-    if (nextD !== NULL_EDGE) edgePrevDep[nextD] = prevD;
+    if (nextD !== NULL_EDGE) {
+        edgePrevDep[nextD] = prevD;
+    }
 
     freeEdge(edgeId);
 }
@@ -254,6 +262,15 @@ function commitEdges(sub: Node) {
     const pLen    = sub.pendingDepsLen;
 
     edgeCommitVersion += 2;
+    if (edgeCommitVersion > 9007199254740900) { 
+        edgeCommitVersion = 2;
+        for (let i = 0; i < allNodes.length; i++) {
+            const node = allNodes[i];
+            if (node) {
+                node.watchedVersion = 0;
+            }
+        }
+    }
     const pendingStamp  = edgeCommitVersion;
     const existingStamp = pendingStamp + 1;
 
@@ -295,7 +312,8 @@ function commitEdges(sub: Node) {
     }
 }
 
-const PROPAGATE_QUEUE: (Node | undefined)[] = new Array(2048);
+const INITIAL_QUEUE_CAPACITY = 2048;
+const PROPAGATE_QUEUE: (Node | undefined)[] = new Array(INITIAL_QUEUE_CAPACITY);
 
 function propagateDepth(start: Node) {
     PROPAGATE_QUEUE[0] = start;
@@ -324,9 +342,6 @@ function propagateDepth(start: Node) {
                         subNode.depth = node.depth + 1;
                         if (subNode.watchedVersion !== visitMarker) {
                             subNode.watchedVersion = visitMarker;
-                            if (tail >= PROPAGATE_QUEUE.length) {
-                                PROPAGATE_QUEUE.length *= 2;
-                            }
                             PROPAGATE_QUEUE[tail++] = subNode;
                         }
                     }
@@ -335,7 +350,9 @@ function propagateDepth(start: Node) {
             }
         }
     } finally {
-        for (let i = 0; i < tail; i++) PROPAGATE_QUEUE[i] = undefined;
+        for (let i = head; i < tail; i++) {
+            PROPAGATE_QUEUE[i] = undefined;
+        }
     }
 }
 
@@ -433,12 +450,44 @@ function forceCleanupBuckets() {
     }
 }
 
+function handleFlushError(node: any, err: any) {
+    if (import.meta.env.DEV) {
+        console.error(
+            `[watervein-error] Exception caught during flush (Node ID: ${node.id}, Type: ${node.type}).\n` +
+            `Entity ID: ${node.entityId ?? 'Global'}\n`,
+            err
+        );
+    }
+
+    let currentSearchId: number | null = node.entityId;
+    let handler: ((err: any) => void) | undefined = undefined;
+
+    while (currentSearchId !== null) {
+        if (errorBoundaryRegistry.has(currentSearchId)) {
+            handler = errorBoundaryRegistry.get(currentSearchId);
+            break;
+        }
+        currentSearchId = entityParentMap.get(currentSearchId) ?? null;
+    }
+
+    forceCleanupBuckets();
+    raFID = null;
+
+    if (handler) {
+        handler(err);
+        return;
+    }
+
+    throw err;
+}
+
 export function flush() {
     raFID = null;
     let d = minDirtyDepth;
 
     while (d <= maxDirtyDepth) {
         const bucket = buckets[d];
+
         if (bucket && bucket.length > 0) {
             const node = bucket.pop()!;
 
@@ -449,69 +498,19 @@ export function flush() {
             node.bucketIdx = -1;
             node.dirty     = false;
 
-            if (import.meta.env.DEV) {
-                try {
-                    if      (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
-                    else if (node.type === NODE_TYPE_EFFECT)  executeEffect(node);
-                } catch (err) {
-                    console.error(
-                        `[watervein-error] Exception caught during flush at depth ${d} (Node ID: ${node.id}, Type: ${node.type}).\n` +
-                        `Entity ID: ${node.entityId ?? 'Global'}\n`,
-                        err
-                    );
-
-                    let currentSearchId: number | null = node.entityId;
-                    let handler: ((err: any) => void) | undefined = undefined;
-
-                    while (currentSearchId !== null) {
-                        if (errorBoundaryRegistry.has(currentSearchId)) {
-                            handler = errorBoundaryRegistry.get(currentSearchId);
-                            break;
-                        }
-                        currentSearchId = entityParentMap.get(currentSearchId) ?? null;
-                    }
-
-                    forceCleanupBuckets();
-                    raFID = null;
-
-                    if (handler) {
-                        handler(err);
-                        return;
-                    }
-
-                    throw err;
+            try {
+                if (node.type === NODE_TYPE_COMPUTE) {
+                    executeCompute(node);
+                } else if (node.type === NODE_TYPE_EFFECT) {
+                    executeEffect(node);
                 }
-            } else {
-                try {
-                    if      (node.type === NODE_TYPE_COMPUTE) executeCompute(node);
-                    else if (node.type === NODE_TYPE_EFFECT)  executeEffect(node);
-                } catch (err) {
-                    let currentSearchId: number | null = node.entityId;
-                    let handler: ((err: any) => void) | undefined = undefined;
-
-                    while (currentSearchId !== null) {
-                        if (errorBoundaryRegistry.has(currentSearchId)) {
-                            handler = errorBoundaryRegistry.get(currentSearchId);
-                            break;
-                        }
-                        currentSearchId = entityParentMap.get(currentSearchId) ?? null;
-                    }
-
-                    forceCleanupBuckets();
-                    raFID = null;
-
-                    if (handler) {
-                        handler(err);
-                        return;
-                    }
-
-                    throw err;
-                }
+            } catch (err) {
+                handleFlushError(node, err);
+                return;
             }
 
             if (minDirtyDepth < d) {
                 d = minDirtyDepth;
-                continue;
             }
         } else {
             d++;
@@ -621,11 +620,8 @@ export function read<T>(node: Node<T>): T {
         if (idx > 0 && trk.pendingDeps[idx - 1] === node) {
             return node.value;
         }
-        if (idx >= trk.pendingDeps.length) {
-            trk.pendingDeps.length *= 2;
-        }
         trk.pendingDeps[idx] = node;
-        trk.pendingDepsLen   = idx + 1;
+        trk.pendingDepsLen = idx + 1;
     }
     return node.value;
 }
@@ -636,7 +632,9 @@ export function write<T>(node: Node<T>, value: T) {
     let edgeId = node.subsHead;
     while (edgeId !== NULL_EDGE) {
         const subNode = allNodes[edgeSub[edgeId]];
-        if (subNode) scheduleNode(subNode);
+        if (subNode && subNode.type !== -1) {
+            scheduleNode(subNode);
+        }
         edgeId = edgeNextSub[edgeId];
     }
 }
