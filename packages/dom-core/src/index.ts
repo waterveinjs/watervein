@@ -49,38 +49,32 @@ export function element<K extends keyof HTMLElementTagNameMap>(
             if (key.startsWith("on")) {
                 el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
             }
-            else if (key === "style" && value !== undefined && value !== null) {
-                if (isWvNode(value)) {
-                    createEffect(() => { el.style.cssText = String(read(value)); });
-                }
-                else if (typeof value === "object") applyReactiveStyle(el, value as ReactiveStyle);
-                else if (typeof value === "function") {
-                    createEffect(() => { el.style.cssText = String((value as Function)()); });
+            else if (key === "class" || key === "className") {
+                if (value != null) applyReactiveClass(el, value);
+            }
+            else if (key === "style") {
+                if (value != null) {
+                    if (typeof value === "function" || isWvNode(value)) {
+                        createEffect(() => { el.style.cssText = String(isWvNode(value) ? read(value) : (value as Function)()); });
+                    } else if (typeof value === "object") {
+                        applyReactiveStyle(el, value as ReactiveStyle);
+                    } else {
+                        el.style.cssText = String(value);
+                    }
                 }
             }
-            else if ((key === "class" || key === "className") && value !== undefined && value !== null) {
-                applyReactiveClass(el, value);
-            } 
             else if (typeof value === "function" || isWvNode(value)) {
                 createEffect(() => {
                     const evaluated = isWvNode(value) ? read(value) : (value as Function)();
-                    if (evaluated !== undefined && evaluated !== null) {
-                        if (key in el && !(key === "list" || key === "form")) {
-                            (el as any)[key] = evaluated;
-                        } else {
-                            el.setAttribute(key, String(evaluated));
-                        }
+                    if (evaluated != null) {
+                        (el as any)[key] = evaluated;
                     } else {
                         el.removeAttribute(key);
                     }
                 });
             } 
-            else if (value !== undefined && value !== null) {
-                if (key in el && !(key === "list" || key === "form")) {
-                    (el as any)[key] = value;
-                } else {
-                    el.setAttribute(key, String(value));
-                }
+            else if (value != null) {
+                (el as any)[key] = value;
             }
         }
 
@@ -95,8 +89,14 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     if (children !== undefined) {
         if (Array.isArray(children)) {
             const len = children.length;
-            for (let i = 0; i < len; i++) {
-                appendChild(el, children[i]);
+            if (len > 1) {
+                const fragment = document.createDocumentFragment();
+                for (let i = 0; i < len; i++) {
+                    appendChild(fragment as any, children[i]);
+                }
+                el.appendChild(fragment);
+            } else if (len === 1) {
+                appendChild(el, children[0]);
             }
         } else {
             appendChild(el, children);

@@ -248,38 +248,31 @@ function element(tag, props, children) {
       const value = props[key];
       if (key.startsWith("on")) {
         el.addEventListener(key.slice(2).toLowerCase(), value);
-      } else if (key === "style" && value !== void 0 && value !== null) {
-        if (isWvNode(value)) {
-          createEffect2(() => {
-            el.style.cssText = String(read2(value));
-          });
-        } else if (typeof value === "object") applyReactiveStyle(el, value);
-        else if (typeof value === "function") {
-          createEffect2(() => {
-            el.style.cssText = String(value());
-          });
+      } else if (key === "class" || key === "className") {
+        if (value != null) applyReactiveClass(el, value);
+      } else if (key === "style") {
+        if (value != null) {
+          if (typeof value === "function" || isWvNode(value)) {
+            createEffect2(() => {
+              el.style.cssText = String(isWvNode(value) ? read2(value) : value());
+            });
+          } else if (typeof value === "object") {
+            applyReactiveStyle(el, value);
+          } else {
+            el.style.cssText = String(value);
+          }
         }
-      } else if ((key === "class" || key === "className") && value !== void 0 && value !== null) {
-        applyReactiveClass(el, value);
       } else if (typeof value === "function" || isWvNode(value)) {
         createEffect2(() => {
           const evaluated = isWvNode(value) ? read2(value) : value();
-          if (evaluated !== void 0 && evaluated !== null) {
-            if (key in el && !(key === "list" || key === "form")) {
-              el[key] = evaluated;
-            } else {
-              el.setAttribute(key, String(evaluated));
-            }
+          if (evaluated != null) {
+            el[key] = evaluated;
           } else {
             el.removeAttribute(key);
           }
         });
-      } else if (value !== void 0 && value !== null) {
-        if (key in el && !(key === "list" || key === "form")) {
-          el[key] = value;
-        } else {
-          el.setAttribute(key, String(value));
-        }
+      } else if (value != null) {
+        el[key] = value;
       }
     }
     if ("ref" in props && typeof props.ref === "function") {
@@ -292,8 +285,14 @@ function element(tag, props, children) {
   if (children !== void 0) {
     if (Array.isArray(children)) {
       const len = children.length;
-      for (let i = 0; i < len; i++) {
-        appendChild(el, children[i]);
+      if (len > 1) {
+        const fragment = document.createDocumentFragment();
+        for (let i = 0; i < len; i++) {
+          appendChild(fragment, children[i]);
+        }
+        el.appendChild(fragment);
+      } else if (len === 1) {
+        appendChild(el, children[0]);
       }
     } else {
       appendChild(el, children);
