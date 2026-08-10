@@ -118,6 +118,11 @@ type Entry<T> = {
     itemNode: WvNode<T>;
 };
 
+let NEXT_CACHE = new Map<any, Entry<any>>();
+let NEXT_KEYS_BUFFER: any[] = [];
+let SOURCE_BUFFER: number[] = [];
+const KEY_INDEX_MAP_BUFFER = new Map<any, number>();
+
 export function For<T>(
     listNode: WvNode<T[]>,
     keyFn: (item: T) => any,
@@ -128,6 +133,7 @@ export function For<T>(
     let initialFragment: DocumentFragment | null = document.createDocumentFragment();
 
     let oldKeys: any[] = [];
+    let oldLen = 0;
     let entityCache = new Map<any, Entry<T>>();
 
     createEffect(() => {
@@ -137,10 +143,14 @@ export function For<T>(
         if (!isInitial && !parent) return;
 
         const newLen = list.length;
-        const oldLen = oldKeys.length;
 
-        const newCache = new Map<any, Entry<T>>();
-        const newKeys: any[] = new Array(newLen);
+        const newCache = NEXT_CACHE;
+        newCache.clear();
+
+        if (NEXT_KEYS_BUFFER.length < newLen) {
+            NEXT_KEYS_BUFFER = new Array(newLen);
+        }
+        const newKeys = NEXT_KEYS_BUFFER;
 
         for (let i = 0; i < newLen; i++) {
             const item = list[i];
@@ -209,8 +219,14 @@ export function For<T>(
 
             const count = newEnd - start + 1;
             if (count > 0) {
-                const source = new Array<number>(count).fill(-1);
-                const keyIndexMap = new Map<any, number>();
+                if (SOURCE_BUFFER.length < count) {
+                    SOURCE_BUFFER = new Array(count);
+                }
+                const source = SOURCE_BUFFER;
+                source.fill(-1, 0, count);
+
+                const keyIndexMap = KEY_INDEX_MAP_BUFFER;
+                keyIndexMap.clear();
 
                 for (let i = start; i <= newEnd; i++) {
                     keyIndexMap.set(newKeys[i], i);
@@ -224,7 +240,7 @@ export function For<T>(
                     }
                 }
 
-                const lis = getLIS(source);
+                const lis = getLIS(source.slice(0, count));
                 let lisIdx = lis.length - 1;
 
                 let anchor: Node = newEnd + 1 < newLen 
@@ -246,8 +262,18 @@ export function For<T>(
             }
         }
 
-        entityCache = newCache;
-        oldKeys = newKeys;
+        entityCache.clear();
+        for (const [k, v] of newCache) {
+            entityCache.set(k, v);
+        }
+
+        if (oldKeys.length < newLen) {
+            oldKeys = new Array(newLen);
+        }
+        for (let i = 0; i < newLen; i++) {
+            oldKeys[i] = newKeys[i];
+        }
+        oldLen = newLen;
     });
 
     const res = initialFragment;

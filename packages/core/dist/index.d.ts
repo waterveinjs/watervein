@@ -60,6 +60,7 @@ export declare const DestructionSystem: {
 	destroyEntities(entityIds: number[]): void;
 	_cleanupNode(node: Node$1, destroying?: Set<number> | null): void;
 };
+export declare function addChildEntity(parentId: number, childId: number): void;
 export declare function matchEntity(conditionNode: Node$1<boolean>, thenFn: () => void, elseFn?: () => void): void;
 export declare function mapEntity<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (key: any, getItem: () => T, getIndex: () => number) => void): void;
 export declare function isNode(value: unknown): value is Node$1<any>;

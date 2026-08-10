@@ -101,20 +101,28 @@ function getLIS(arr) {
   }
   return result;
 }
+var NEXT_CACHE = /* @__PURE__ */ new Map();
+var NEXT_KEYS_BUFFER = [];
+var SOURCE_BUFFER = [];
+var KEY_INDEX_MAP_BUFFER = /* @__PURE__ */ new Map();
 function For(listNode, keyFn, renderFn) {
   const marker = document.createComment("wv-for");
   let isInitial = true;
   let initialFragment = document.createDocumentFragment();
   let oldKeys = [];
+  let oldLen = 0;
   let entityCache = /* @__PURE__ */ new Map();
   createEffect(() => {
     const list = read(listNode);
     const parent = marker.parentNode;
     if (!isInitial && !parent) return;
     const newLen = list.length;
-    const oldLen = oldKeys.length;
-    const newCache = /* @__PURE__ */ new Map();
-    const newKeys = new Array(newLen);
+    const newCache = NEXT_CACHE;
+    newCache.clear();
+    if (NEXT_KEYS_BUFFER.length < newLen) {
+      NEXT_KEYS_BUFFER = new Array(newLen);
+    }
+    const newKeys = NEXT_KEYS_BUFFER;
     for (let i = 0; i < newLen; i++) {
       const item = list[i];
       const key = keyFn(item);
@@ -175,8 +183,13 @@ function For(listNode, keyFn, renderFn) {
       }
       const count = newEnd - start + 1;
       if (count > 0) {
-        const source = new Array(count).fill(-1);
-        const keyIndexMap = /* @__PURE__ */ new Map();
+        if (SOURCE_BUFFER.length < count) {
+          SOURCE_BUFFER = new Array(count);
+        }
+        const source = SOURCE_BUFFER;
+        source.fill(-1, 0, count);
+        const keyIndexMap = KEY_INDEX_MAP_BUFFER;
+        keyIndexMap.clear();
         for (let i = start; i <= newEnd; i++) {
           keyIndexMap.set(newKeys[i], i);
         }
@@ -187,7 +200,7 @@ function For(listNode, keyFn, renderFn) {
             source[newIdx - start] = i;
           }
         }
-        const lis = getLIS(source);
+        const lis = getLIS(source.slice(0, count));
         let lisIdx = lis.length - 1;
         let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
         for (let i = count - 1; i >= 0; i--) {
@@ -203,8 +216,17 @@ function For(listNode, keyFn, renderFn) {
         }
       }
     }
-    entityCache = newCache;
-    oldKeys = newKeys;
+    entityCache.clear();
+    for (const [k, v] of newCache) {
+      entityCache.set(k, v);
+    }
+    if (oldKeys.length < newLen) {
+      oldKeys = new Array(newLen);
+    }
+    for (let i = 0; i < newLen; i++) {
+      oldKeys[i] = newKeys[i];
+    }
+    oldLen = newLen;
   });
   const res = initialFragment;
   initialFragment = null;

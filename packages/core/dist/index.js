@@ -85,16 +85,19 @@ function freeEdge(edgeId) {
   edgeFreeListHead = edgeId;
 }
 function compactEdgePoolIfNeeded() {
-  if (edgeCapacity > DEFAULT_EDGE_CAPACITY && activeEdgeCount === 0) {
+  if (activeEdgeCount === 0) {
+    const targetCapacity = Math.max(DEFAULT_EDGE_CAPACITY, Math.floor(edgeCapacity / 2));
     edgeCapacity = DEFAULT_EDGE_CAPACITY;
-    edgeDep = new Int32Array(edgeCapacity);
-    edgeSub = new Int32Array(edgeCapacity);
-    edgeNextSub = new Int32Array(edgeCapacity);
-    edgePrevSub = new Int32Array(edgeCapacity);
-    edgeNextDep = new Int32Array(edgeCapacity);
-    edgePrevDep = new Int32Array(edgeCapacity);
-    edgeFreeListHead = NULL_EDGE;
-    nextUnallocatedEdgeId = 0;
+    if (edgeCapacity > targetCapacity) {
+      edgeDep = new Int32Array(edgeCapacity);
+      edgeSub = new Int32Array(edgeCapacity);
+      edgeNextSub = new Int32Array(edgeCapacity);
+      edgePrevSub = new Int32Array(edgeCapacity);
+      edgeNextDep = new Int32Array(edgeCapacity);
+      edgePrevDep = new Int32Array(edgeCapacity);
+      edgeFreeListHead = NULL_EDGE;
+      nextUnallocatedEdgeId = 0;
+    }
   }
 }
 function trimSparseArrays() {
@@ -132,10 +135,13 @@ function createEntity() {
   const id = freeEntityIds.length > 0 ? freeEntityIds.pop() : ENTITY_COUNT++;
   entityRegistry.set(id, []);
   entityParentMap.set(id, currentEntityId);
-  entityChildrenMap.set(id, /* @__PURE__ */ new Set());
   if (currentEntityId !== null) {
-    const children = entityChildrenMap.get(currentEntityId);
-    if (children) children.add(id);
+    let children = entityChildrenMap.get(currentEntityId);
+    if (!children) {
+      children = /* @__PURE__ */ new Set();
+      entityChildrenMap.set(currentEntityId, children);
+    }
+    children.add(id);
   }
   return id;
 }
@@ -787,6 +793,15 @@ var DestructionSystem = {
     node.id = -1;
   }
 };
+function addChildEntity(parentId, childId) {
+  let children = entityChildrenMap.get(parentId);
+  if (!children) {
+    children = /* @__PURE__ */ new Set();
+    entityChildrenMap.set(parentId, children);
+  }
+  children.add(childId);
+  entityParentMap.set(childId, parentId);
+}
 function matchEntity(conditionNode, thenFn, elseFn) {
   let currentActiveEntityId = null;
   createEffect(() => {
@@ -1035,6 +1050,7 @@ export {
   NODE_TYPE_STATE,
   NULL_EDGE,
   UISystem,
+  addChildEntity,
   batch,
   cleanupEntityEvents,
   createCompute,

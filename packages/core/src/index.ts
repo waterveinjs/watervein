@@ -103,18 +103,21 @@ function freeEdge(edgeId: number) {
 }
 
 function compactEdgePoolIfNeeded() {
-    if (edgeCapacity > DEFAULT_EDGE_CAPACITY && activeEdgeCount === 0) {
+    if (activeEdgeCount === 0) {
+        const targetCapacity = Math.max(DEFAULT_EDGE_CAPACITY, Math.floor(edgeCapacity / 2));
         edgeCapacity = DEFAULT_EDGE_CAPACITY;
 
-        edgeDep     = new Int32Array(edgeCapacity);
-        edgeSub     = new Int32Array(edgeCapacity);
-        edgeNextSub = new Int32Array(edgeCapacity);
-        edgePrevSub = new Int32Array(edgeCapacity);
-        edgeNextDep = new Int32Array(edgeCapacity);
-        edgePrevDep = new Int32Array(edgeCapacity);
+        if (edgeCapacity > targetCapacity) {
+            edgeDep     = new Int32Array(edgeCapacity);
+            edgeSub     = new Int32Array(edgeCapacity);
+            edgeNextSub = new Int32Array(edgeCapacity);
+            edgePrevSub = new Int32Array(edgeCapacity);
+            edgeNextDep = new Int32Array(edgeCapacity);
+            edgePrevDep = new Int32Array(edgeCapacity);
 
-        edgeFreeListHead = NULL_EDGE;
-        nextUnallocatedEdgeId = 0;
+            edgeFreeListHead = NULL_EDGE;
+            nextUnallocatedEdgeId = 0;
+        }
     }
 }
 
@@ -186,10 +189,13 @@ export function createEntity(): number {
     const id = freeEntityIds.length > 0 ? freeEntityIds.pop()! : ENTITY_COUNT++;
     entityRegistry.set(id, []);
     entityParentMap.set(id, currentEntityId);
-    entityChildrenMap.set(id, new Set());
     if (currentEntityId !== null) {
-        const children = entityChildrenMap.get(currentEntityId);
-        if (children) children.add(id);
+        let children = entityChildrenMap.get(currentEntityId);
+        if (!children) {
+            children = new Set();
+            entityChildrenMap.set(currentEntityId, children);
+        }
+        children.add(id);
     }
     return id;
 }
@@ -933,6 +939,16 @@ export const DestructionSystem = {
         node.id = -1;
     }
 };
+
+export function addChildEntity(parentId: number, childId: number) {
+    let children = entityChildrenMap.get(parentId);
+    if (!children) {
+        children = new Set();
+        entityChildrenMap.set(parentId, children);
+    }
+    children.add(childId);
+    entityParentMap.set(childId, parentId);
+}
 
 export function matchEntity(
     conditionNode: Node<boolean>,
