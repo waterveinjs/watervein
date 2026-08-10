@@ -168,7 +168,7 @@ function createNode(type, value, compute = null) {
     compute,
     subsHead: NULL_EDGE,
     depsHead: NULL_EDGE,
-    pendingDeps: new Array(8)
+    pendingDeps: type === NODE_TYPE_STATE ? null : new Array(8)
   };
   allNodes[node.id] = node;
   if (currentEntityId !== null) {
@@ -223,6 +223,7 @@ var edgeCommitVersion = 0;
 function commitEdges(sub) {
   if (sub.type === -1) return;
   const pending = sub.pendingDeps;
+  if (!pending) return;
   const pLen = sub.pendingDepsLen;
   edgeCommitVersion += 2;
   if (edgeCommitVersion > 9007199254740900) {
@@ -587,6 +588,9 @@ function read(node) {
   }
   const trk = currentTrackingNode;
   if (trk !== null && trk !== node) {
+    if (trk.pendingDeps === null) {
+      trk.pendingDeps = new Array(8);
+    }
     const idx = trk.pendingDepsLen;
     if (idx > 0 && trk.pendingDeps[idx - 1] === node) {
       return node.value;

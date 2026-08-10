@@ -143,7 +143,7 @@ export type Node<T = any> = {
     compute:        (() => T) | null;
     subsHead:       number;
     depsHead:       number;
-    pendingDeps:    (Node | null)[];
+    pendingDeps:    (Node<any> | null)[] | null;
 };
 
 export type ResourceResult<T> = {
@@ -222,7 +222,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         compute:        compute,
         subsHead:       NULL_EDGE,
         depsHead:       NULL_EDGE,
-        pendingDeps:    new Array(8),
+        pendingDeps:    type === NODE_TYPE_STATE ? null : new Array(8),
     };
 
     allNodes[node.id] = node;
@@ -292,6 +292,7 @@ function commitEdges(sub: Node) {
     if (sub.type === -1) return;
 
     const pending = sub.pendingDeps;
+    if (!pending) return;
     const pLen    = sub.pendingDepsLen;
 
     edgeCommitVersion += 2;
@@ -706,6 +707,10 @@ export function read<T>(node: Node<T>): T {
     }
     const trk = currentTrackingNode;
     if (trk !== null && trk !== node) {
+        if (trk.pendingDeps === null) {
+            trk.pendingDeps = new Array(8);
+        }
+
         const idx = trk.pendingDepsLen;
         if (idx > 0 && trk.pendingDeps[idx - 1] === node) {
             return node.value;

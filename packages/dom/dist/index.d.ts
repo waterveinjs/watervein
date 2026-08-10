@@ -15,7 +15,7 @@ export type Node$1<T = any> = {
 	compute: (() => T) | null;
 	subsHead: number;
 	depsHead: number;
-	pendingDeps: (Node$1 | null)[];
+	pendingDeps: (Node$1<any> | null)[] | null;
 };
 declare const WV_NODE_TAG$1 = 1465273924;
 type Node$1$1<T = any> = {
@@ -32,7 +32,7 @@ type Node$1$1<T = any> = {
 	compute: (() => T) | null;
 	subsHead: number;
 	depsHead: number;
-	pendingDeps: (Node$1$1 | null)[];
+	pendingDeps: (Node$1$1<any> | null)[] | null;
 };
 /**
  * Application Custom Root Mount

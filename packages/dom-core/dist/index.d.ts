@@ -15,7 +15,7 @@ export type Node$1<T = any> = {
 	compute: (() => T) | null;
 	subsHead: number;
 	depsHead: number;
-	pendingDeps: (Node$1 | null)[];
+	pendingDeps: (Node$1<any> | null)[] | null;
 };
 export declare function Show(condition: Node$1 | (() => boolean), thenFn: () => HTMLElement, elseFn?: () => HTMLElement): HTMLElement;
 export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): Node;

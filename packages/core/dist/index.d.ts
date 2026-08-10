@@ -22,7 +22,7 @@ type Node$1<T = any> = {
 	compute: (() => T) | null;
 	subsHead: number;
 	depsHead: number;
-	pendingDeps: (Node$1 | null)[];
+	pendingDeps: (Node$1<any> | null)[] | null;
 };
 export type ResourceResult<T> = {
 	data: T | undefined;
