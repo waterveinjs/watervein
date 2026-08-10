@@ -867,10 +867,6 @@ export const DestructionSystem = {
 
         trimSparseArrays();
 
-        if (freeNodeIds.length > 1024) {
-            freeNodeIds.length = 0;
-        }
-
         compactEdgePoolIfNeeded();
     },
 

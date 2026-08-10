@@ -730,9 +730,6 @@ var DestructionSystem = {
       buckets.length = 0;
     }
     trimSparseArrays();
-    if (freeNodeIds.length > 1024) {
-      freeNodeIds.length = 0;
-    }
     compactEdgePoolIfNeeded();
   },
   _cleanupNode(node, destroying = null) {
