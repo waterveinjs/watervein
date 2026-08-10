@@ -610,6 +610,48 @@ export function createResource<S, T>(
     return resourceNode;
 }
 
+export function createSelector(sourceNode: Node<number>): (id: number) => boolean {
+    const keyToSubs: number[][] = [];
+    let prevId = untrack(() => read(sourceNode));
+
+    createEffect(() => {
+        const nextId = read(sourceNode);
+        if (prevId === nextId) return;
+
+        const p = prevId;
+        const n = nextId;
+        prevId = nextId;
+
+        const notify = (id: number) => {
+            if (id < 0) return;
+            const subs = keyToSubs[id];
+            if (subs) {
+                for (let i = 0; i < subs.length; i++) {
+                    const node = allNodes[subs[i]];
+                    if (node && node.type !== -1) scheduleNode(node);
+                }
+            }
+        };
+
+        notify(p);
+        notify(n);
+    });
+
+    return (id: number): boolean => {
+        const trk = currentTrackingNode;
+        if (trk !== null) {
+            let subs = keyToSubs[id];
+            if (!subs) {
+                subs = keyToSubs[id] = [];
+            }
+            if (subs.indexOf(trk.id) === -1) {
+                subs.push(trk.id);
+            }
+        }
+        return untrack(() => read(sourceNode)) === id;
+    };
+}
+
 export function read<T>(node: Node<T>): T {
     if (import.meta.env.DEV && !isNode(node)) {
         throw new Error('[watervein] read() was called with a value that is not a reactive Node.');

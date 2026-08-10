@@ -41,6 +41,7 @@ export declare function createState<T>(initial: T): Node$1<T>;
 export declare function createCompute<T>(fn: () => T): Node$1<T>;
 export declare function createEffect(fn: () => void): Node$1<void>;
 export declare function createResource<S, T>(sourceNode: Node$1<S>, fetcher: (source: S) => Promise<T>): Node$1<ResourceResult<T>>;
+export declare function createSelector(sourceNode: Node$1<number>): (id: number) => boolean;
 export declare function read<T>(node: Node$1<T>): T;
 export declare function write<T>(node: Node$1<T>, value: T): void;
 export declare function untrack<T>(fn: () => T): T;

@@ -504,6 +504,42 @@ function createResource(sourceNode, fetcher) {
   });
   return resourceNode;
 }
+function createSelector(sourceNode) {
+  const keyToSubs = [];
+  let prevId = untrack(() => read(sourceNode));
+  createEffect(() => {
+    const nextId = read(sourceNode);
+    if (prevId === nextId) return;
+    const p = prevId;
+    const n = nextId;
+    prevId = nextId;
+    const notify = (id) => {
+      if (id < 0) return;
+      const subs = keyToSubs[id];
+      if (subs) {
+        for (let i = 0; i < subs.length; i++) {
+          const node = allNodes[subs[i]];
+          if (node && node.type !== -1) scheduleNode(node);
+        }
+      }
+    };
+    notify(p);
+    notify(n);
+  });
+  return (id) => {
+    const trk = currentTrackingNode;
+    if (trk !== null) {
+      let subs = keyToSubs[id];
+      if (!subs) {
+        subs = keyToSubs[id] = [];
+      }
+      if (subs.indexOf(trk.id) === -1) {
+        subs.push(trk.id);
+      }
+    }
+    return untrack(() => read(sourceNode)) === id;
+  };
+}
 function read(node) {
   if (import.meta.env.DEV && !isNode(node)) {
     throw new Error("[watervein] read() was called with a value that is not a reactive Node.");
@@ -927,6 +963,7 @@ export {
   createEffect,
   createEntity,
   createResource,
+  createSelector,
   createState,
   eventRegistry,
   flush,
