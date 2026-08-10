@@ -247,7 +247,9 @@ function element(tag, props, children) {
       const key = keys[i];
       const value = props[key];
       if (key.startsWith("on")) {
-        el.addEventListener(key.slice(2).toLowerCase(), value);
+        if (!el.hasAttribute("data-wv-eid")) {
+          el.addEventListener(key.slice(2).toLowerCase(), value);
+        }
       } else if (key === "class" || key === "className") {
         if (value != null) applyReactiveClass(el, value);
       } else if (key === "style") {

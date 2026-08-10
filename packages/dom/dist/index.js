@@ -21,31 +21,38 @@ function element(tag, props, children) {
     return el0(tag, void 0, children);
   }
   const coreProps = {};
-  for (const key of Object.keys(props)) {
+  const entityId = getCurrentEntityId();
+  let hasEvent = false;
+  const keys = Object.keys(props);
+  const len = keys.length;
+  for (let i2 = 0; i2 < len; i2++) {
+    const key = keys[i2];
     const value = props[key];
-    if (key === "style" && value) {
+    if (value === void 0 || value === null) continue;
+    if (key === "style") {
       coreProps.style = isNode(value) ? () => read(value) : value;
-    } else if ((key === "class" || key === "className") && value) {
+    } else if (key === "class" || key === "className") {
       coreProps[key] = parseDsl1Class(value);
+    } else if (key.startsWith("on") && typeof value === "function") {
+      coreProps[key] = value;
+      if (entityId !== null) {
+        const eventName = key.slice(2).toLowerCase();
+        let reg = eventRegistry.get(eventName);
+        if (!reg) {
+          reg = /* @__PURE__ */ new Map();
+          eventRegistry.set(eventName, reg);
+          document.addEventListener(eventName, handleDelegatedEvent);
+        }
+        reg.set(entityId, value);
+        hasEvent = true;
+      }
     } else {
       coreProps[key] = value;
     }
   }
   const el = el0(tag, coreProps, children);
-  const entityId = getCurrentEntityId();
-  if (entityId !== null) {
-    for (const key of Object.keys(props)) {
-      const value = props[key];
-      if (key.startsWith("on") && typeof value === "function") {
-        const eventName = key.slice(2).toLowerCase();
-        if (!eventRegistry.has(eventName)) {
-          eventRegistry.set(eventName, /* @__PURE__ */ new Map());
-          document.body.addEventListener(eventName, handleDelegatedEvent);
-        }
-        eventRegistry.get(eventName).set(entityId, value);
-        el.setAttribute("data-wv-eid", String(entityId));
-      }
-    }
+  if (entityId !== null && hasEvent) {
+    el.setAttribute("data-wv-eid", String(entityId));
   }
   return el;
 }
@@ -178,6 +185,7 @@ import {
   read as read2,
   write,
   registerErrorBoundary,
+  cleanupEntityEvents,
   DestructionSystem
 } from "@watervein/core";
 function errorBoundary(normalFactory, fallbackFactory) {
@@ -189,6 +197,7 @@ function errorBoundary(normalFactory, fallbackFactory) {
     let currentChildEntityId = null;
     const renderBranch = () => {
       if (currentChildEntityId !== null) {
+        cleanupEntityEvents(currentChildEntityId);
         DestructionSystem.destroyEntity(currentChildEntityId);
         wrapper.innerHTML = "";
       }

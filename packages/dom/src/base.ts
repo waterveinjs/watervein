@@ -41,13 +41,36 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     }
 
     const coreProps: CoreProps = {};
-    for (const key of Object.keys(props)) {
-        const value = props[key];
+    const entityId = getCurrentEntityId();
+    let hasEvent = false;
 
-        if (key === "style" && value) {
+    const keys = Object.keys(props);
+    const len = keys.length;
+
+    for (let i = 0; i < len; i++) {
+        const key = keys[i];
+        const value = props[key];
+        if (value === undefined || value === null) continue;
+
+        if (key === "style") {
             coreProps.style = isNode(value) ? () => read(value as WvNode<string>) : value;
-        } else if ((key === "class" || key === "className") && value) {
+        } else if (key === "class" || key === "className") {
             coreProps[key] = parseDsl1Class(value);
+        } else if (key.startsWith("on") && typeof value === "function") {
+            coreProps[key] = value;
+
+            if (entityId !== null) {
+                const eventName = key.slice(2).toLowerCase();
+
+                let reg = eventRegistry.get(eventName);
+                if (!reg) {
+                    reg = new Map();
+                    eventRegistry.set(eventName, reg);
+                    document.addEventListener(eventName, handleDelegatedEvent);
+                }
+                reg.set(entityId, value as EventListener);
+                hasEvent = true;
+            }
         } else {
             coreProps[key] = value;
         }
@@ -55,21 +78,8 @@ export function element<K extends keyof HTMLElementTagNameMap>(
 
     const el = el0(tag, coreProps, children as any);
 
-    const entityId = getCurrentEntityId();
-    if (entityId !== null) {
-        for (const key of Object.keys(props)) {
-            const value = props[key];
-            if (key.startsWith("on") && typeof value === "function") {
-                const eventName = key.slice(2).toLowerCase();
-
-                if (!eventRegistry.has(eventName)) {
-                    eventRegistry.set(eventName, new Map());
-                    document.body.addEventListener(eventName, handleDelegatedEvent);
-                }
-                eventRegistry.get(eventName)!.set(entityId, value as EventListener);
-                el.setAttribute('data-wv-eid', String(entityId));
-            }
-        }
+    if (entityId !== null && hasEvent) {
+        el.setAttribute('data-wv-eid', String(entityId));
     }
 
     return el as HTMLElementTagNameMap[K];

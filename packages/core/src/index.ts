@@ -1038,7 +1038,7 @@ export function handleDelegatedEvent(e: Event) {
     if (!registry) return;
 
     let target = e.target as HTMLElement | null;
-    while (target && target !== document.body) {
+    while (target) {
         const entityIdStr = target.getAttribute('data-wv-eid');
         if (entityIdStr) {
             const handler = registry.get(parseInt(entityIdStr, 10));

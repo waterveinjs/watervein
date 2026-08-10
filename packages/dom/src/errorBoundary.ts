@@ -6,6 +6,7 @@ import {
     write, 
     registerErrorBoundary, 
     unregisterErrorBoundary,
+    cleanupEntityEvents,
     DestructionSystem
 } from '@watervein/core';
 
@@ -25,6 +26,7 @@ export function errorBoundary(
 
         const renderBranch = () => {
             if (currentChildEntityId !== null) {
+                cleanupEntityEvents(currentChildEntityId);
                 DestructionSystem.destroyEntity(currentChildEntityId);
                 wrapper.innerHTML = '';
             }

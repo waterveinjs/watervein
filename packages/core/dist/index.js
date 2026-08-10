@@ -868,7 +868,7 @@ function handleDelegatedEvent(e) {
   const registry = eventRegistry.get(e.type);
   if (!registry) return;
   let target = e.target;
-  while (target && target !== document.body) {
+  while (target) {
     const entityIdStr = target.getAttribute("data-wv-eid");
     if (entityIdStr) {
       const handler = registry.get(parseInt(entityIdStr, 10));

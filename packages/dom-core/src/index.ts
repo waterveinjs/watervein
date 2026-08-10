@@ -47,7 +47,9 @@ export function element<K extends keyof HTMLElementTagNameMap>(
             const value = props[key];
 
             if (key.startsWith("on")) {
-                el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
+                if (!el.hasAttribute('data-wv-eid')) {
+                    el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
+                }
             }
             else if (key === "class" || key === "className") {
                 if (value != null) applyReactiveClass(el, value);
