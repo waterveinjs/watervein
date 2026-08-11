@@ -118,10 +118,27 @@ type Entry<T> = {
     itemNode: WvNode<T>;
 };
 
-let NEXT_CACHE = new Map<any, Entry<any>>();
-let NEXT_KEYS_BUFFER: any[] = [];
-let SOURCE_BUFFER: number[] = [];
-const KEY_INDEX_MAP_BUFFER = new Map<any, number>();
+const CACHE_POOL: Map<any, Entry<any>>[] = [];
+const KEY_INDEX_MAP_POOL: Map<any, number>[] = [];
+const SOURCE_BUFFER_POOL: number[][] = [];
+const NEXT_KEYS_BUFFER_POOL: any[][] = [];
+
+let callDepth = 0;
+
+function getBuffers(depth: number) {
+    if (!CACHE_POOL[depth]) {
+        CACHE_POOL[depth] = new Map();
+        KEY_INDEX_MAP_POOL[depth] = new Map();
+        SOURCE_BUFFER_POOL[depth] = [];
+        NEXT_KEYS_BUFFER_POOL[depth] = [];
+    }
+    return {
+        nextCache: CACHE_POOL[depth],
+        keyIndexMap: KEY_INDEX_MAP_POOL[depth],
+        sourceBuffer: SOURCE_BUFFER_POOL[depth],
+        nextKeysBuffer: NEXT_KEYS_BUFFER_POOL[depth],
+    };
+}
 
 export function For<T>(
     listNode: WvNode<T[]>,
@@ -137,143 +154,161 @@ export function For<T>(
     let entityCache = new Map<any, Entry<T>>();
 
     createEffect(() => {
-        const list = read(listNode);
-        const parent = marker.parentNode;
+        const depth = callDepth++;
+        const {
+            nextCache: NEXT_CACHE,
+            keyIndexMap: KEY_INDEX_MAP_BUFFER,
+            sourceBuffer: SOURCE_BUFFER_BASE,
+            nextKeysBuffer: NEXT_KEYS_BUFFER_BASE,
+        } = getBuffers(depth);
 
-        if (!isInitial && !parent) return;
+        let SOURCE_BUFFER = SOURCE_BUFFER_BASE;
+        let NEXT_KEYS_BUFFER = NEXT_KEYS_BUFFER_BASE;
 
-        const newLen = list.length;
+        try {
+            const list = read(listNode);
+            const parent = marker.parentNode;
 
-        const newCache = NEXT_CACHE;
-        newCache.clear();
+            if (!isInitial && !parent) return;
 
-        if (NEXT_KEYS_BUFFER.length < newLen) {
-            NEXT_KEYS_BUFFER = new Array(newLen);
-        }
-        const newKeys = NEXT_KEYS_BUFFER;
+            const newLen = list.length;
 
-        for (let i = 0; i < newLen; i++) {
-            const item = list[i];
-            const key = keyFn(item);
-            newKeys[i] = key;
+            const newCache = NEXT_CACHE;
+            newCache.clear();
 
-            const cached = entityCache.get(key);
-            if (cached) {
-                untrack(() => {
-                    write(cached.itemNode, item);
-                });
-                newCache.set(key, cached);
-            } else {
-                const entityId = createEntity();
-                let dom!: HTMLElement;
-                let itemNode!: WvNode<T>;
-
-                withEntity(entityId, () => {
-                    itemNode = createState(item);
-                    dom = renderFn(() => read(itemNode));
-                });
-
-                newCache.set(key, { entityId, dom, itemNode });
+            if (NEXT_KEYS_BUFFER.length < newLen) {
+                NEXT_KEYS_BUFFER = new Array(newLen);
+                NEXT_KEYS_BUFFER_POOL[depth] = NEXT_KEYS_BUFFER;
             }
-        }
+            const newKeys = NEXT_KEYS_BUFFER;
 
-        const toDestroyImmediate: number[] = [];
-        for (const [key, entry] of entityCache) {
-            if (!newCache.has(key)) {
-                const dom = entry.dom as InternalDOM;
-                if (dom[wvLeaveKey]) {
-                    const entId = entry.entityId;
-                    dom[wvLeaveKey](() => {
-                        dom.remove();
-                        DestructionSystem.destroyEntities([entId]);
-                    });
-                } else {
-                    dom.remove();
-                    toDestroyImmediate.push(entry.entityId);
-                }
-            }
-        }
-        if (toDestroyImmediate.length > 0) {
-            DestructionSystem.destroyEntities(toDestroyImmediate);
-        }
-
-        if (isInitial) {
             for (let i = 0; i < newLen; i++) {
-                const entry = newCache.get(newKeys[i])!;
-                initialFragment!.appendChild(entry.dom);
-            }
-            initialFragment!.appendChild(marker);
-            isInitial = false;
-        } else if (parent) {
-            let start = 0;
-            let oldEnd = oldLen - 1;
-            let newEnd = newLen - 1;
+                const item = list[i];
+                const key = keyFn(item);
+                newKeys[i] = key;
 
-            while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
-                start++;
-            }
-            while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
-                oldEnd--;
-                newEnd--;
-            }
+                const cached = entityCache.get(key);
+                if (cached) {
+                    untrack(() => {
+                        write(cached.itemNode, item);
+                    });
+                    newCache.set(key, cached);
+                } else {
+                    const entityId = createEntity();
+                    let dom!: HTMLElement;
+                    let itemNode!: WvNode<T>;
 
-            const count = newEnd - start + 1;
-            if (count > 0) {
-                if (SOURCE_BUFFER.length < count) {
-                    SOURCE_BUFFER = new Array(count);
+                    withEntity(entityId, () => {
+                        itemNode = createState(item);
+                        dom = renderFn(() => read(itemNode));
+                    });
+
+                    newCache.set(key, { entityId, dom, itemNode });
                 }
-                const source = SOURCE_BUFFER;
-                source.fill(-1, 0, count);
+            }
 
-                const keyIndexMap = KEY_INDEX_MAP_BUFFER;
-                keyIndexMap.clear();
-
-                for (let i = start; i <= newEnd; i++) {
-                    keyIndexMap.set(newKeys[i], i);
-                }
-
-                for (let i = start; i <= oldEnd; i++) {
-                    const oldKey = oldKeys[i];
-                    if (keyIndexMap.has(oldKey)) {
-                        const newIdx = keyIndexMap.get(oldKey)!;
-                        source[newIdx - start] = i;
-                    }
-                }
-
-                const lis = getLIS(source.slice(0, count));
-                let lisIdx = lis.length - 1;
-
-                let anchor: Node = newEnd + 1 < newLen 
-                    ? newCache.get(newKeys[newEnd + 1])!.dom 
-                    : marker;
-
-                for (let i = count - 1; i >= 0; i--) {
-                    const currentIndex = start + i;
-                    const key = newKeys[currentIndex];
-                    const entry = newCache.get(key)!;
-
-                    if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
-                        parent.insertBefore(entry.dom, anchor);
+            const toDestroyImmediate: number[] = [];
+            for (const [key, entry] of entityCache) {
+                if (!newCache.has(key)) {
+                    const dom = entry.dom as InternalDOM;
+                    if (dom[wvLeaveKey]) {
+                        const entId = entry.entityId;
+                        dom[wvLeaveKey](() => {
+                            dom.remove();
+                            DestructionSystem.destroyEntities([entId]);
+                        });
                     } else {
-                        lisIdx--;
+                        dom.remove();
+                        toDestroyImmediate.push(entry.entityId);
                     }
-                    anchor = entry.dom;
                 }
             }
-        }
+            if (toDestroyImmediate.length > 0) {
+                DestructionSystem.destroyEntities(toDestroyImmediate);
+            }
 
-        entityCache.clear();
-        for (const [k, v] of newCache) {
-            entityCache.set(k, v);
-        }
+            if (isInitial) {
+                for (let i = 0; i < newLen; i++) {
+                    const entry = newCache.get(newKeys[i])!;
+                    initialFragment!.appendChild(entry.dom);
+                }
+                initialFragment!.appendChild(marker);
+                isInitial = false;
+            } else if (parent) {
+                let start = 0;
+                let oldEnd = oldLen - 1;
+                let newEnd = newLen - 1;
 
-        if (oldKeys.length < newLen) {
-            oldKeys = new Array(newLen);
+                while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
+                    start++;
+                }
+                while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
+                    oldEnd--;
+                    newEnd--;
+                }
+
+                const count = newEnd - start + 1;
+                if (count > 0) {
+                    if (SOURCE_BUFFER.length < count) {
+                        SOURCE_BUFFER = new Array(count);
+                        SOURCE_BUFFER_POOL[depth] = SOURCE_BUFFER;
+                    }
+                    const source = SOURCE_BUFFER;
+                    source.fill(-1, 0, count);
+
+                    const keyIndexMap = KEY_INDEX_MAP_BUFFER;
+                    keyIndexMap.clear();
+
+                    for (let i = start; i <= newEnd; i++) {
+                        keyIndexMap.set(newKeys[i], i);
+                    }
+
+                    for (let i = start; i <= oldEnd; i++) {
+                        const oldKey = oldKeys[i];
+                        if (keyIndexMap.has(oldKey)) {
+                            const newIdx = keyIndexMap.get(oldKey)!;
+                            source[newIdx - start] = i;
+                        }
+                    }
+
+                    const lis = getLIS(source.slice(0, count));
+                    let lisIdx = lis.length - 1;
+
+                    let anchor: Node = newEnd + 1 < newLen 
+                        ? newCache.get(newKeys[newEnd + 1])!.dom 
+                        : marker;
+
+                    for (let i = count - 1; i >= 0; i--) {
+                        const currentIndex = start + i;
+                        const key = newKeys[currentIndex];
+                        const entry = newCache.get(key)!;
+
+                        if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
+                            parent.insertBefore(entry.dom, anchor);
+                        } else {
+                            lisIdx--;
+                        }
+                        anchor = entry.dom;
+                    }
+                }
+            }
+
+            entityCache.clear();
+            for (const [k, v] of newCache) {
+                entityCache.set(k, v);
+            }
+
+            if (oldKeys.length < newLen) {
+                oldKeys = new Array(newLen);
+            }
+            for (let i = 0; i < newLen; i++) {
+                oldKeys[i] = newKeys[i];
+            }
+            oldLen = newLen;
+
+        } finally {
+            callDepth--;
         }
-        for (let i = 0; i < newLen; i++) {
-            oldKeys[i] = newKeys[i];
-        }
-        oldLen = newLen;
     });
 
     const res = initialFragment;

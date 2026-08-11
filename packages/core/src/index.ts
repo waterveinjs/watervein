@@ -305,20 +305,21 @@ function commitEdges(sub: Node) {
 
     const pending = sub.pendingDeps;
     if (!pending) return;
-    const pLen    = sub.pendingDepsLen;
+    const pLen = sub.pendingDepsLen;
+
+    if (pLen === 0 && sub.depsHead === NULL_EDGE) return;
 
     edgeCommitVersion += 2;
-    if (edgeCommitVersion > 9007199254740900) { 
+    if (edgeCommitVersion > 9007199254740000) { 
         edgeCommitVersion = 2;
         for (let i = 0; i < allNodes.length; i++) {
-            const node = allNodes[i];
-            if (node) {
-                node.watchedVersion = 0;
-            }
+            const n = allNodes[i];
+            if (n) n.watchedVersion = 0;
         }
     }
+    
     const pendingStamp  = edgeCommitVersion;
-    const existingStamp = pendingStamp + 1;
+    const existingStamp = pendingStamp | 1;
 
     try {
         for (let i = 0; i < pLen; i++) {
@@ -328,14 +329,19 @@ function commitEdges(sub: Node) {
             }
         }
 
+        let maxDepDepth = -1;
+
         let edgeId = sub.depsHead;
         while (edgeId !== NULL_EDGE) {
             const nextEdgeId = edgeNextDep[edgeId];
-            const depNodeId  = edgeDep[edgeId];
-            const depNode    = allNodes[depNodeId];
+            const depNodeId   = edgeDep[edgeId];
+            const depNode     = allNodes[depNodeId];
 
             if (depNode && depNode.type !== -1 && depNode.watchedVersion === pendingStamp) {
                 depNode.watchedVersion = existingStamp;
+                if (depNode.depth > maxDepDepth) {
+                    maxDepDepth = depNode.depth;
+                }
             } else {
                 unlinkEdge(edgeId);
             }
@@ -344,15 +350,23 @@ function commitEdges(sub: Node) {
 
         for (let i = 0; i < pLen; i++) {
             const dep = pending[i];
-            if (dep && dep.type !== -1 && dep.watchedVersion !== existingStamp) {
-                linkEdge(dep, sub);
-                dep.watchedVersion = existingStamp;
-                if (sub.depth <= dep.depth) {
-                    sub.depth = dep.depth + 1;
-                    propagateDepth(sub);
+            if (dep && dep.type !== -1) {
+                if (dep.watchedVersion !== existingStamp) {
+                    linkEdge(dep, sub);
+                    dep.watchedVersion = existingStamp;
+                }
+                if (dep.depth > maxDepDepth) {
+                    maxDepDepth = dep.depth;
                 }
             }
         }
+
+        const newDepth = maxDepDepth === -1 ? 0 : maxDepDepth + 1;
+        if (sub.depth !== newDepth) {
+            sub.depth = newDepth;
+            propagateDepth(sub);
+        }
+
     } finally {
         sub.pendingDepsLen = 0;
     }
@@ -529,43 +543,52 @@ function handleFlushError(node: any, err: any) {
 
 export function flush() {
     raFID = null;
-    let d = minDirtyDepth;
 
-    while (d <= maxDirtyDepth) {
-        const bucket = buckets[d];
+    try {
+        while (minDirtyDepth <= maxDirtyDepth) {
+            const d = minDirtyDepth;
+            const bucket = buckets[d];
 
-        if (bucket && bucket.length > 0) {
-            const node = bucket.pop()!;
-
-            if (!node || node.id === -1 || node.type === -1 || allNodes[node.id] !== node) {
+            if (!bucket || bucket.length === 0) {
+                minDirtyDepth++;
                 continue;
             }
 
-            node.bucketIdx = -1;
-            node.dirty     = false;
+            while (bucket.length > 0) {
+                const node = bucket.pop()!;
 
-            try {
-                if (node.type === NODE_TYPE_COMPUTE) {
-                    executeCompute(node);
-                } else if (node.type === NODE_TYPE_EFFECT) {
-                    executeEffect(node);
+                if (node.id === -1 || node.type === -1 || allNodes[node.id] !== node) {
+                    continue;
                 }
-            } catch (err) {
-                handleFlushError(node, err);
-                return;
+
+                node.bucketIdx = -1;
+                node.dirty = false;
+
+                try {
+                    if (node.type === NODE_TYPE_COMPUTE) {
+                        executeCompute(node);
+                    } else if (node.type === NODE_TYPE_EFFECT) {
+                        executeEffect(node);
+                    }
+                } catch (err) {
+                    handleFlushError(node, err);
+                    return;
+                }
+
+                if (minDirtyDepth < d) {
+                    break;
+                }
             }
 
-            if (minDirtyDepth < d) {
-                d = minDirtyDepth;
+            if (bucket.length === 0 && minDirtyDepth === d) {
+                minDirtyDepth++;
             }
-        } else {
-            d++;
         }
+    } finally {
+        minDirtyDepth = Infinity;
+        maxDirtyDepth = -1;
+        raFID = null;
     }
-
-    minDirtyDepth = Infinity;
-    maxDirtyDepth = -1;
-    raFID = null;
 }
 
 export function createState<T>(initial: T): Node<T> {
@@ -782,6 +805,42 @@ export const DataSystem = {
     },
 };
 
+const DESTROY_TARGET_SETS: Set<number>[] = [];
+const DESTROYING_NODE_SETS: Set<number>[] = [];
+const COLLECTED_NODES_BUFFERS: Node[][] = [];
+const DEPTH_BUCKETS_BUFFERS: Node[][][] = [];
+
+let destroyCallDepth = 0;
+
+function getDestroyBuffers(depth: number) {
+    if (!DESTROY_TARGET_SETS[depth]) {
+        DESTROY_TARGET_SETS[depth] = new Set<number>();
+        DESTROYING_NODE_SETS[depth] = new Set<number>();
+        COLLECTED_NODES_BUFFERS[depth] = [];
+        DEPTH_BUCKETS_BUFFERS[depth] = [];
+    }
+    return {
+        allTargetEntityIds: DESTROY_TARGET_SETS[depth],
+        destroyingNodeIds: DESTROYING_NODE_SETS[depth],
+        allCollectedNodes: COLLECTED_NODES_BUFFERS[depth],
+        depthBuckets: DEPTH_BUCKETS_BUFFERS[depth],
+    };
+}
+
+function collectRecursively(
+    id: number,
+    allTargets: Set<number>
+) {
+    if (allTargets.has(id)) return;
+    allTargets.add(id);
+    const children = entityChildrenMap.get(id);
+    if (children) {
+        for (const childId of children) {
+            collectRecursively(childId, allTargets);
+        }
+    }
+}
+
 export const DestructionSystem = {
     destroyEntity(entityId: number) {
         this.destroyEntities([entityId]);
@@ -791,99 +850,107 @@ export const DestructionSystem = {
         const len = entityIds.length;
         if (len === 0) return;
 
-        const allTargetEntityIds = new Set<number>();
-        const collectRecursively = (id: number) => {
-            if (allTargetEntityIds.has(id)) return;
-            allTargetEntityIds.add(id);
-            const children = entityChildrenMap.get(id);
-            if (children) {
-                for (const childId of children) {
-                    collectRecursively(childId);
-                }
+        const depth = destroyCallDepth++;
+        const {
+            allTargetEntityIds,
+            destroyingNodeIds: destroying,
+            allCollectedNodes,
+            depthBuckets
+        } = getDestroyBuffers(depth);
+
+        try {
+            allTargetEntityIds.clear();
+            destroying.clear();
+            allCollectedNodes.length = 0;
+
+            for (let i = 0; i < len; i++) {
+                collectRecursively(entityIds[i], allTargetEntityIds);
             }
-        };
-        for (let i = 0; i < len; i++) {
-            collectRecursively(entityIds[i]);
-        }
-
-        for (const eId of allTargetEntityIds) {
-            const parentId = entityParentMap.get(eId);
-            if (parentId !== undefined && parentId !== null && !allTargetEntityIds.has(parentId)) {
-                const parentChildren = entityChildrenMap.get(parentId);
-                if (parentChildren) {
-                    parentChildren.delete(eId);
-                }
-            }
-        }
-
-        const allCollectedNodes: Node[] = [];
-        const destroying = new Set<number>();
-        let maxDepth = 0;
-
-        for (const eId of allTargetEntityIds) {
-            const nodes = entityRegistry.get(eId);
-            if (nodes) {
-                const nLen = nodes.length;
-                for (let i = 0; i < nLen; i++) {
-                    const node = nodes[i];
-                    destroying.add(node.id);
-                    allCollectedNodes.push(node);
-                    if (node.depth > maxDepth) {
-                        maxDepth = node.depth;
+            for (const eId of allTargetEntityIds) {
+                const parentId = entityParentMap.get(eId);
+                if (parentId !== undefined && parentId !== null && !allTargetEntityIds.has(parentId)) {
+                    const parentChildren = entityChildrenMap.get(parentId);
+                    if (parentChildren) {
+                        parentChildren.delete(eId);
                     }
                 }
             }
-        }
 
-        const totalNodes = allCollectedNodes.length;
-
-        if (totalNodes > 0) {
-            const depthBuckets: Node[][] = Array.from({ length: maxDepth + 1 }, () => []);
-            for (let i = 0; i < totalNodes; i++) {
-                const node = allCollectedNodes[i];
-                depthBuckets[node.depth].push(node);
-            }
-
-            for (let d = maxDepth; d >= 0; d--) {
-                const bucketNodes = depthBuckets[d];
-                const bLen = bucketNodes.length;
-                for (let i = 0; i < bLen; i++) {
-                    this._cleanupNode(bucketNodes[i], destroying);
+            let maxDepth = 0;
+            for (const eId of allTargetEntityIds) {
+                const nodes = entityRegistry.get(eId);
+                if (nodes) {
+                    const nLen = nodes.length;
+                    for (let i = 0; i < nLen; i++) {
+                        const node = nodes[i];
+                        destroying.add(node.id);
+                        allCollectedNodes.push(node);
+                        if (node.depth > maxDepth) {
+                            maxDepth = node.depth;
+                        }
+                    }
                 }
             }
-        }
 
-        for (const eId of allTargetEntityIds) {
-            entityRegistry.delete(eId);
-            entityParentMap.delete(eId);
-            entityChildrenMap.delete(eId);
-            errorBoundaryRegistry.delete(eId);
-            cleanupEntityEvents(eId);
-            freeEntityIds.push(eId);
-        }
+            const totalNodes = allCollectedNodes.length;
 
-        if (entityRegistry.size === 0) {
-            ENTITY_COUNT = 0;
-            freeEntityIds.length = 0;
-            entityChildrenMap.clear();
-            entityParentMap.clear();
-        }
+            if (totalNodes > 0) {
+                while (depthBuckets.length <= maxDepth) {
+                    depthBuckets.push([]);
+                }
+                for (let d = 0; d <= maxDepth; d++) {
+                    depthBuckets[d].length = 0;
+                }
 
-        let hasRemainingDirty = false;
-        for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
-            if (buckets[d] && buckets[d].length > 0) {
-                hasRemainingDirty = true;
-                break;
+                for (let i = 0; i < totalNodes; i++) {
+                    const node = allCollectedNodes[i];
+                    depthBuckets[node.depth].push(node);
+                }
+
+                for (let d = maxDepth; d >= 0; d--) {
+                    const bucketNodes = depthBuckets[d];
+                    const bLen = bucketNodes.length;
+                    for (let i = 0; i < bLen; i++) {
+                        this._cleanupNode(bucketNodes[i], destroying);
+                    }
+                }
             }
-        }
-        if (!hasRemainingDirty) {
-            minDirtyDepth = Infinity;
-            maxDirtyDepth = -1;
-            buckets.length = 0;
-        }
 
-        const nodesEmpty = trimSparseArrays();
-        compactEdgePoolIfNeeded(nodesEmpty);
+            for (const eId of allTargetEntityIds) {
+                entityRegistry.delete(eId);
+                entityParentMap.delete(eId);
+                entityChildrenMap.delete(eId);
+                errorBoundaryRegistry.delete(eId);
+                cleanupEntityEvents(eId);
+                freeEntityIds.push(eId);
+            }
+
+            if (entityRegistry.size === 0) {
+                ENTITY_COUNT = 0;
+                freeEntityIds.length = 0;
+                entityChildrenMap.clear();
+                entityParentMap.clear();
+            }
+
+            let hasRemainingDirty = false;
+            for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
+                if (buckets[d] && buckets[d].length > 0) {
+                    hasRemainingDirty = true;
+                    break;
+                }
+            }
+            if (!hasRemainingDirty) {
+                minDirtyDepth = Infinity;
+                maxDirtyDepth = -1;
+                buckets.length = 0;
+            }
+
+            const nodesEmpty = trimSparseArrays();
+            compactEdgePoolIfNeeded(nodesEmpty);
+
+        } finally {
+            destroyCallDepth--;
+        }
     },
 
     _cleanupNode(node: Node, destroying: Set<number> | null = null) {

@@ -101,10 +101,25 @@ function getLIS(arr) {
   }
   return result;
 }
-var NEXT_CACHE = /* @__PURE__ */ new Map();
-var NEXT_KEYS_BUFFER = [];
-var SOURCE_BUFFER = [];
-var KEY_INDEX_MAP_BUFFER = /* @__PURE__ */ new Map();
+var CACHE_POOL = [];
+var KEY_INDEX_MAP_POOL = [];
+var SOURCE_BUFFER_POOL = [];
+var NEXT_KEYS_BUFFER_POOL = [];
+var callDepth = 0;
+function getBuffers(depth) {
+  if (!CACHE_POOL[depth]) {
+    CACHE_POOL[depth] = /* @__PURE__ */ new Map();
+    KEY_INDEX_MAP_POOL[depth] = /* @__PURE__ */ new Map();
+    SOURCE_BUFFER_POOL[depth] = [];
+    NEXT_KEYS_BUFFER_POOL[depth] = [];
+  }
+  return {
+    nextCache: CACHE_POOL[depth],
+    keyIndexMap: KEY_INDEX_MAP_POOL[depth],
+    sourceBuffer: SOURCE_BUFFER_POOL[depth],
+    nextKeysBuffer: NEXT_KEYS_BUFFER_POOL[depth]
+  };
+}
 function For(listNode, keyFn, renderFn) {
   const marker = document.createComment("wv-for");
   let isInitial = true;
@@ -113,120 +128,135 @@ function For(listNode, keyFn, renderFn) {
   let oldLen = 0;
   let entityCache = /* @__PURE__ */ new Map();
   createEffect(() => {
-    const list = read(listNode);
-    const parent = marker.parentNode;
-    if (!isInitial && !parent) return;
-    const newLen = list.length;
-    const newCache = NEXT_CACHE;
-    newCache.clear();
-    if (NEXT_KEYS_BUFFER.length < newLen) {
-      NEXT_KEYS_BUFFER = new Array(newLen);
-    }
-    const newKeys = NEXT_KEYS_BUFFER;
-    for (let i = 0; i < newLen; i++) {
-      const item = list[i];
-      const key = keyFn(item);
-      newKeys[i] = key;
-      const cached = entityCache.get(key);
-      if (cached) {
-        untrack(() => {
-          write(cached.itemNode, item);
-        });
-        newCache.set(key, cached);
-      } else {
-        const entityId = createEntity();
-        let dom;
-        let itemNode;
-        withEntity(entityId, () => {
-          itemNode = createState(item);
-          dom = renderFn(() => read(itemNode));
-        });
-        newCache.set(key, { entityId, dom, itemNode });
+    const depth = callDepth++;
+    const {
+      nextCache: NEXT_CACHE,
+      keyIndexMap: KEY_INDEX_MAP_BUFFER,
+      sourceBuffer: SOURCE_BUFFER_BASE,
+      nextKeysBuffer: NEXT_KEYS_BUFFER_BASE
+    } = getBuffers(depth);
+    let SOURCE_BUFFER = SOURCE_BUFFER_BASE;
+    let NEXT_KEYS_BUFFER = NEXT_KEYS_BUFFER_BASE;
+    try {
+      const list = read(listNode);
+      const parent = marker.parentNode;
+      if (!isInitial && !parent) return;
+      const newLen = list.length;
+      const newCache = NEXT_CACHE;
+      newCache.clear();
+      if (NEXT_KEYS_BUFFER.length < newLen) {
+        NEXT_KEYS_BUFFER = new Array(newLen);
+        NEXT_KEYS_BUFFER_POOL[depth] = NEXT_KEYS_BUFFER;
       }
-    }
-    const toDestroyImmediate = [];
-    for (const [key, entry] of entityCache) {
-      if (!newCache.has(key)) {
-        const dom = entry.dom;
-        if (dom[wvLeaveKey]) {
-          const entId = entry.entityId;
-          dom[wvLeaveKey](() => {
-            dom.remove();
-            DestructionSystem.destroyEntities([entId]);
-          });
-        } else {
-          dom.remove();
-          toDestroyImmediate.push(entry.entityId);
-        }
-      }
-    }
-    if (toDestroyImmediate.length > 0) {
-      DestructionSystem.destroyEntities(toDestroyImmediate);
-    }
-    if (isInitial) {
+      const newKeys = NEXT_KEYS_BUFFER;
       for (let i = 0; i < newLen; i++) {
-        const entry = newCache.get(newKeys[i]);
-        initialFragment.appendChild(entry.dom);
-      }
-      initialFragment.appendChild(marker);
-      isInitial = false;
-    } else if (parent) {
-      let start = 0;
-      let oldEnd = oldLen - 1;
-      let newEnd = newLen - 1;
-      while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
-        start++;
-      }
-      while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
-        oldEnd--;
-        newEnd--;
-      }
-      const count = newEnd - start + 1;
-      if (count > 0) {
-        if (SOURCE_BUFFER.length < count) {
-          SOURCE_BUFFER = new Array(count);
+        const item = list[i];
+        const key = keyFn(item);
+        newKeys[i] = key;
+        const cached = entityCache.get(key);
+        if (cached) {
+          untrack(() => {
+            write(cached.itemNode, item);
+          });
+          newCache.set(key, cached);
+        } else {
+          const entityId = createEntity();
+          let dom;
+          let itemNode;
+          withEntity(entityId, () => {
+            itemNode = createState(item);
+            dom = renderFn(() => read(itemNode));
+          });
+          newCache.set(key, { entityId, dom, itemNode });
         }
-        const source = SOURCE_BUFFER;
-        source.fill(-1, 0, count);
-        const keyIndexMap = KEY_INDEX_MAP_BUFFER;
-        keyIndexMap.clear();
-        for (let i = start; i <= newEnd; i++) {
-          keyIndexMap.set(newKeys[i], i);
-        }
-        for (let i = start; i <= oldEnd; i++) {
-          const oldKey = oldKeys[i];
-          if (keyIndexMap.has(oldKey)) {
-            const newIdx = keyIndexMap.get(oldKey);
-            source[newIdx - start] = i;
-          }
-        }
-        const lis = getLIS(source.slice(0, count));
-        let lisIdx = lis.length - 1;
-        let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
-        for (let i = count - 1; i >= 0; i--) {
-          const currentIndex = start + i;
-          const key = newKeys[currentIndex];
-          const entry = newCache.get(key);
-          if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
-            parent.insertBefore(entry.dom, anchor);
+      }
+      const toDestroyImmediate = [];
+      for (const [key, entry] of entityCache) {
+        if (!newCache.has(key)) {
+          const dom = entry.dom;
+          if (dom[wvLeaveKey]) {
+            const entId = entry.entityId;
+            dom[wvLeaveKey](() => {
+              dom.remove();
+              DestructionSystem.destroyEntities([entId]);
+            });
           } else {
-            lisIdx--;
+            dom.remove();
+            toDestroyImmediate.push(entry.entityId);
           }
-          anchor = entry.dom;
         }
       }
+      if (toDestroyImmediate.length > 0) {
+        DestructionSystem.destroyEntities(toDestroyImmediate);
+      }
+      if (isInitial) {
+        for (let i = 0; i < newLen; i++) {
+          const entry = newCache.get(newKeys[i]);
+          initialFragment.appendChild(entry.dom);
+        }
+        initialFragment.appendChild(marker);
+        isInitial = false;
+      } else if (parent) {
+        let start = 0;
+        let oldEnd = oldLen - 1;
+        let newEnd = newLen - 1;
+        while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
+          start++;
+        }
+        while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
+          oldEnd--;
+          newEnd--;
+        }
+        const count = newEnd - start + 1;
+        if (count > 0) {
+          if (SOURCE_BUFFER.length < count) {
+            SOURCE_BUFFER = new Array(count);
+            SOURCE_BUFFER_POOL[depth] = SOURCE_BUFFER;
+          }
+          const source = SOURCE_BUFFER;
+          source.fill(-1, 0, count);
+          const keyIndexMap = KEY_INDEX_MAP_BUFFER;
+          keyIndexMap.clear();
+          for (let i = start; i <= newEnd; i++) {
+            keyIndexMap.set(newKeys[i], i);
+          }
+          for (let i = start; i <= oldEnd; i++) {
+            const oldKey = oldKeys[i];
+            if (keyIndexMap.has(oldKey)) {
+              const newIdx = keyIndexMap.get(oldKey);
+              source[newIdx - start] = i;
+            }
+          }
+          const lis = getLIS(source.slice(0, count));
+          let lisIdx = lis.length - 1;
+          let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
+          for (let i = count - 1; i >= 0; i--) {
+            const currentIndex = start + i;
+            const key = newKeys[currentIndex];
+            const entry = newCache.get(key);
+            if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
+              parent.insertBefore(entry.dom, anchor);
+            } else {
+              lisIdx--;
+            }
+            anchor = entry.dom;
+          }
+        }
+      }
+      entityCache.clear();
+      for (const [k, v] of newCache) {
+        entityCache.set(k, v);
+      }
+      if (oldKeys.length < newLen) {
+        oldKeys = new Array(newLen);
+      }
+      for (let i = 0; i < newLen; i++) {
+        oldKeys[i] = newKeys[i];
+      }
+      oldLen = newLen;
+    } finally {
+      callDepth--;
     }
-    entityCache.clear();
-    for (const [k, v] of newCache) {
-      entityCache.set(k, v);
-    }
-    if (oldKeys.length < newLen) {
-      oldKeys = new Array(newLen);
-    }
-    for (let i = 0; i < newLen; i++) {
-      oldKeys[i] = newKeys[i];
-    }
-    oldLen = newLen;
   });
   const res = initialFragment;
   initialFragment = null;

@@ -1,8 +1,5 @@
 // src/index.ts
-import {
-  Show as show0,
-  For as for0
-} from "@watervein/dom-core";
+import { Show, For } from "@watervein/dom-core";
 import { mount, mountToBody, mountToHead, mountToRoot, unmount } from "@watervein/dom-core";
 
 // src/base.ts
@@ -239,14 +236,6 @@ function scope(f) {
     }
     return el;
   });
-}
-
-// src/index.ts
-function Show(condition, thenFn, elseFn) {
-  return show0(condition, thenFn, elseFn);
-}
-function For(listNode, keyFn, renderFn) {
-  return for0(listNode, keyFn, renderFn);
 }
 export {
   For,

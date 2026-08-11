@@ -17,23 +17,8 @@ export type Node$1<T = any> = {
 	depsHead: number;
 	pendingDeps: (Node$1<any> | null)[] | null;
 };
-declare const WV_NODE_TAG$1 = 1465273924;
-type Node$1$1<T = any> = {
-	readonly __wv: typeof WV_NODE_TAG$1;
-	type: number;
-	id: number;
-	dirty: boolean;
-	depth: number;
-	watchedVersion: number;
-	bucketIdx: number;
-	pendingDepsLen: number;
-	value: T;
-	entityId: number | null;
-	compute: (() => T) | null;
-	subsHead: number;
-	depsHead: number;
-	pendingDeps: (Node$1$1<any> | null)[] | null;
-};
+export declare function Show(condition: Node$1 | (() => boolean), thenFn: () => HTMLElement, elseFn?: () => HTMLElement): HTMLElement;
+export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): Node;
 /**
  * Application Custom Root Mount
  * @param target The element that serves as the root of the mount
@@ -56,7 +41,7 @@ export declare const mountToHead: (rootElement: HTMLElement) => HTMLElement;
  */
 export declare const mountToRoot: (rootElement: HTMLElement) => HTMLElement;
 export declare const unmount: (target: HTMLElement | number) => void;
-export type ReactiveProp<T> = T | Node$1$1<T> | (() => T);
+export type ReactiveProp<T> = T | Node$1<T> | (() => T);
 export type CSSStyleKeys = {
 	[K in keyof CSSStyleDeclaration]: CSSStyleDeclaration[K] extends Function ? never : K;
 }[keyof CSSStyleDeclaration];
@@ -177,24 +162,39 @@ export declare const ul: (props?: any, children?: any) => HTMLUListElement;
 export declare const variable: (props?: any, children?: any) => HTMLElement;
 export declare const video: (props?: any, children?: any) => HTMLVideoElement;
 export declare const wbr: (props?: any, children?: any) => HTMLElement;
-export type Dsl1Value<T> = T | Node$1<T>;
-export type Dsl1Style = {
-	[K in keyof ReactiveStyle]?: ReactiveStyle[K] | Node$1<any>;
+declare const WV_NODE_TAG$1 = 1465273924;
+type Node$1$1<T = any> = {
+	readonly __wv: typeof WV_NODE_TAG$1;
+	type: number;
+	id: number;
+	dirty: boolean;
+	depth: number;
+	watchedVersion: number;
+	bucketIdx: number;
+	pendingDepsLen: number;
+	value: T;
+	entityId: number | null;
+	compute: (() => T) | null;
+	subsHead: number;
+	depsHead: number;
+	pendingDeps: (Node$1$1<any> | null)[] | null;
 };
-export type Dsl1Class = string | Node$1<string> | (() => string) | {
-	[key: string]: boolean | Node$1<boolean> | (() => boolean);
-} | Array<string | Node$1<string> | (() => string)>;
+export type Dsl1Value<T> = T | Node$1$1<T>;
+export type Dsl1Style = {
+	[K in keyof ReactiveStyle]?: ReactiveStyle[K] | Node$1$1<any>;
+};
+export type Dsl1Class = string | Node$1$1<string> | (() => string) | {
+	[key: string]: boolean | Node$1$1<boolean> | (() => boolean);
+} | Array<string | Node$1$1<string> | (() => string)>;
 export type Dsl1Props = {
-	style?: Dsl1Style | Node$1<string> | (() => string);
+	style?: Dsl1Style | Node$1$1<string> | (() => string);
 	class?: Dsl1Class;
 	className?: Dsl1Class;
 	[key: string]: any;
 };
-export type Dsl1Child = Node | string | number | Node$1<any> | (() => any);
+export type Dsl1Child = Node | string | number | Node$1$1<any> | (() => any);
 export declare function element<K extends keyof HTMLElementTagNameMap>(tag: K, props?: Dsl1Props, children?: Dsl1Child | Dsl1Child[]): HTMLElementTagNameMap[K];
 export declare function errorBoundary(normalFactory: () => HTMLElement, fallbackFactory: (error: any) => HTMLElement): HTMLElement;
 export declare function scope<T extends (...args: any[]) => HTMLElement>(f: T): T;
-export declare function Show(condition: Node$1<boolean> | (() => boolean), thenFn: () => HTMLElement, elseFn?: () => HTMLElement): HTMLElement;
-export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): Node;
 
 export {};
