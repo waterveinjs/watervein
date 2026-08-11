@@ -214,7 +214,9 @@ const BenchmarkSystem = {
         UISystem.flush();
         const end = performance.now();
 
-        container.remove();
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
+        }
         return end - start;
     },
 
@@ -244,7 +246,9 @@ const BenchmarkSystem = {
         UISystem.flush();
         const end = performance.now();
 
-        container.remove();
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
+        }
         return end - start;
     },
 
@@ -479,7 +483,9 @@ const BenchmarkSystem = {
         UISystem.flush();
         const end = performance.now();
 
-        container.remove();
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
+        }
         return end - start;
     },
 
@@ -510,7 +516,9 @@ const BenchmarkSystem = {
         }
         const end = performance.now();
 
-        container.remove();
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
+        }
         return end - start;
     },
 

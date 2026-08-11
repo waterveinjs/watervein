@@ -55,11 +55,10 @@ function Show(condition, thenFn, elseFn) {
   );
   return wrapper;
 }
-function getLIS(arr) {
+function getLIS(arr, len) {
   const p = arr.slice();
   const result = [];
   let i, j, u, v, c;
-  const len = arr.length;
   for (i = 0; i < len; i++) {
     const arrI = arr[i];
     if (arrI !== -1) {
@@ -101,25 +100,36 @@ function getLIS(arr) {
   }
   return result;
 }
-var CACHE_POOL = [];
+var CACHE_POOL_A = [];
+var CACHE_POOL_B = [];
 var KEY_INDEX_MAP_POOL = [];
 var SOURCE_BUFFER_POOL = [];
 var NEXT_KEYS_BUFFER_POOL = [];
-var callDepth = 0;
+var CACHE_ACTIVE_IS_A = [];
 function getBuffers(depth) {
-  if (!CACHE_POOL[depth]) {
-    CACHE_POOL[depth] = /* @__PURE__ */ new Map();
+  if (!CACHE_POOL_A[depth]) {
+    CACHE_POOL_A[depth] = /* @__PURE__ */ new Map();
+    CACHE_POOL_B[depth] = /* @__PURE__ */ new Map();
+    CACHE_ACTIVE_IS_A[depth] = true;
     KEY_INDEX_MAP_POOL[depth] = /* @__PURE__ */ new Map();
     SOURCE_BUFFER_POOL[depth] = [];
     NEXT_KEYS_BUFFER_POOL[depth] = [];
   }
+  const activeIsA = CACHE_ACTIVE_IS_A[depth];
   return {
-    nextCache: CACHE_POOL[depth],
+    // 現在使われているキャッシュ（前回の結果）
+    currentCache: activeIsA ? CACHE_POOL_A[depth] : CACHE_POOL_B[depth],
+    // 今回書き込む先（前回のnext = 前々回のcurrent、再利用してclearするだけ）
+    nextCache: activeIsA ? CACHE_POOL_B[depth] : CACHE_POOL_A[depth],
     keyIndexMap: KEY_INDEX_MAP_POOL[depth],
     sourceBuffer: SOURCE_BUFFER_POOL[depth],
     nextKeysBuffer: NEXT_KEYS_BUFFER_POOL[depth]
   };
 }
+function swapBuffers(depth) {
+  CACHE_ACTIVE_IS_A[depth] = !CACHE_ACTIVE_IS_A[depth];
+}
+var callDepth = 0;
 function For(listNode, keyFn, renderFn) {
   const marker = document.createComment("wv-for");
   let isInitial = true;
@@ -131,6 +141,7 @@ function For(listNode, keyFn, renderFn) {
     const depth = callDepth++;
     const {
       nextCache: NEXT_CACHE,
+      // 今回書き込む先
       keyIndexMap: KEY_INDEX_MAP_BUFFER,
       sourceBuffer: SOURCE_BUFFER_BASE,
       nextKeysBuffer: NEXT_KEYS_BUFFER_BASE
@@ -155,9 +166,7 @@ function For(listNode, keyFn, renderFn) {
         newKeys[i] = key;
         const cached = entityCache.get(key);
         if (cached) {
-          untrack(() => {
-            write(cached.itemNode, item);
-          });
+          untrack(() => write(cached.itemNode, item));
           newCache.set(key, cached);
         } else {
           const entityId = createEntity();
@@ -191,8 +200,7 @@ function For(listNode, keyFn, renderFn) {
       }
       if (isInitial) {
         for (let i = 0; i < newLen; i++) {
-          const entry = newCache.get(newKeys[i]);
-          initialFragment.appendChild(entry.dom);
+          initialFragment.appendChild(newCache.get(newKeys[i]).dom);
         }
         initialFragment.appendChild(marker);
         isInitial = false;
@@ -200,9 +208,7 @@ function For(listNode, keyFn, renderFn) {
         let start = 0;
         let oldEnd = oldLen - 1;
         let newEnd = newLen - 1;
-        while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) {
-          start++;
-        }
+        while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) start++;
         while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
           oldEnd--;
           newEnd--;
@@ -217,22 +223,18 @@ function For(listNode, keyFn, renderFn) {
           source.fill(-1, 0, count);
           const keyIndexMap = KEY_INDEX_MAP_BUFFER;
           keyIndexMap.clear();
-          for (let i = start; i <= newEnd; i++) {
-            keyIndexMap.set(newKeys[i], i);
-          }
+          for (let i = start; i <= newEnd; i++) keyIndexMap.set(newKeys[i], i);
           for (let i = start; i <= oldEnd; i++) {
             const oldKey = oldKeys[i];
             if (keyIndexMap.has(oldKey)) {
-              const newIdx = keyIndexMap.get(oldKey);
-              source[newIdx - start] = i;
+              source[keyIndexMap.get(oldKey) - start] = i;
             }
           }
-          const lis = getLIS(source.slice(0, count));
+          const lis = getLIS(source, count);
           let lisIdx = lis.length - 1;
           let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
           for (let i = count - 1; i >= 0; i--) {
-            const currentIndex = start + i;
-            const key = newKeys[currentIndex];
+            const key = newKeys[start + i];
             const entry = newCache.get(key);
             if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
               parent.insertBefore(entry.dom, anchor);
@@ -243,16 +245,9 @@ function For(listNode, keyFn, renderFn) {
           }
         }
       }
-      entityCache.clear();
-      for (const [k, v] of newCache) {
-        entityCache.set(k, v);
-      }
-      if (oldKeys.length < newLen) {
-        oldKeys = new Array(newLen);
-      }
-      for (let i = 0; i < newLen; i++) {
-        oldKeys[i] = newKeys[i];
-      }
+      entityCache = newCache;
+      swapBuffers(depth);
+      [oldKeys, NEXT_KEYS_BUFFER_POOL[depth]] = [newKeys, oldKeys];
       oldLen = newLen;
     } finally {
       callDepth--;
