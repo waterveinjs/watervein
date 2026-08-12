@@ -1,6 +1,5 @@
 // src/index.ts
-import { Show, For } from "@watervein/dom-core";
-import { mount, mountToBody, mountToHead, mountToRoot, unmount } from "@watervein/dom-core";
+import { mount, mountToBody, mountToHead, mountToRoot, unmount, Show, For } from "@watervein/dom-core";
 
 // src/base.ts
 import {

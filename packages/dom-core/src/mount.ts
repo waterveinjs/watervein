@@ -1,21 +1,21 @@
 /**
  * Application Custom Root Mount
  * @param target The element that serves as the root of the mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export const mount = (target: HTMLElement, rootElement: HTMLElement) => target.appendChild(rootElement);
+export const mount = (target: Node, rootNode: Node) => target.appendChild(rootNode);
 /**
  * Application Body Mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export const mountToBody = (rootElement: HTMLElement) => document.body.appendChild(rootElement);
+export const mountToBody = (rootNode: Node) => document.body.appendChild(rootNode);
 /**
  * Application Head Mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export const mountToHead = (rootElement: HTMLElement) => document.head.appendChild(rootElement);
+export const mountToHead = (rootNode: Node) => document.head.appendChild(rootNode);
 /**
  * Application Root Mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export const mountToRoot = (rootElement: HTMLElement) => document.documentElement.appendChild(rootElement);
+export const mountToRoot = (rootNode: Node) => document.documentElement.appendChild(rootNode);

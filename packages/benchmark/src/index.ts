@@ -40,25 +40,6 @@ function forceGC() {
 
 const yieldMainThread = () => new Promise(resolve => setTimeout(resolve, 10));
 
-async function withMemoryTracking<T>(
-    label: string,
-    fn: () => T
-): Promise<{ result: T; time: number; memory: string }> {
-    forceGC();
-    await yieldMainThread();
-    const before = getMemory();
-
-    const start = performance.now();
-    const result = fn();
-    const time = performance.now() - start;
-
-    forceGC();
-    await yieldMainThread();
-    const after = getMemory();
-
-    return { result, time, memory: formatMemoryDelta(before, after) };
-}
-
 type ScaleLevel = { name: string; nodeCount: number };
 
 const SCALE_LEVELS: ScaleLevel[] = [
@@ -205,7 +186,7 @@ const BenchmarkSystem = {
             el.textContent = item().text;
             return el;
         });
-        document.body.appendChild(container);
+        document.body.appendChild(container.fragment);
 
         const reversedData = [...read<{id:number,text:string}[]>(itemsState)].reverse();
         
@@ -214,9 +195,7 @@ const BenchmarkSystem = {
         UISystem.flush();
         const end = performance.now();
 
-        if (container.parentNode) {
-            container.parentNode.removeChild(container);
-        }
+        container.unmount();
         return end - start;
     },
 
@@ -231,7 +210,7 @@ const BenchmarkSystem = {
             el.textContent = item().text;
             return el;
         });
-        document.body.appendChild(container);
+        document.body.appendChild(container.fragment);
         UISystem.flush();
 
         const current = read<Row[]>(itemsState);
@@ -246,18 +225,20 @@ const BenchmarkSystem = {
         UISystem.flush();
         const end = performance.now();
 
-        if (container.parentNode) {
-            container.parentNode.removeChild(container);
-        }
+        container.unmount();
         return end - start;
     },
 
     runDynamicDependency(iterations: number) {
-        const cond = createState(true);
-        const a = createState(1);
-        const b = createState(2);
-        const memo = createCompute(() => read(cond) ? read(a) : read(b));
-        createEffect(() => { read(memo); });
+        const entityId = createEntity();
+        let cond: any, a: any, b: any;
+        withEntity(entityId, () => {
+            cond = createState(true);
+            a = createState(1);
+            b = createState(2);
+            const memo = createCompute(() => read(cond) ? read(a) : read(b));
+            createEffect(() => { read(memo); });
+        });
 
         const start = performance.now();
         batch(() => {
@@ -268,53 +249,76 @@ const BenchmarkSystem = {
             }
         });
         UISystem.flush();
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runFanOutBenchmark(count: number) {
-        const s = createState(0);
-        for (let i = 0; i < count; i++) {
-            const c = createCompute(() => read(s) + i);
-            createEffect(() => read(c));
-        }
+        const entityId = createEntity();
+        let s: any;
+        withEntity(entityId, () => {
+            s = createState(0);
+            for (let i = 0; i < count; i++) {
+                const c = createCompute(() => read<number>(s) + i);
+                createEffect(() => read(c));
+            }
+        });
         const start = performance.now();
         write(s, 1);
         UISystem.flush();
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runFanInBenchmark(count: number) {
+        const entityId = createEntity();
         const states: WvNode<number>[] = [];
-        for (let i = 0; i < count; i++) states.push(createState(i));
-
-        const memo = createCompute(() => {
-            let sum = 0;
-            for (const s of states) sum += read(s);
-            return sum;
+        let memo: any;
+        withEntity(entityId, () => {
+            for (let i = 0; i < count; i++) states.push(createState(i));
+            memo = createCompute(() => {
+                let sum = 0;
+                for (const s of states) sum += read(s);
+                return sum;
+            });
+            createEffect(() => read(memo));
         });
-        createEffect(() => read(memo));
 
         const start = performance.now();
         batch(() => {
             for (let i = 0; i < count; i++) write(states[i], i + 1);
         });
         UISystem.flush();
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runDeepChain(length: number) {
-        const root: WvNode<number> = createState(0);
-        let prev = root;
-        for (let i = 0; i < length; i++) {
-            const parent = prev;
-            prev = createCompute(() => read(parent) + 1);
-        }
-        createEffect(() => read(prev));
+        const entityId = createEntity();
+        let root: any;
+        withEntity(entityId, () => {
+            root = createState(0);
+            let prev = root;
+            for (let i = 0; i < length; i++) {
+                const parent = prev;
+                prev = createCompute(() => read<number>(parent) + 1);
+            }
+            createEffect(() => read(prev));
+        });
 
         const start = performance.now();
         write(root, 1);
         UISystem.flush();
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runFlush(count: number) {
@@ -324,59 +328,90 @@ const BenchmarkSystem = {
     },
 
     runRead(count: number) {
+        const entityId = createEntity();
         const states: WvNode<number>[] = [];
-        for (let i = 0; i < count; i++) states.push(createState(i));
+        withEntity(entityId, () => {
+            for (let i = 0; i < count; i++) states.push(createState(i));
+        });
         const start = performance.now();
         for (const s of states) read(s);
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runWrite(count: number) {
+        const entityId = createEntity();
         const states: WvNode<number>[] = [];
-        for (let i = 0; i < count; i++) states.push(createState(i));
+        withEntity(entityId, () => {
+            for (let i = 0; i < count; i++) states.push(createState(i));
+        });
         const start = performance.now();
         for (const s of states) write(s, 1);
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runCreateState(count: number) {
+        const entityId = createEntity();
         const start = performance.now();
-        for (let i = 0; i < count; i++) createState(i);
-        return performance.now() - start;
+        withEntity(entityId, () => {
+            for (let i = 0; i < count; i++) createState(i);
+        });
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runCreateCompute(count: number) {
+        const entityId = createEntity();
         const start = performance.now();
-        for (let i = 0; i < count; i++) createCompute(() => i);
-        return performance.now() - start;
+        withEntity(entityId, () => {
+            for (let i = 0; i < count; i++) createCompute(() => i);
+        });
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runCreateEffect(count: number) {
+        const entityId = createEntity();
         const start = performance.now();
-        for (let i = 0; i < count; i++) createEffect(() => i);
-        return performance.now() - start;
+        withEntity(entityId, () => {
+            for (let i = 0; i < count; i++) createEffect(() => i);
+        });
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runDiamondProblem(width: number) {
-        const base = createState(0);
-        const branches: any[] = [];
-        
-        for (let i = 0; i < width; i++) {
-            branches.push(createCompute(() => read(base) + i));
-        }
-        
-        const top = createCompute(() => {
-            let sum = 0;
-            for (let i = 0; i < width; i++) {
-                sum += read<number>(branches[i]);
-            }
-            return sum;
-        });
-        
+        const entityId = createEntity();
+        let base: any;
         let effectCount = 0;
-        createEffect(() => {
-            read(top);
-            effectCount++;
+        withEntity(entityId, () => {
+            base = createState(0);
+            const branches: any[] = [];
+            for (let i = 0; i < width; i++) {
+                branches.push(createCompute(() => read<number>(base) + i));
+            }
+            const top = createCompute(() => {
+                let sum = 0;
+                for (let i = 0; i < width; i++) {
+                    sum += read<number>(branches[i]);
+                }
+                return sum;
+            });
+            createEffect(() => {
+                read(top);
+                effectCount++;
+            });
         });
         UISystem.flush();
 
@@ -384,32 +419,37 @@ const BenchmarkSystem = {
         write(base, 1);
         UISystem.flush();
         const end = performance.now();
-        
+
+        DestructionSystem.destroyEntity(entityId);
         return { time: end - start, glitchesPrevented: effectCount === 2 };
     },
 
     runUnusedEdgeCleanup(iterations: number) {
-        const toggle = createState(true);
-        const staticData = createState(42);
-        
-        const alternateStates: any[] = [];
-        for (let i = 0; i < 100; i++) {
-            alternateStates.push(createState(i));
-        }
+        const entityId = createEntity();
+        let toggle: any;
+        withEntity(entityId, () => {
+            toggle = createState(true);
+            const staticData = createState(42);
 
-        const dynamicComputes: any[] = [];
-        for (let i = 0; i < 100; i++) {
-            dynamicComputes.push(createCompute(() => {
-                if (read(toggle)) {
-                    return read(staticData);
-                } else {
-                    return read(alternateStates[i]);
-                }
-            }));
-        }
+            const alternateStates: any[] = [];
+            for (let i = 0; i < 100; i++) {
+                alternateStates.push(createState(i));
+            }
 
-        createEffect(() => {
-            for(const c of dynamicComputes) read(c);
+            const dynamicComputes: any[] = [];
+            for (let i = 0; i < 100; i++) {
+                dynamicComputes.push(createCompute(() => {
+                    if (read(toggle)) {
+                        return read(staticData);
+                    } else {
+                        return read(alternateStates[i]);
+                    }
+                }));
+            }
+
+            createEffect(() => {
+                for (const c of dynamicComputes) read(c);
+            });
         });
         UISystem.flush();
 
@@ -418,14 +458,20 @@ const BenchmarkSystem = {
             write(toggle, (i & 1) === 0);
             UISystem.flush();
         }
-        return performance.now() - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runRedundantWriteFiltering(count: number) {
-        const s = createState(100);
-        const c = createCompute(() => read(s) * 2);
-        let runCount = 0;
-        createEffect(() => { read(c); runCount++; });
+        const entityId = createEntity();
+        let s: any;
+        withEntity(entityId, () => {
+            s = createState(100);
+            const c = createCompute(() => read<number>(s) * 2);
+            createEffect(() => { read(c); });
+        });
         UISystem.flush();
 
         const start = performance.now();
@@ -433,8 +479,10 @@ const BenchmarkSystem = {
             write(s, 100);
         }
         UISystem.flush();
-        const end = performance.now();
-        return end - start;
+        const time = performance.now() - start;
+
+        DestructionSystem.destroyEntity(entityId);
+        return time;
     },
 
     runDslStaticVsDynamic(count: number) {
@@ -473,7 +521,7 @@ const BenchmarkSystem = {
             el.textContent = item().text;
             return el;
         });
-        document.body.appendChild(container);
+        document.body.appendChild(container.fragment);
         UISystem.flush();
 
         const start = performance.now();
@@ -483,9 +531,7 @@ const BenchmarkSystem = {
         UISystem.flush();
         const end = performance.now();
 
-        if (container.parentNode) {
-            container.parentNode.removeChild(container);
-        }
+        container.unmount();
         return end - start;
     },
 
@@ -504,7 +550,7 @@ const BenchmarkSystem = {
             });
             return el;
         });
-        document.body.appendChild(container);
+        document.body.appendChild(container.fragment);
         UISystem.flush();
 
         const targetState = data[Math.floor(itemCount / 2)].text;
@@ -516,16 +562,13 @@ const BenchmarkSystem = {
         }
         const end = performance.now();
 
-        if (container.parentNode) {
-            container.parentNode.removeChild(container);
-        }
+        container.unmount();
         return end - start;
     },
 
     runCrossEntityDependency(count: number) {
         const globalEntity = createEntity();
         const childEntities: number[] = [];
-        
         let globalState: any;
         withEntity(globalEntity, () => {
             globalState = createState(0);
@@ -547,7 +590,6 @@ const BenchmarkSystem = {
 
         DestructionSystem.destroyEntities(childEntities);
         DestructionSystem.destroyEntity(globalEntity);
-        
         const end = performance.now();
         return end - start;
     }

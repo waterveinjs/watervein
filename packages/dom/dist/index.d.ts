@@ -18,28 +18,32 @@ export type Node$1<T = any> = {
 	pendingDeps: (Node$1<any> | null)[] | null;
 };
 export declare function Show(condition: Node$1 | (() => boolean), thenFn: () => HTMLElement, elseFn?: () => HTMLElement): HTMLElement;
-export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): Node;
+export type ForHandle = {
+	fragment: DocumentFragment;
+	unmount: () => void;
+};
+export declare function For<T>(listNode: Node$1<T[]>, keyFn: (item: T) => any, renderFn: (getItem: () => T) => HTMLElement): ForHandle;
 /**
  * Application Custom Root Mount
  * @param target The element that serves as the root of the mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export declare const mount: (target: HTMLElement, rootElement: HTMLElement) => HTMLElement;
+export declare const mount: (target: Node, rootNode: Node) => Node;
 /**
  * Application Body Mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export declare const mountToBody: (rootElement: HTMLElement) => HTMLElement;
+export declare const mountToBody: (rootNode: Node) => Node;
 /**
  * Application Head Mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export declare const mountToHead: (rootElement: HTMLElement) => HTMLElement;
+export declare const mountToHead: (rootNode: Node) => Node;
 /**
  * Application Root Mount
- * @param rootElement Elements to be mounted
+ * @param rootNode Node to be mounted
  */
-export declare const mountToRoot: (rootElement: HTMLElement) => HTMLElement;
+export declare const mountToRoot: (rootNode: Node) => Node;
 export declare const unmount: (target: HTMLElement | number) => void;
 export type ReactiveProp<T> = T | Node$1<T> | (() => T);
 export type CSSStyleKeys = {

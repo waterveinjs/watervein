@@ -117,9 +117,7 @@ function getBuffers(depth) {
   }
   const activeIsA = CACHE_ACTIVE_IS_A[depth];
   return {
-    // 現在使われているキャッシュ（前回の結果）
     currentCache: activeIsA ? CACHE_POOL_A[depth] : CACHE_POOL_B[depth],
-    // 今回書き込む先（前回のnext = 前々回のcurrent、再利用してclearするだけ）
     nextCache: activeIsA ? CACHE_POOL_B[depth] : CACHE_POOL_A[depth],
     keyIndexMap: KEY_INDEX_MAP_POOL[depth],
     sourceBuffer: SOURCE_BUFFER_POOL[depth],
@@ -137,11 +135,12 @@ function For(listNode, keyFn, renderFn) {
   let oldKeys = [];
   let oldLen = 0;
   let entityCache = /* @__PURE__ */ new Map();
-  createEffect(() => {
+  let disposed = false;
+  const e = createEffect(() => {
+    if (disposed) return;
     const depth = callDepth++;
     const {
       nextCache: NEXT_CACHE,
-      // 今回書き込む先
       keyIndexMap: KEY_INDEX_MAP_BUFFER,
       sourceBuffer: SOURCE_BUFFER_BASE,
       nextKeysBuffer: NEXT_KEYS_BUFFER_BASE
@@ -255,14 +254,32 @@ function For(listNode, keyFn, renderFn) {
   });
   const res = initialFragment;
   initialFragment = null;
-  return res;
+  return {
+    fragment: res,
+    unmount() {
+      disposed = true;
+      if (marker.parentNode) {
+        marker.remove();
+      }
+      const idsToDestroy = [];
+      for (const entry of entityCache.values()) {
+        entry.dom.remove();
+        idsToDestroy.push(entry.entityId);
+      }
+      if (idsToDestroy.length > 0) {
+        DestructionSystem.destroyEntities(idsToDestroy);
+      }
+      entityCache.clear();
+      DestructionSystem._cleanupNode(e);
+    }
+  };
 }
 
 // src/mount.ts
-var mount = (target, rootElement) => target.appendChild(rootElement);
-var mountToBody = (rootElement) => document.body.appendChild(rootElement);
-var mountToHead = (rootElement) => document.head.appendChild(rootElement);
-var mountToRoot = (rootElement) => document.documentElement.appendChild(rootElement);
+var mount = (target, rootNode) => target.appendChild(rootNode);
+var mountToBody = (rootNode) => document.body.appendChild(rootNode);
+var mountToHead = (rootNode) => document.head.appendChild(rootNode);
+var mountToRoot = (rootNode) => document.documentElement.appendChild(rootNode);
 
 // src/unmount.ts
 import { DestructionSystem as DestructionSystem2 } from "@watervein/core";

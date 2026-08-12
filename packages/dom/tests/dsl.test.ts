@@ -150,7 +150,7 @@ describe('Watervein DOM - High Level DSL (element/Show/For)', () => {
                 () => getItem().label
             )
         );
-        mount(container, list);
+        mount(container, list.fragment);
 
         const itemEl = container.querySelector('#item-1') as HTMLDivElement;
         expect(itemEl.textContent).toBe('A');

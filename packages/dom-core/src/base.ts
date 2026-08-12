@@ -136,9 +136,7 @@ function getBuffers(depth: number) {
     }
     const activeIsA = CACHE_ACTIVE_IS_A[depth];
     return {
-        
         currentCache: activeIsA ? CACHE_POOL_A[depth] : CACHE_POOL_B[depth],
-        
         nextCache: activeIsA ? CACHE_POOL_B[depth] : CACHE_POOL_A[depth],
         keyIndexMap: KEY_INDEX_MAP_POOL[depth],
         sourceBuffer: SOURCE_BUFFER_POOL[depth],
@@ -152,11 +150,16 @@ function swapBuffers(depth: number) {
 
 let callDepth = 0;
 
+export type ForHandle = {
+    fragment: DocumentFragment;
+    unmount: () => void;
+};
+
 export function For<T>(
     listNode: WvNode<T[]>,
     keyFn: (item: T) => any,
     renderFn: (getItem: () => T) => HTMLElement
-): Node {
+): ForHandle {
     const marker = document.createComment("wv-for");
     let isInitial = true;
     let initialFragment: DocumentFragment | null = document.createDocumentFragment();
@@ -164,8 +167,10 @@ export function For<T>(
     let oldKeys: any[] = [];
     let oldLen = 0;
     let entityCache = new Map<any, Entry<T>>();
+    let disposed = false;
 
-    createEffect(() => {
+    const e = createEffect(() => {
+        if (disposed) return;
         const depth = callDepth++;
         const {
             nextCache: NEXT_CACHE,      
@@ -180,6 +185,7 @@ export function For<T>(
         try {
             const list = read(listNode);
             const parent = marker.parentNode;
+
             if (!isInitial && !parent) return;
 
             const newLen = list.length;
@@ -264,8 +270,6 @@ export function For<T>(
                             source[keyIndexMap.get(oldKey)! - start] = i;
                         }
                     }
-
-                    
                     const lis = getLIS(source, count);
                     let lisIdx = lis.length - 1;
                     let anchor: Node = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1])!.dom : marker;
@@ -294,5 +298,24 @@ export function For<T>(
 
     const res = initialFragment;
     initialFragment = null;
-    return res as unknown as Node;
+    return {
+        fragment: res!,
+        unmount() {
+            disposed = true;
+            if (marker.parentNode) {
+                marker.remove();
+            }
+            const idsToDestroy: number[] = [];
+            for (const entry of entityCache.values()) {
+                entry.dom.remove();
+                idsToDestroy.push(entry.entityId);
+            }
+            if (idsToDestroy.length > 0) {
+                DestructionSystem.destroyEntities(idsToDestroy);
+            }
+            entityCache.clear();
+
+            DestructionSystem._cleanupNode(e);
+        }
+    };
 }
