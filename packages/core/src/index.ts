@@ -805,25 +805,25 @@ export const DataSystem = {
     },
 };
 
-const DESTROY_TARGET_SETS: Set<number>[] = [];
-const DESTROYING_NODE_SETS: Set<number>[] = [];
-const COLLECTED_NODES_BUFFERS: Node[][] = [];
-const DEPTH_BUCKETS_BUFFERS: Node[][][] = [];
+const DESTROY_TARGET: Set<number>[] = [];
+const DESTROYING_NODE: Set<number>[] = [];
+const COLLECTED_NODES: Node[][] = [];
+const DEPTH_BUCKETS: Node[][][] = [];
 
 let destroyCallDepth = 0;
 
 function getDestroyBuffers(depth: number) {
-    if (!DESTROY_TARGET_SETS[depth]) {
-        DESTROY_TARGET_SETS[depth] = new Set<number>();
-        DESTROYING_NODE_SETS[depth] = new Set<number>();
-        COLLECTED_NODES_BUFFERS[depth] = [];
-        DEPTH_BUCKETS_BUFFERS[depth] = [];
+    if (!DESTROY_TARGET[depth]) {
+        DESTROY_TARGET[depth] = new Set<number>();
+        DESTROYING_NODE[depth] = new Set<number>();
+        COLLECTED_NODES[depth] = [];
+        DEPTH_BUCKETS[depth] = [];
     }
     return {
-        allTargetEntityIds: DESTROY_TARGET_SETS[depth],
-        destroyingNodeIds: DESTROYING_NODE_SETS[depth],
-        allCollectedNodes: COLLECTED_NODES_BUFFERS[depth],
-        depthBuckets: DEPTH_BUCKETS_BUFFERS[depth],
+        allTargetEntityIds: DESTROY_TARGET[depth],
+        destroyingNodeIds: DESTROYING_NODE[depth],
+        allCollectedNodes: COLLECTED_NODES[depth],
+        depthBuckets: DEPTH_BUCKETS[depth],
     };
 }
 
