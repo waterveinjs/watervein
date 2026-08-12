@@ -154,53 +154,82 @@ function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
     }
 }
 
-function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
+function unwrap<T>(val: T | WvNode<T> | (() => T)): T {
+    if (isWvNode(val)) return read(val as WvNode<T>);
+    if (typeof val === "function") return (val as Function)();
+    return val as T;
+}
+
+export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
+    if (!classVal) {
+        el.className = "";
+        return;
+    }
+
     if (typeof classVal === "function" || isWvNode(classVal)) {
         createEffect(() => {
-            el.className = String(isWvNode(classVal) ? read(classVal) : (classVal as Function)());
+            const res = unwrap(classVal);
+            el.className = res ? String(res) : "";
         });
-    } else if (typeof classVal === "object" && !Array.isArray(classVal)) {
-        const classKeys = Object.keys(classVal);
-        const cLen = classKeys.length;
+        return;
+    }
 
-        for (let j = 0; j < cLen; j++) {
-            const className = classKeys[j];
+    if (Array.isArray(classVal)) {
+        const len = classVal.length;
+        for (let i = 0; i < len; i++) {
+            const item = classVal[i];
+            if (!item) continue;
+
+            if (typeof item === "function" || isWvNode(item)) {
+                let prevClasses: string[] = [];
+                createEffect(() => {
+                    const res = unwrap(item);
+                    const newStr = res ? String(res).trim() : "";
+                    const newClasses = newStr ? newStr.split(/\s+/) : [];
+
+                    for (let j = 0; j < prevClasses.length; j++) {
+                        if (!newClasses.includes(prevClasses[j])) {
+                            el.classList.remove(prevClasses[j]);
+                        }
+                    }
+                    for (let j = 0; j < newClasses.length; j++) {
+                        if (!prevClasses.includes(newClasses[j])) {
+                            el.classList.add(newClasses[j]);
+                        }
+                    }
+                    prevClasses = newClasses;
+                });
+            } else {
+                const classes = String(item).trim().split(/\s+/);
+                for (let j = 0; j < classes.length; j++) {
+                    if (classes[j]) el.classList.add(classes[j]);
+                }
+            }
+        }
+        return;
+    }
+
+    if (typeof classVal === "object") {
+        const keys = Object.keys(classVal);
+        const len = keys.length;
+
+        for (let i = 0; i < len; i++) {
+            const className = keys[i];
             const condition = classVal[className];
 
             if (typeof condition === "function" || isWvNode(condition)) {
                 createEffect(() => {
-                    const isTrue = isWvNode(condition) ? read(condition) : (condition as Function)();
-                    if (isTrue) el.classList.add(className);
-                    else el.classList.remove(className);
+                    const isTrue = unwrap(condition);
+                    el.classList.toggle(className, !!isTrue);
                 });
-            } else if (condition) {
-                el.classList.add(className);
+            } else {
+                el.classList.toggle(className, !!condition);
             }
         }
-    } else if (Array.isArray(classVal)) {
-        const aLen = classVal.length;
-        for (let j = 0; j < aLen; j++) {
-            const item = classVal[j];
-            if (typeof item === "function" || isWvNode(item)) {
-                let previousClass = "";
-                createEffect(() => {
-                    const res = isWvNode(item) ? read(item) : (item as Function)();
-                    const newClass = res ? String(res).trim() : "";
-                    if (previousClass && previousClass !== newClass) {
-                        el.classList.remove(previousClass);
-                    }
-                    if (newClass) {
-                        el.classList.add(newClass);
-                    }
-                    previousClass = newClass;
-                });
-            } else if (item) {
-                el.classList.add(item);
-            }
-        }
-    } else {
-        el.className = classVal;
+        return;
     }
+
+    el.className = String(classVal);
 }
 
 export { Show, For, ForHandle } from './base.js';

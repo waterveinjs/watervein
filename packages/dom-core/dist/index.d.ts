@@ -66,5 +66,6 @@ export type ReactiveProps = {
 };
 export type Child = Node | string | number | Node$1<any> | (() => any);
 export declare function element<K extends keyof HTMLElementTagNameMap>(tag: K, props?: ReactiveProps, children?: Child | Child[]): HTMLElementTagNameMap[K];
+export declare function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass): void;
 
 export {};

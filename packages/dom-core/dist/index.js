@@ -55,26 +55,41 @@ function Show(condition, thenFn, elseFn) {
   );
   return wrapper;
 }
-function getLIS(arr, len) {
-  const p = arr.slice();
-  const result = [];
+var LIS_P_BUFFER = new Int32Array(128);
+var LIS_RESULT_BUFFER = new Int32Array(128);
+var LIS_OUTPUT_BUFFER = new Int32Array(128);
+function ensureLISBufferSize(size) {
+  if (LIS_P_BUFFER.length < size) {
+    const newSize = Math.max(size, LIS_P_BUFFER.length * 2);
+    LIS_P_BUFFER = new Int32Array(newSize);
+    LIS_RESULT_BUFFER = new Int32Array(newSize);
+  }
+}
+function getLISInPlace(arr, len, outBuffer) {
+  if (len === 0) return 0;
+  ensureLISBufferSize(len);
+  const p = LIS_P_BUFFER;
+  const result = LIS_RESULT_BUFFER;
+  let resultLen = 0;
   let i, j, u, v, c;
   for (i = 0; i < len; i++) {
     const arrI = arr[i];
     if (arrI !== -1) {
-      if (result.length === 0) {
+      if (resultLen === 0) {
         p[i] = -1;
-        result.push(i);
+        result[0] = i;
+        resultLen = 1;
         continue;
       }
-      j = result[result.length - 1];
+      j = result[resultLen - 1];
       if (arr[j] < arrI) {
         p[i] = j;
-        result.push(i);
+        result[resultLen] = i;
+        resultLen++;
         continue;
       }
       u = 0;
-      v = result.length - 1;
+      v = resultLen - 1;
       while (u < v) {
         c = u + v >> 1;
         if (arr[result[c]] < arrI) {
@@ -91,14 +106,14 @@ function getLIS(arr, len) {
       }
     }
   }
-  u = result.length;
-  if (u === 0) return [];
+  u = resultLen;
+  if (u === 0) return 0;
   v = result[u - 1];
   while (u-- > 0) {
-    result[u] = v;
+    outBuffer[u] = v;
     v = p[v];
   }
-  return result;
+  return resultLen;
 }
 var CACHE_POOL_A = [];
 var CACHE_POOL_B = [];
@@ -112,7 +127,7 @@ function getBuffers(depth) {
     CACHE_POOL_B[depth] = /* @__PURE__ */ new Map();
     CACHE_ACTIVE_IS_A[depth] = true;
     KEY_INDEX_MAP_POOL[depth] = /* @__PURE__ */ new Map();
-    SOURCE_BUFFER_POOL[depth] = [];
+    SOURCE_BUFFER_POOL[depth] = new Int32Array(64);
     NEXT_KEYS_BUFFER_POOL[depth] = [];
   }
   const activeIsA = CACHE_ACTIVE_IS_A[depth];
@@ -179,7 +194,7 @@ function For(listNode, keyFn, renderFn) {
         }
       }
       const toDestroyImmediate = [];
-      for (const [key, entry] of entityCache) {
+      entityCache.forEach((entry, key) => {
         if (!newCache.has(key)) {
           const dom = entry.dom;
           if (dom[wvLeaveKey]) {
@@ -193,7 +208,7 @@ function For(listNode, keyFn, renderFn) {
             toDestroyImmediate.push(entry.entityId);
           }
         }
-      }
+      });
       if (toDestroyImmediate.length > 0) {
         DestructionSystem.destroyEntities(toDestroyImmediate);
       }
@@ -215,27 +230,29 @@ function For(listNode, keyFn, renderFn) {
         const count = newEnd - start + 1;
         if (count > 0) {
           if (SOURCE_BUFFER.length < count) {
-            SOURCE_BUFFER = new Array(count);
+            SOURCE_BUFFER = new Int32Array(Math.max(count, SOURCE_BUFFER.length * 2));
             SOURCE_BUFFER_POOL[depth] = SOURCE_BUFFER;
           }
-          const source = SOURCE_BUFFER;
-          source.fill(-1, 0, count);
+          SOURCE_BUFFER.fill(-1, 0, count);
           const keyIndexMap = KEY_INDEX_MAP_BUFFER;
           keyIndexMap.clear();
           for (let i = start; i <= newEnd; i++) keyIndexMap.set(newKeys[i], i);
           for (let i = start; i <= oldEnd; i++) {
             const oldKey = oldKeys[i];
             if (keyIndexMap.has(oldKey)) {
-              source[keyIndexMap.get(oldKey) - start] = i;
+              SOURCE_BUFFER[keyIndexMap.get(oldKey) - start] = i;
             }
           }
-          const lis = getLIS(source, count);
-          let lisIdx = lis.length - 1;
+          if (LIS_OUTPUT_BUFFER.length < count) {
+            LIS_OUTPUT_BUFFER = new Int32Array(Math.max(count, LIS_OUTPUT_BUFFER.length * 2));
+          }
+          const lisLen = getLISInPlace(SOURCE_BUFFER, count, LIS_OUTPUT_BUFFER);
+          let lisIdx = lisLen - 1;
           let anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]).dom : marker;
           for (let i = count - 1; i >= 0; i--) {
             const key = newKeys[start + i];
             const entry = newCache.get(key);
-            if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
+            if (SOURCE_BUFFER[i] === -1 || lisIdx < 0 || i !== LIS_OUTPUT_BUFFER[lisIdx]) {
               parent.insertBefore(entry.dom, anchor);
             } else {
               lisIdx--;
@@ -262,10 +279,10 @@ function For(listNode, keyFn, renderFn) {
         marker.remove();
       }
       const idsToDestroy = [];
-      for (const entry of entityCache.values()) {
+      entityCache.forEach((entry) => {
         entry.dom.remove();
         idsToDestroy.push(entry.entityId);
-      }
+      });
       if (idsToDestroy.length > 0) {
         DestructionSystem.destroyEntities(idsToDestroy);
       }
@@ -414,55 +431,78 @@ function applyReactiveStyle(el, styleObj) {
     }
   }
 }
+function unwrap(val) {
+  if (isWvNode(val)) return read2(val);
+  if (typeof val === "function") return val();
+  return val;
+}
 function applyReactiveClass(el, classVal) {
+  if (!classVal) {
+    el.className = "";
+    return;
+  }
   if (typeof classVal === "function" || isWvNode(classVal)) {
     createEffect2(() => {
-      el.className = String(isWvNode(classVal) ? read2(classVal) : classVal());
+      const res = unwrap(classVal);
+      el.className = res ? String(res) : "";
     });
-  } else if (typeof classVal === "object" && !Array.isArray(classVal)) {
-    const classKeys = Object.keys(classVal);
-    const cLen = classKeys.length;
-    for (let j = 0; j < cLen; j++) {
-      const className = classKeys[j];
+    return;
+  }
+  if (Array.isArray(classVal)) {
+    const len = classVal.length;
+    for (let i = 0; i < len; i++) {
+      const item = classVal[i];
+      if (!item) continue;
+      if (typeof item === "function" || isWvNode(item)) {
+        let prevClasses = [];
+        createEffect2(() => {
+          const res = unwrap(item);
+          const newStr = res ? String(res).trim() : "";
+          const newClasses = newStr ? newStr.split(/\s+/) : [];
+          for (let j = 0; j < prevClasses.length; j++) {
+            if (!newClasses.includes(prevClasses[j])) {
+              el.classList.remove(prevClasses[j]);
+            }
+          }
+          for (let j = 0; j < newClasses.length; j++) {
+            if (!prevClasses.includes(newClasses[j])) {
+              el.classList.add(newClasses[j]);
+            }
+          }
+          prevClasses = newClasses;
+        });
+      } else {
+        const classes = String(item).trim().split(/\s+/);
+        for (let j = 0; j < classes.length; j++) {
+          if (classes[j]) el.classList.add(classes[j]);
+        }
+      }
+    }
+    return;
+  }
+  if (typeof classVal === "object") {
+    const keys = Object.keys(classVal);
+    const len = keys.length;
+    for (let i = 0; i < len; i++) {
+      const className = keys[i];
       const condition = classVal[className];
       if (typeof condition === "function" || isWvNode(condition)) {
         createEffect2(() => {
-          const isTrue = isWvNode(condition) ? read2(condition) : condition();
-          if (isTrue) el.classList.add(className);
-          else el.classList.remove(className);
+          const isTrue = unwrap(condition);
+          el.classList.toggle(className, !!isTrue);
         });
-      } else if (condition) {
-        el.classList.add(className);
+      } else {
+        el.classList.toggle(className, !!condition);
       }
     }
-  } else if (Array.isArray(classVal)) {
-    const aLen = classVal.length;
-    for (let j = 0; j < aLen; j++) {
-      const item = classVal[j];
-      if (typeof item === "function" || isWvNode(item)) {
-        let previousClass = "";
-        createEffect2(() => {
-          const res = isWvNode(item) ? read2(item) : item();
-          const newClass = res ? String(res).trim() : "";
-          if (previousClass && previousClass !== newClass) {
-            el.classList.remove(previousClass);
-          }
-          if (newClass) {
-            el.classList.add(newClass);
-          }
-          previousClass = newClass;
-        });
-      } else if (item) {
-        el.classList.add(item);
-      }
-    }
-  } else {
-    el.className = classVal;
+    return;
   }
+  el.className = String(classVal);
 }
 export {
   For,
   Show,
+  applyReactiveClass,
   element,
   mount,
   mountToBody,

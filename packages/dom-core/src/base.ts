@@ -64,27 +64,52 @@ export function Show(
 
 export const leaveHooks = new WeakMap<HTMLElement, (resolve: () => void) => void>();
 
-function getLIS(arr: number[], len: number): number[] {
-    const p = arr.slice();
-    const result: number[] = [];
-    let i, j, u, v, c;
+type Entry<T> = {
+    entityId: number;
+    dom: HTMLElement;
+    itemNode: WvNode<T>;
+};
+
+let LIS_P_BUFFER = new Int32Array(128);
+let LIS_RESULT_BUFFER = new Int32Array(128);
+let LIS_OUTPUT_BUFFER = new Int32Array(128);
+
+function ensureLISBufferSize(size: number) {
+    if (LIS_P_BUFFER.length < size) {
+        const newSize = Math.max(size, LIS_P_BUFFER.length * 2);
+        LIS_P_BUFFER = new Int32Array(newSize);
+        LIS_RESULT_BUFFER = new Int32Array(newSize);
+    }
+}
+
+function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): number {
+    if (len === 0) return 0;
+    ensureLISBufferSize(len);
+
+    const p = LIS_P_BUFFER;
+    const result = LIS_RESULT_BUFFER;
+    let resultLen = 0;
+
+    let i: number, j: number, u: number, v: number, c: number;
 
     for (i = 0; i < len; i++) {
         const arrI = arr[i];
         if (arrI !== -1) {
-            if (result.length === 0) {
+            if (resultLen === 0) {
                 p[i] = -1;
-                result.push(i);
+                result[0] = i;
+                resultLen = 1;
                 continue;
             }
-            j = result[result.length - 1];
+            j = result[resultLen - 1];
             if (arr[j] < arrI) {
                 p[i] = j;
-                result.push(i);
+                result[resultLen] = i;
+                resultLen++;
                 continue;
             }
             u = 0;
-            v = result.length - 1;
+            v = resultLen - 1;
             while (u < v) {
                 c = (u + v) >> 1;
                 if (arr[result[c]] < arrI) {
@@ -101,28 +126,23 @@ function getLIS(arr: number[], len: number): number[] {
             }
         }
     }
-    u = result.length;
-    if (u === 0) return [];
+
+    u = resultLen;
+    if (u === 0) return 0;
+
     v = result[u - 1];
     while (u-- > 0) {
-        result[u] = v;
+        outBuffer[u] = v;
         v = p[v];
     }
-    return result;
+    return resultLen;
 }
-
-type Entry<T> = {
-    entityId: number;
-    dom: HTMLElement;
-    itemNode: WvNode<T>;
-};
 
 const CACHE_POOL_A: Map<any, Entry<any>>[] = [];
 const CACHE_POOL_B: Map<any, Entry<any>>[] = [];
 const KEY_INDEX_MAP_POOL: Map<any, number>[] = [];
-const SOURCE_BUFFER_POOL: number[][] = [];
+const SOURCE_BUFFER_POOL: Int32Array[] = [];
 const NEXT_KEYS_BUFFER_POOL: any[][] = [];
-
 const CACHE_ACTIVE_IS_A: boolean[] = [];
 
 function getBuffers(depth: number) {
@@ -131,7 +151,7 @@ function getBuffers(depth: number) {
         CACHE_POOL_B[depth] = new Map();
         CACHE_ACTIVE_IS_A[depth] = true;
         KEY_INDEX_MAP_POOL[depth] = new Map();
-        SOURCE_BUFFER_POOL[depth] = [];
+        SOURCE_BUFFER_POOL[depth] = new Int32Array(64);
         NEXT_KEYS_BUFFER_POOL[depth] = [];
     }
     const activeIsA = CACHE_ACTIVE_IS_A[depth];
@@ -173,7 +193,7 @@ export function For<T>(
         if (disposed) return;
         const depth = callDepth++;
         const {
-            nextCache: NEXT_CACHE,      
+            nextCache: NEXT_CACHE,
             keyIndexMap: KEY_INDEX_MAP_BUFFER,
             sourceBuffer: SOURCE_BUFFER_BASE,
             nextKeysBuffer: NEXT_KEYS_BUFFER_BASE,
@@ -190,7 +210,7 @@ export function For<T>(
 
             const newLen = list.length;
             const newCache = NEXT_CACHE;
-            newCache.clear(); 
+            newCache.clear();
 
             if (NEXT_KEYS_BUFFER.length < newLen) {
                 NEXT_KEYS_BUFFER = new Array(newLen);
@@ -219,7 +239,7 @@ export function For<T>(
             }
 
             const toDestroyImmediate: number[] = [];
-            for (const [key, entry] of entityCache) {
+            entityCache.forEach((entry, key) => {
                 if (!newCache.has(key)) {
                     const dom = entry.dom as InternalDOM;
                     if (dom[wvLeaveKey]) {
@@ -233,7 +253,7 @@ export function For<T>(
                         toDestroyImmediate.push(entry.entityId);
                     }
                 }
-            }
+            });
             if (toDestroyImmediate.length > 0) {
                 DestructionSystem.destroyEntities(toDestroyImmediate);
             }
@@ -250,16 +270,18 @@ export function For<T>(
                 let newEnd = newLen - 1;
 
                 while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) start++;
-                while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) { oldEnd--; newEnd--; }
+                while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
+                    oldEnd--;
+                    newEnd--;
+                }
 
                 const count = newEnd - start + 1;
                 if (count > 0) {
                     if (SOURCE_BUFFER.length < count) {
-                        SOURCE_BUFFER = new Array(count);
+                        SOURCE_BUFFER = new Int32Array(Math.max(count, SOURCE_BUFFER.length * 2));
                         SOURCE_BUFFER_POOL[depth] = SOURCE_BUFFER;
                     }
-                    const source = SOURCE_BUFFER;
-                    source.fill(-1, 0, count);
+                    SOURCE_BUFFER.fill(-1, 0, count);
 
                     const keyIndexMap = KEY_INDEX_MAP_BUFFER;
                     keyIndexMap.clear();
@@ -267,17 +289,20 @@ export function For<T>(
                     for (let i = start; i <= oldEnd; i++) {
                         const oldKey = oldKeys[i];
                         if (keyIndexMap.has(oldKey)) {
-                            source[keyIndexMap.get(oldKey)! - start] = i;
+                            SOURCE_BUFFER[keyIndexMap.get(oldKey)! - start] = i;
                         }
                     }
-                    const lis = getLIS(source, count);
-                    let lisIdx = lis.length - 1;
+                    if (LIS_OUTPUT_BUFFER.length < count) {
+                        LIS_OUTPUT_BUFFER = new Int32Array(Math.max(count, LIS_OUTPUT_BUFFER.length * 2));
+                    }
+                    const lisLen = getLISInPlace(SOURCE_BUFFER, count, LIS_OUTPUT_BUFFER);
+                    let lisIdx = lisLen - 1;
                     let anchor: Node = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1])!.dom : marker;
 
                     for (let i = count - 1; i >= 0; i--) {
                         const key = newKeys[start + i];
                         const entry = newCache.get(key)!;
-                        if (source[i] === -1 || lisIdx < 0 || i !== lis[lisIdx]) {
+                        if (SOURCE_BUFFER[i] === -1 || lisIdx < 0 || i !== LIS_OUTPUT_BUFFER[lisIdx]) {
                             parent.insertBefore(entry.dom, anchor);
                         } else {
                             lisIdx--;
@@ -306,10 +331,10 @@ export function For<T>(
                 marker.remove();
             }
             const idsToDestroy: number[] = [];
-            for (const entry of entityCache.values()) {
+            entityCache.forEach((entry) => {
                 entry.dom.remove();
                 idsToDestroy.push(entry.entityId);
-            }
+            });
             if (idsToDestroy.length > 0) {
                 DestructionSystem.destroyEntities(idsToDestroy);
             }

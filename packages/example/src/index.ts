@@ -118,7 +118,7 @@ const app = element("div", { class: "monitoring-dashboard", style: { padding: "2
                     element("div", { style: { width: "100px" } }, getRowCpu),
                     element("div", { style: { width: "100px" } }, getRowMemory)
                 ]);
-            })
+            }).fragment
         ])
     ])
 ]);
