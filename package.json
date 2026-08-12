@@ -15,7 +15,6 @@
     "bump:patch": "node scripts/bump.js patch",
     "bump:minor": "node scripts/bump.js minor",
     "bump:major": "node scripts/bump.js major"
-    
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

@@ -169,6 +169,24 @@ function For(listNode, keyFn, renderFn) {
       const newLen = list.length;
       const newCache = NEXT_CACHE;
       newCache.clear();
+      if (newLen === 0) {
+        if (isInitial) {
+          initialFragment.appendChild(marker);
+          isInitial = false;
+        } else if (parent) {
+          entityCache.forEach((entry) => {
+            entry.dom.remove();
+            DestructionSystem.destroyEntities([entry.entityId]);
+          });
+          entityCache.clear();
+        }
+        SOURCE_BUFFER_POOL[depth] = new Int32Array(32);
+        NEXT_KEYS_BUFFER_POOL[depth] = [];
+        KEY_INDEX_MAP_BUFFER.clear();
+        oldKeys = [];
+        oldLen = 0;
+        return;
+      }
       if (NEXT_KEYS_BUFFER.length < newLen) {
         NEXT_KEYS_BUFFER = new Array(newLen);
         NEXT_KEYS_BUFFER_POOL[depth] = NEXT_KEYS_BUFFER;
@@ -265,6 +283,18 @@ function For(listNode, keyFn, renderFn) {
       swapBuffers(depth);
       [oldKeys, NEXT_KEYS_BUFFER_POOL[depth]] = [newKeys, oldKeys];
       oldLen = newLen;
+      if (SOURCE_BUFFER.length > 64 && newLen < SOURCE_BUFFER.length >> 2) {
+        const newCap = Math.max(64, SOURCE_BUFFER.length >> 1);
+        SOURCE_BUFFER_POOL[depth] = new Int32Array(newCap);
+      }
+      if (NEXT_KEYS_BUFFER.length > 64 && newLen < NEXT_KEYS_BUFFER.length >> 2) {
+        NEXT_KEYS_BUFFER.length = Math.max(64, newLen);
+      }
+      if (LIS_P_BUFFER.length > 256 && newLen < 64) {
+        LIS_P_BUFFER = new Int32Array(128);
+        LIS_RESULT_BUFFER = new Int32Array(128);
+        LIS_OUTPUT_BUFFER = new Int32Array(128);
+      }
     } finally {
       callDepth--;
     }
@@ -287,6 +317,7 @@ function For(listNode, keyFn, renderFn) {
         DestructionSystem.destroyEntities(idsToDestroy);
       }
       entityCache.clear();
+      oldKeys = [];
       DestructionSystem._cleanupNode(e);
     }
   };
