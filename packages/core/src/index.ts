@@ -180,11 +180,11 @@ let minDirtyDepth = Infinity;
 let maxDirtyDepth = -1;
 
 let ENTITY_COUNT = 0;
-const entityRegistry = new Map<number, Node[]>();
+let entityRegistry = new Map<number, Node[]>();
 let currentEntityId: number | null = null;
 
-const entityChildrenMap = new Map<number, Set<number>>();
-const entityParentMap   = new Map<number, number | null>();
+let entityChildrenMap = new Map<number, Set<number>>();
+let entityParentMap   = new Map<number, number | null>();
 
 const freeEntityIds: number[] = [];
 
@@ -475,22 +475,6 @@ function executeEffect(node: Node) {
     } finally {
         popTrackingNode();
         if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
-    }
-}
-
-export function writeRaw<T>(node: Node<T>, value: T) {
-    if (node.value === value) return;
-    node.value = value;
-    let edgeId = node.subsHead;
-    if (edgeId !== NULL_EDGE) {
-        while (edgeId !== NULL_EDGE) {
-            const subNode = allNodes[edgeSub[edgeId]];
-            if (subNode) scheduleNode(subNode);
-            edgeId = edgeNextSub[edgeId];
-        }
-        if (raFID === null && !isBatching) {
-            raFID = nextTick(flush) as any;
-        }
     }
 }
 
@@ -862,7 +846,6 @@ export const DestructionSystem = {
             allTargetEntityIds.clear();
             destroying.clear();
             allCollectedNodes.length = 0;
-
             for (let i = 0; i < len; i++) {
                 collectRecursively(entityIds[i], allTargetEntityIds);
             }
@@ -875,7 +858,6 @@ export const DestructionSystem = {
                     }
                 }
             }
-
             let maxDepth = 0;
             for (const eId of allTargetEntityIds) {
                 const nodes = entityRegistry.get(eId);
@@ -891,9 +873,7 @@ export const DestructionSystem = {
                     }
                 }
             }
-
             const totalNodes = allCollectedNodes.length;
-
             if (totalNodes > 0) {
                 while (depthBuckets.length <= maxDepth) {
                     depthBuckets.push([]);
@@ -901,21 +881,19 @@ export const DestructionSystem = {
                 for (let d = 0; d <= maxDepth; d++) {
                     depthBuckets[d].length = 0;
                 }
-
                 for (let i = 0; i < totalNodes; i++) {
                     const node = allCollectedNodes[i];
                     depthBuckets[node.depth].push(node);
                 }
-
                 for (let d = maxDepth; d >= 0; d--) {
                     const bucketNodes = depthBuckets[d];
                     const bLen = bucketNodes.length;
                     for (let i = 0; i < bLen; i++) {
-                        this._cleanupNode(bucketNodes[i], destroying);
+                        const node = bucketNodes[i];
+                        this._cleanupNode(node, destroying);
                     }
                 }
             }
-
             for (const eId of allTargetEntityIds) {
                 entityRegistry.delete(eId);
                 entityParentMap.delete(eId);
@@ -924,14 +902,13 @@ export const DestructionSystem = {
                 cleanupEntityEvents(eId);
                 freeEntityIds.push(eId);
             }
-
             if (entityRegistry.size === 0) {
                 ENTITY_COUNT = 0;
                 freeEntityIds.length = 0;
-                entityChildrenMap.clear();
-                entityParentMap.clear();
+                entityRegistry = new Map();
+                entityChildrenMap = new Map();
+                entityParentMap = new Map();
             }
-
             let hasRemainingDirty = false;
             for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
                 if (buckets[d] && buckets[d].length > 0) {
@@ -944,12 +921,22 @@ export const DestructionSystem = {
                 maxDirtyDepth = -1;
                 buckets.length = 0;
             }
-
             const nodesEmpty = trimSparseArrays();
             compactEdgePoolIfNeeded(nodesEmpty);
-
         } finally {
             destroyCallDepth--;
+            for (let i = 0; i < allCollectedNodes.length; i++) {
+                allCollectedNodes[i] = null!;
+            }
+            allCollectedNodes.length = 0;
+
+            for (let d = 0; d < depthBuckets.length; d++) {
+                const b = depthBuckets[d];
+                if (b) {
+                    for (let i = 0; i < b.length; i++) b[i] = null!;
+                    b.length = 0;
+                }
+            }
         }
     },
 

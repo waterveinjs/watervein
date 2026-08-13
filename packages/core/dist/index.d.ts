@@ -35,7 +35,6 @@ export declare function withEntity<T>(entityId: number, fn: () => T): T;
 export declare function registerCustomNodeType(): number;
 declare function propagateDepth(start: Node$1): void;
 declare function scheduleNode(node: Node$1): void;
-export declare function writeRaw<T>(node: Node$1<T>, value: T): void;
 export declare function flush(): void;
 export declare function createState<T>(initial: T): Node$1<T>;
 export declare function createCompute<T>(fn: () => T): Node$1<T>;
