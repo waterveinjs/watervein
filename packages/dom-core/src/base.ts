@@ -64,11 +64,7 @@ export function Show(
 
 export const leaveHooks = new WeakMap<HTMLElement, (resolve: () => void) => void>();
 
-type Entry<T> = {
-    entityId: number;
-    dom: HTMLElement;
-    itemNode: WvNode<T>;
-};
+type Entry<T> = { entityId: number; dom: HTMLElement; itemNode: WvNode<T> };
 
 function destroyEntry(entry: Entry<any>) {
     entry.dom.remove();
@@ -87,52 +83,44 @@ let LIS_P = new Int32Array(128);
 let LIS_RES = new Int32Array(128);
 let LIS_OUT = new Int32Array(128);
 
-function ensureLISBufferSize(size: number) {
-    if (LIS_P.length < size) {
-        const newSize = Math.max(size, LIS_P.length * 2);
+function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): number {
+    if (len === 0) return 0;
+    if (LIS_P.length < len) {
+        const newSize = Math.max(len, LIS_P.length * 2);
         LIS_P = new Int32Array(newSize);
         LIS_RES = new Int32Array(newSize);
     }
-}
-
-function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): number {
-    if (len === 0) return 0;
-    ensureLISBufferSize(len);
-    let resultLen = 0;
-    let i = 0, j = 0, u = 0, v = 0, c = 0;
+    let resultLen = 0, i = 0, j = 0, u = 0, v = 0, c = 0;
     for (; i < len; i++) {
         const arrI = arr[i];
-        if (arrI !== -1) {
-            if (resultLen === 0) {
-                LIS_P[i] = -1;
-                LIS_RES[0] = i;
-                resultLen = 1;
-                continue;
-            }
-            j = LIS_RES[resultLen - 1];
-            if (arr[j] < arrI) {
-                LIS_P[i] = j;
-                LIS_RES[resultLen] = i;
-                resultLen++;
-                continue;
-            }
-            u = 0;
-            v = resultLen - 1;
-            while (u < v) {
-                c = (u + v) >> 1;
-                if (arr[LIS_RES[c]] < arrI) u = c + 1;
-                else v = c;
-            }
-            if (arrI < arr[LIS_RES[u]]) {
-                if (u > 0) LIS_P[i] = LIS_RES[u - 1];
-                LIS_RES[u] = i;
-            }
+        if (arrI === -1) continue;
+        if (resultLen === 0) {
+            LIS_P[i] = -1;
+            LIS_RES[0] = i;
+            resultLen = 1;
+            continue;
+        }
+        j = LIS_RES[resultLen - 1];
+        if (arr[j] < arrI) {
+            LIS_P[i] = j;
+            LIS_RES[resultLen] = i;
+            resultLen++;
+            continue;
+        }
+        u = 0; v = resultLen - 1;
+        while (u < v) {
+            c = (u + v) >> 1;
+            if (arr[LIS_RES[c]] < arrI) u = c + 1;
+            else v = c;
+        }
+        if (arrI < arr[LIS_RES[u]]) {
+            if (u > 0) LIS_P[i] = LIS_RES[u - 1];
+            LIS_RES[u] = i;
         }
     }
 
     u = resultLen;
     if (u === 0) return 0;
-
     v = LIS_RES[u - 1];
     while (u-- > 0) {
         outBuffer[u] = v;
@@ -141,34 +129,26 @@ function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): num
     return resultLen;
 }
 
-
-type DepthPool = [
-    Map<any, Entry<any>>, 
-    Map<any, Entry<any>>, 
-    Map<any, number>,     
-    Int32Array,           
-    any[],                
-    boolean               
-];
+type DepthPool = {
+    cacheA: Map<any, Entry<any>>;
+    cacheB: Map<any, Entry<any>>;
+    keyIdxMap: Map<any, number>;
+    srcBuf: Int32Array;
+    keysBuf: any[];
+    isA: boolean;
+};
 
 const POOLS: DepthPool[] = [];
 
-function getBuffers(depth: number) {
-    let p = POOLS[depth];
-    if (!p) {
-        p = POOLS[depth] = [new Map(), new Map(), new Map(), new Int32Array(64), [], true];
-    }
-    const isA = p[5];
-    return {
-        nextCache: isA ? p[1] : p[0],
-        keyIndexMap: p[2],
-        sourceBuffer: p[3],
-        nextKeysBuffer: p[4],
-    };
-}
-
-function swapBuffers(depth: number) {
-    POOLS[depth][5] = !POOLS[depth][5];
+function getPool(depth: number): DepthPool {
+    return POOLS[depth] || (POOLS[depth] = {
+        cacheA: new Map(),
+        cacheB: new Map(),
+        keyIdxMap: new Map(),
+        srcBuf: new Int32Array(64),
+        keysBuf: [],
+        isA: true
+    });
 }
 
 let callDepth = 0;
@@ -194,28 +174,17 @@ export function For<T>(
 
     const e = createEffect(() => {
         if (disposed) return;
-        const depth = callDepth++;
-        const {
-            nextCache: NEXT_CACHE,
-            keyIndexMap: KEY_INDEX_MAP_BUFFER,
-            sourceBuffer: SOURCE_BUFFER_BASE,
-            nextKeysBuffer: NEXT_KEYS_BUFFER_BASE,
-        } = getBuffers(depth);
-
-        let SOURCE_BUFFER = SOURCE_BUFFER_BASE;
-        let NEXT_KEYS_BUFFER = NEXT_KEYS_BUFFER_BASE;
+        const pool = getPool(callDepth++);
 
         try {
             const list = read(listNode);
             const parent = marker.parentNode;
-
             if (!isInitial && !parent) return;
 
             const newLen = list.length;
-            const newCache = NEXT_CACHE;
+            const newCache = pool.isA ? pool.cacheB : pool.cacheA;
             newCache.clear();
 
-            
             if (newLen === 0) {
                 if (isInitial) {
                     initialFragment!.appendChild(marker);
@@ -223,19 +192,16 @@ export function For<T>(
                 } else if (parent) {
                     destroyCache(entityCache);
                 }
-                POOLS[depth][3] = new Int32Array(32);
-                POOLS[depth][4] = [];
-                KEY_INDEX_MAP_BUFFER.clear();
+                pool.srcBuf = new Int32Array(32);
+                pool.keysBuf = [];
+                pool.keyIdxMap.clear();
                 oldKeys = [];
                 oldLen = 0;
                 return;
             }
 
-            if (NEXT_KEYS_BUFFER.length < newLen) {
-                NEXT_KEYS_BUFFER = new Array(newLen);
-                POOLS[depth][4] = NEXT_KEYS_BUFFER;
-            }
-            const newKeys = NEXT_KEYS_BUFFER;
+            if (pool.keysBuf.length < newLen) pool.keysBuf = new Array(newLen);
+            const newKeys = pool.keysBuf;
 
             for (let i = 0; i < newLen; i++) {
                 const item = list[i];
@@ -257,7 +223,6 @@ export function For<T>(
                 }
             }
 
-            
             const toDestroyImmediate: number[] = [];
             entityCache.forEach((entry, key) => {
                 if (!newCache.has(key)) {
@@ -284,9 +249,7 @@ export function For<T>(
                 initialFragment!.appendChild(marker);
                 isInitial = false;
             } else if (parent) {
-                let start = 0;
-                let oldEnd = oldLen - 1;
-                let newEnd = newLen - 1;
+                let start = 0, oldEnd = oldLen - 1, newEnd = newLen - 1;
 
                 while (start <= oldEnd && start <= newEnd && oldKeys[start] === newKeys[start]) start++;
                 while (start <= oldEnd && start <= newEnd && oldKeys[oldEnd] === newKeys[oldEnd]) {
@@ -296,32 +259,31 @@ export function For<T>(
 
                 const count = newEnd - start + 1;
                 if (count > 0) {
-                    if (SOURCE_BUFFER.length < count) {
-                        SOURCE_BUFFER = new Int32Array(Math.max(count, SOURCE_BUFFER.length * 2));
-                        POOLS[depth][3] = SOURCE_BUFFER;
+                    if (pool.srcBuf.length < count) {
+                        pool.srcBuf = new Int32Array(Math.max(count, pool.srcBuf.length * 2));
                     }
-                    SOURCE_BUFFER.fill(-1, 0, count);
+                    pool.srcBuf.fill(-1, 0, count);
 
-                    const keyIndexMap = KEY_INDEX_MAP_BUFFER;
-                    keyIndexMap.clear();
-                    for (let i = start; i <= newEnd; i++) keyIndexMap.set(newKeys[i], i);
+                    const keyIdxMap = pool.keyIdxMap;
+                    keyIdxMap.clear();
+                    for (let i = start; i <= newEnd; i++) keyIdxMap.set(newKeys[i], i);
                     for (let i = start; i <= oldEnd; i++) {
                         const oldKey = oldKeys[i];
-                        if (keyIndexMap.has(oldKey)) {
-                            SOURCE_BUFFER[keyIndexMap.get(oldKey)! - start] = i;
+                        if (keyIdxMap.has(oldKey)) {
+                            pool.srcBuf[keyIdxMap.get(oldKey)! - start] = i;
                         }
                     }
                     if (LIS_OUT.length < count) {
                         LIS_OUT = new Int32Array(Math.max(count, LIS_OUT.length * 2));
                     }
-                    const lisLen = getLISInPlace(SOURCE_BUFFER, count, LIS_OUT);
+                    const lisLen = getLISInPlace(pool.srcBuf, count, LIS_OUT);
                     let lisIdx = lisLen - 1;
                     let anchor: Node = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1])!.dom : marker;
 
                     for (let i = count - 1; i >= 0; i--) {
                         const key = newKeys[start + i];
                         const entry = newCache.get(key)!;
-                        if (SOURCE_BUFFER[i] === -1 || lisIdx < 0 || i !== LIS_OUT[lisIdx]) {
+                        if (pool.srcBuf[i] === -1 || lisIdx < 0 || i !== LIS_OUT[lisIdx]) {
                             parent.insertBefore(entry.dom, anchor);
                         } else {
                             lisIdx--;
@@ -331,16 +293,18 @@ export function For<T>(
                 }
             }
             entityCache = newCache;
-            swapBuffers(depth);
-            [oldKeys, POOLS[depth][4]] = [newKeys, oldKeys];
+            pool.isA = !pool.isA;
+
+            const tempKeys = oldKeys;
+            oldKeys = newKeys;
+            pool.keysBuf = tempKeys;
             oldLen = newLen;
 
-            
-            if (SOURCE_BUFFER.length > 64 && newLen < (SOURCE_BUFFER.length >> 2)) {
-                POOLS[depth][3] = new Int32Array(Math.max(64, SOURCE_BUFFER.length >> 1));
+            if (pool.srcBuf.length > 64 && newLen < (pool.srcBuf.length >> 2)) {
+                pool.srcBuf = new Int32Array(Math.max(64, pool.srcBuf.length >> 1));
             }
-            if (NEXT_KEYS_BUFFER.length > 64 && newLen < (NEXT_KEYS_BUFFER.length >> 2)) {
-                NEXT_KEYS_BUFFER.length = Math.max(64, newLen);
+            if (pool.keysBuf.length > 64 && newLen < (pool.keysBuf.length >> 2)) {
+                pool.keysBuf.length = Math.max(64, newLen);
             }
             if (LIS_P.length > 256 && newLen < 64) {
                 LIS_P = new Int32Array(128);
@@ -360,10 +324,7 @@ export function For<T>(
         unmount() {
             disposed = true;
             if (marker.parentNode) marker.remove();
-            
-            
             destroyCache(entityCache);
-            
             oldKeys = [];
             DestructionSystem._cleanupNode(e);
         }

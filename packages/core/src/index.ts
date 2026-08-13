@@ -963,9 +963,6 @@ export const DestructionSystem = {
 
         node.ft &= ~FLAG_DIRTY;
         node.compute = null;
-        if ((node as any).run) {
-            (node as any).run = null;
-        }
 
         if (node.pendingDeps) {
             node.pendingDeps.length = 0;
