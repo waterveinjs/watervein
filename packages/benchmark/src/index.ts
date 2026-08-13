@@ -603,7 +603,6 @@ async function runScaleSuite() {
         console.log(`\n--- ${level.name} (n=${n.toLocaleString()}) ---`);
 
         {
-            const before = getMemory();
             forceGC();
             await yieldMainThread();
             const beforeAfterGC = getMemory();
