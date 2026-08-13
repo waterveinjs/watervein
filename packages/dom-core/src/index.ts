@@ -1,4 +1,4 @@
-import { createEffect, getCurrentEntityId, read, untrack } from '@watervein/core';
+import { createEffect, getCurrentEntityId, read, untrack, Node as WvNode } from '@watervein/core';
 
 type ReactiveProp<T> = T | WvNode<T> | (() => T);
 type CSSStyleKeys = {
@@ -22,8 +22,6 @@ export type ReactiveProps = {
     [key: string]: any;
 };
 
-import { Node as WvNode } from '@watervein/core';
-
 type Child = Node | string | number | WvNode<any> | (() => any);
 
 const WV_NODE_TAG = 0x57564E44;
@@ -40,29 +38,35 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     const el = document.createElement(tag);
 
     if (props) {
-        const keys = Object.keys(props);
-        const len = keys.length;
-        for (let i = 0; i < len; i++) {
-            const key = keys[i];
+        for (const key in props) {
             const value = props[key];
+            if (value === undefined || value === null) continue;
 
-            if (key.startsWith("on")) {
+            if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110) {
                 if (!el.hasAttribute('data-wv-eid')) {
                     el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
                 }
             }
             else if (key === "class" || key === "className") {
-                if (value != null) applyReactiveClass(el, value);
+                if (typeof value === "string") {
+                    el.className = value;
+                } else {
+                    applyReactiveClass(el, value);
+                }
             }
             else if (key === "style") {
-                if (value != null) {
-                    if (typeof value === "function" || isWvNode(value)) {
-                        createEffect(() => { el.style.cssText = String(isWvNode(value) ? read(value) : (value as Function)()); });
-                    } else if (typeof value === "object") {
-                        applyReactiveStyle(el, value as ReactiveStyle);
-                    } else {
-                        el.style.cssText = String(value);
-                    }
+                if (typeof value === "string") {
+                    el.style.cssText = value;
+                } else if (typeof value === "function" || isWvNode(value)) {
+                    createEffect(() => { el.style.cssText = String(isWvNode(value) ? read(value) : (value as Function)()); });
+                } else if (typeof value === "object") {
+                    applyReactiveStyle(el, value as ReactiveStyle);
+                }
+            }
+            else if (key === "ref" && typeof value === "function") {
+                const cleanup = untrack(() => value(el));
+                if (typeof cleanup === "function" && getCurrentEntityId() !== null) {
+                    createEffect(() => cleanup);
                 }
             }
             else if (typeof value === "function" || isWvNode(value)) {
@@ -74,16 +78,9 @@ export function element<K extends keyof HTMLElementTagNameMap>(
                         el.removeAttribute(key);
                     }
                 });
-            } 
-            else if (value != null) {
-                (el as any)[key] = value;
             }
-        }
-
-        if ("ref" in props && typeof props.ref === "function") {
-            const cleanup = untrack(() => props.ref(el));
-            if (typeof cleanup === "function" && getCurrentEntityId() !== null) {
-                createEffect(() => cleanup);
+            else {
+                (el as any)[key] = value;
             }
         }
     }
@@ -109,35 +106,35 @@ export function element<K extends keyof HTMLElementTagNameMap>(
 }
 
 function appendChild(parent: HTMLElement, child: Child) {
-    if (typeof child === "function" || isWvNode(child)) {
+    if (child === null || child === undefined) return;
+    if (typeof child === "string" || typeof child === "number") {
+        if (parent.childNodes.length === 0) {
+            parent.textContent = String(child);
+        } else {
+            parent.appendChild(document.createTextNode(String(child)));
+        }
+    } else if (typeof child === "function" || isWvNode(child)) {
         const textNode = document.createTextNode("");
         parent.appendChild(textNode);
-
         createEffect(() => {
             textNode.nodeValue = String(isWvNode(child) ? read(child) : (child as Function)());
         });
     } else if (child instanceof Node) {
         parent.appendChild(child);
-    } else if (child !== null && child !== undefined) {
-        parent.appendChild(document.createTextNode(String(child)));
     }
 }
 
 function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
-    const styleKeys = Object.keys(styleObj);
-    const sLen = styleKeys.length;
     const elStyle = el.style as any;
 
-    for (let j = 0; j < sLen; j++) {
-        const styleKey = styleKeys[j];
+    for (const styleKey in styleObj) {
         const styleValue = styleObj[styleKey];
-
         if (styleValue === undefined || styleValue === null) continue;
 
         if (typeof styleValue === "function" || isWvNode(styleValue)) {
             createEffect(() => {
                 const computedValue = String(isWvNode(styleValue) ? read(styleValue) : (styleValue as Function)());
-                if (styleKey.startsWith("--")) {
+                if (styleKey.charCodeAt(0) === 45) {
                     el.style.setProperty(styleKey, computedValue);
                 } else {
                     elStyle[styleKey] = computedValue;
@@ -145,7 +142,7 @@ function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
             });
         } else {
             const staticValue = String(styleValue);
-            if (styleKey.startsWith("--")) {
+            if (styleKey.charCodeAt(0) === 45) {
                 el.style.setProperty(styleKey, staticValue);
             } else {
                 elStyle[styleKey] = staticValue;
@@ -163,6 +160,11 @@ function unwrap<T>(val: T | WvNode<T> | (() => T)): T {
 export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
     if (!classVal) {
         el.className = "";
+        return;
+    }
+
+    if (typeof classVal === "string") {
+        el.className = classVal;
         return;
     }
 
@@ -210,13 +212,8 @@ export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
     }
 
     if (typeof classVal === "object") {
-        const keys = Object.keys(classVal);
-        const len = keys.length;
-
-        for (let i = 0; i < len; i++) {
-            const className = keys[i];
+        for (const className in classVal) {
             const condition = classVal[className];
-
             if (typeof condition === "function" || isWvNode(condition)) {
                 createEffect(() => {
                     const isTrue = unwrap(condition);
