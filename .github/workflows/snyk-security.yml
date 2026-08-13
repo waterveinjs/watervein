@@ -33,9 +33,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Set up Snyk CLI
-        uses: snyk/actions/setup@v3
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        uses: snyk/actions/setup@master
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
