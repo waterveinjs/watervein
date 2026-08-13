@@ -183,7 +183,7 @@ let minDirtyDepth = Infinity;
 let maxDirtyDepth = -1;
 
 let ENTITY_COUNT = 0;
-let entityRegistry = new Map<number, Node[]>();
+let entityRegistry: (Node[] | undefined)[] = [];
 let currentEntityId: number | null = null;
 
 let entityChildrenMap = new Map<number, Set<number>>();
@@ -196,7 +196,7 @@ let raFID: number | null = null;
 
 export function createEntity(): number {
     const id = freeEntityIds.length > 0 ? freeEntityIds.pop()! : ENTITY_COUNT++;
-    entityRegistry.set(id, []);
+    entityRegistry[id] = [];
     entityParentMap.set(id, currentEntityId);
     if (currentEntityId !== null) {
         let children = entityChildrenMap.get(currentEntityId);
@@ -241,7 +241,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
 
     allNodes[node.id] = node;
     if (currentEntityId !== null) {
-        entityRegistry.get(currentEntityId)!.push(node);
+        entityRegistry[currentEntityId]!.push(node);
     }
     return node;
 }
@@ -796,13 +796,13 @@ export const DestructionSystem = {
     destroyEntity(entityId: number) {
         const children = entityChildrenMap.get(entityId);
         if (!children || children.size === 0) {
-            const nodes = entityRegistry.get(entityId);
+            const nodes = entityRegistry[entityId];
             if (nodes) {
                 for (let i = 0; i < nodes.length; i++) {
                     this._cleanupNode(nodes[i]);
                 }
             }
-            entityRegistry.delete(entityId);
+            entityRegistry[entityId] = undefined;
             entityParentMap.delete(entityId);
             entityChildrenMap.delete(entityId);
             errorBoundaryRegistry.delete(entityId);
@@ -843,7 +843,7 @@ export const DestructionSystem = {
             }
             let maxDepth = 0;
             for (const eId of allTargetEntityIds) {
-                const nodes = entityRegistry.get(eId);
+                const nodes = entityRegistry[eId];
                 if (nodes) {
                     const nLen = nodes.length;
                     for (let i = 0; i < nLen; i++) {
@@ -878,17 +878,17 @@ export const DestructionSystem = {
                 }
             }
             for (const eId of allTargetEntityIds) {
-                entityRegistry.delete(eId);
+                entityRegistry[eId] = undefined;
                 entityParentMap.delete(eId);
                 entityChildrenMap.delete(eId);
                 errorBoundaryRegistry.delete(eId);
                 cleanupEntityEvents(eId);
                 freeEntityIds.push(eId);
             }
-            if (entityRegistry.size === 0) {
+            if (freeEntityIds.length === ENTITY_COUNT) {
                 ENTITY_COUNT = 0;
                 freeEntityIds.length = 0;
-                entityRegistry = new Map();
+                entityRegistry.length = 0;
                 entityChildrenMap = new Map();
                 entityParentMap = new Map();
             }
@@ -1077,7 +1077,6 @@ export function mapEntity<T>(
                             updateNode(cache.itemNode, item);
                             updateNode(cache.indexNode, i);
                         } else {
-                            // 完全な新規要素
                             const entityId = createEntity();
                             withEntity(entityId, () => {
                                 const itemNode = createState(item);
