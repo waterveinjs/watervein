@@ -70,41 +70,49 @@ type Entry<T> = {
     itemNode: WvNode<T>;
 };
 
-let LIS_P_BUFFER = new Int32Array(128);
-let LIS_RESULT_BUFFER = new Int32Array(128);
-let LIS_OUTPUT_BUFFER = new Int32Array(128);
+function destroyEntry(entry: Entry<any>) {
+    entry.dom.remove();
+    return entry.entityId;
+}
+
+function destroyCache(cache: Map<any, Entry<any>>) {
+    if (cache.size === 0) return;
+    const ids: number[] = [];
+    cache.forEach((entry) => ids.push(destroyEntry(entry)));
+    DestructionSystem.destroyEntities(ids);
+    cache.clear();
+}
+
+let LIS_P = new Int32Array(128);
+let LIS_RES = new Int32Array(128);
+let LIS_OUT = new Int32Array(128);
 
 function ensureLISBufferSize(size: number) {
-    if (LIS_P_BUFFER.length < size) {
-        const newSize = Math.max(size, LIS_P_BUFFER.length * 2);
-        LIS_P_BUFFER = new Int32Array(newSize);
-        LIS_RESULT_BUFFER = new Int32Array(newSize);
+    if (LIS_P.length < size) {
+        const newSize = Math.max(size, LIS_P.length * 2);
+        LIS_P = new Int32Array(newSize);
+        LIS_RES = new Int32Array(newSize);
     }
 }
 
 function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): number {
     if (len === 0) return 0;
     ensureLISBufferSize(len);
-
-    const p = LIS_P_BUFFER;
-    const result = LIS_RESULT_BUFFER;
     let resultLen = 0;
-
-    let i: number, j: number, u: number, v: number, c: number;
-
-    for (i = 0; i < len; i++) {
+    let i = 0, j = 0, u = 0, v = 0, c = 0;
+    for (; i < len; i++) {
         const arrI = arr[i];
         if (arrI !== -1) {
             if (resultLen === 0) {
-                p[i] = -1;
-                result[0] = i;
+                LIS_P[i] = -1;
+                LIS_RES[0] = i;
                 resultLen = 1;
                 continue;
             }
-            j = result[resultLen - 1];
+            j = LIS_RES[resultLen - 1];
             if (arr[j] < arrI) {
-                p[i] = j;
-                result[resultLen] = i;
+                LIS_P[i] = j;
+                LIS_RES[resultLen] = i;
                 resultLen++;
                 continue;
             }
@@ -112,17 +120,12 @@ function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): num
             v = resultLen - 1;
             while (u < v) {
                 c = (u + v) >> 1;
-                if (arr[result[c]] < arrI) {
-                    u = c + 1;
-                } else {
-                    v = c;
-                }
+                if (arr[LIS_RES[c]] < arrI) u = c + 1;
+                else v = c;
             }
-            if (arrI < arr[result[u]]) {
-                if (u > 0) {
-                    p[i] = result[u - 1];
-                }
-                result[u] = i;
+            if (arrI < arr[LIS_RES[u]]) {
+                if (u > 0) LIS_P[i] = LIS_RES[u - 1];
+                LIS_RES[u] = i;
             }
         }
     }
@@ -130,42 +133,42 @@ function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): num
     u = resultLen;
     if (u === 0) return 0;
 
-    v = result[u - 1];
+    v = LIS_RES[u - 1];
     while (u-- > 0) {
         outBuffer[u] = v;
-        v = p[v];
+        v = LIS_P[v];
     }
     return resultLen;
 }
 
-const CACHE_POOL_A: Map<any, Entry<any>>[] = [];
-const CACHE_POOL_B: Map<any, Entry<any>>[] = [];
-const KEY_INDEX_MAP_POOL: Map<any, number>[] = [];
-const SOURCE_BUFFER_POOL: Int32Array[] = [];
-const NEXT_KEYS_BUFFER_POOL: any[][] = [];
-const CACHE_ACTIVE_IS_A: boolean[] = [];
+
+type DepthPool = [
+    Map<any, Entry<any>>, 
+    Map<any, Entry<any>>, 
+    Map<any, number>,     
+    Int32Array,           
+    any[],                
+    boolean               
+];
+
+const POOLS: DepthPool[] = [];
 
 function getBuffers(depth: number) {
-    if (!CACHE_POOL_A[depth]) {
-        CACHE_POOL_A[depth] = new Map();
-        CACHE_POOL_B[depth] = new Map();
-        CACHE_ACTIVE_IS_A[depth] = true;
-        KEY_INDEX_MAP_POOL[depth] = new Map();
-        SOURCE_BUFFER_POOL[depth] = new Int32Array(64);
-        NEXT_KEYS_BUFFER_POOL[depth] = [];
+    let p = POOLS[depth];
+    if (!p) {
+        p = POOLS[depth] = [new Map(), new Map(), new Map(), new Int32Array(64), [], true];
     }
-    const activeIsA = CACHE_ACTIVE_IS_A[depth];
+    const isA = p[5];
     return {
-        currentCache: activeIsA ? CACHE_POOL_A[depth] : CACHE_POOL_B[depth],
-        nextCache: activeIsA ? CACHE_POOL_B[depth] : CACHE_POOL_A[depth],
-        keyIndexMap: KEY_INDEX_MAP_POOL[depth],
-        sourceBuffer: SOURCE_BUFFER_POOL[depth],
-        nextKeysBuffer: NEXT_KEYS_BUFFER_POOL[depth],
+        nextCache: isA ? p[1] : p[0],
+        keyIndexMap: p[2],
+        sourceBuffer: p[3],
+        nextKeysBuffer: p[4],
     };
 }
 
 function swapBuffers(depth: number) {
-    CACHE_ACTIVE_IS_A[depth] = !CACHE_ACTIVE_IS_A[depth];
+    POOLS[depth][5] = !POOLS[depth][5];
 }
 
 let callDepth = 0;
@@ -212,20 +215,16 @@ export function For<T>(
             const newCache = NEXT_CACHE;
             newCache.clear();
 
+            
             if (newLen === 0) {
                 if (isInitial) {
                     initialFragment!.appendChild(marker);
                     isInitial = false;
                 } else if (parent) {
-                    entityCache.forEach((entry) => {
-                        entry.dom.remove();
-                        DestructionSystem.destroyEntities([entry.entityId]);
-                    });
-                    entityCache.clear();
+                    destroyCache(entityCache);
                 }
-                
-                SOURCE_BUFFER_POOL[depth] = new Int32Array(32);
-                NEXT_KEYS_BUFFER_POOL[depth] = [];
+                POOLS[depth][3] = new Int32Array(32);
+                POOLS[depth][4] = [];
                 KEY_INDEX_MAP_BUFFER.clear();
                 oldKeys = [];
                 oldLen = 0;
@@ -234,7 +233,7 @@ export function For<T>(
 
             if (NEXT_KEYS_BUFFER.length < newLen) {
                 NEXT_KEYS_BUFFER = new Array(newLen);
-                NEXT_KEYS_BUFFER_POOL[depth] = NEXT_KEYS_BUFFER;
+                POOLS[depth][4] = NEXT_KEYS_BUFFER;
             }
             const newKeys = NEXT_KEYS_BUFFER;
 
@@ -258,6 +257,7 @@ export function For<T>(
                 }
             }
 
+            
             const toDestroyImmediate: number[] = [];
             entityCache.forEach((entry, key) => {
                 if (!newCache.has(key)) {
@@ -269,8 +269,7 @@ export function For<T>(
                             DestructionSystem.destroyEntities([entId]);
                         });
                     } else {
-                        dom.remove();
-                        toDestroyImmediate.push(entry.entityId);
+                        toDestroyImmediate.push(destroyEntry(entry));
                     }
                 }
             });
@@ -299,7 +298,7 @@ export function For<T>(
                 if (count > 0) {
                     if (SOURCE_BUFFER.length < count) {
                         SOURCE_BUFFER = new Int32Array(Math.max(count, SOURCE_BUFFER.length * 2));
-                        SOURCE_BUFFER_POOL[depth] = SOURCE_BUFFER;
+                        POOLS[depth][3] = SOURCE_BUFFER;
                     }
                     SOURCE_BUFFER.fill(-1, 0, count);
 
@@ -312,17 +311,17 @@ export function For<T>(
                             SOURCE_BUFFER[keyIndexMap.get(oldKey)! - start] = i;
                         }
                     }
-                    if (LIS_OUTPUT_BUFFER.length < count) {
-                        LIS_OUTPUT_BUFFER = new Int32Array(Math.max(count, LIS_OUTPUT_BUFFER.length * 2));
+                    if (LIS_OUT.length < count) {
+                        LIS_OUT = new Int32Array(Math.max(count, LIS_OUT.length * 2));
                     }
-                    const lisLen = getLISInPlace(SOURCE_BUFFER, count, LIS_OUTPUT_BUFFER);
+                    const lisLen = getLISInPlace(SOURCE_BUFFER, count, LIS_OUT);
                     let lisIdx = lisLen - 1;
                     let anchor: Node = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1])!.dom : marker;
 
                     for (let i = count - 1; i >= 0; i--) {
                         const key = newKeys[start + i];
                         const entry = newCache.get(key)!;
-                        if (SOURCE_BUFFER[i] === -1 || lisIdx < 0 || i !== LIS_OUTPUT_BUFFER[lisIdx]) {
+                        if (SOURCE_BUFFER[i] === -1 || lisIdx < 0 || i !== LIS_OUT[lisIdx]) {
                             parent.insertBefore(entry.dom, anchor);
                         } else {
                             lisIdx--;
@@ -333,19 +332,20 @@ export function For<T>(
             }
             entityCache = newCache;
             swapBuffers(depth);
-            [oldKeys, NEXT_KEYS_BUFFER_POOL[depth]] = [newKeys, oldKeys];
+            [oldKeys, POOLS[depth][4]] = [newKeys, oldKeys];
             oldLen = newLen;
+
+            
             if (SOURCE_BUFFER.length > 64 && newLen < (SOURCE_BUFFER.length >> 2)) {
-                const newCap = Math.max(64, SOURCE_BUFFER.length >> 1);
-                SOURCE_BUFFER_POOL[depth] = new Int32Array(newCap);
+                POOLS[depth][3] = new Int32Array(Math.max(64, SOURCE_BUFFER.length >> 1));
             }
             if (NEXT_KEYS_BUFFER.length > 64 && newLen < (NEXT_KEYS_BUFFER.length >> 2)) {
                 NEXT_KEYS_BUFFER.length = Math.max(64, newLen);
             }
-            if (LIS_P_BUFFER.length > 256 && newLen < 64) {
-                LIS_P_BUFFER = new Int32Array(128);
-                LIS_RESULT_BUFFER = new Int32Array(128);
-                LIS_OUTPUT_BUFFER = new Int32Array(128);
+            if (LIS_P.length > 256 && newLen < 64) {
+                LIS_P = new Int32Array(128);
+                LIS_RES = new Int32Array(128);
+                LIS_OUT = new Int32Array(128);
             }
 
         } finally {
@@ -359,18 +359,11 @@ export function For<T>(
         fragment: res!,
         unmount() {
             disposed = true;
-            if (marker.parentNode) {
-                marker.remove();
-            }
-            const idsToDestroy: number[] = [];
-            entityCache.forEach((entry) => {
-                entry.dom.remove();
-                idsToDestroy.push(entry.entityId);
-            });
-            if (idsToDestroy.length > 0) {
-                DestructionSystem.destroyEntities(idsToDestroy);
-            }
-            entityCache.clear();
+            if (marker.parentNode) marker.remove();
+            
+            
+            destroyCache(entityCache);
+            
             oldKeys = [];
             DestructionSystem._cleanupNode(e);
         }
