@@ -1,6 +1,6 @@
 {
   "name": "@watervein/dom-core",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Watervein DOM core package",
   "author": "Korphere",
   "license": "MIT",
@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "build": "pnpm build:js && pnpm build:types",
-    "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/* --minify",
+    "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/* --minify-whitespace --minify-identifiers",
     "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check"
   },
   "peerDependencies": {
