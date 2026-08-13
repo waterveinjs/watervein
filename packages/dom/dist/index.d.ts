@@ -3,9 +3,8 @@
 declare const WV_NODE_TAG = 1465273924;
 export type Node$1<T = any> = {
 	readonly __wv: typeof WV_NODE_TAG;
-	type: number;
+	ft: number;
 	id: number;
-	dirty: boolean;
 	depth: number;
 	watchedVersion: number;
 	bucketIdx: number;
@@ -169,9 +168,8 @@ export declare const wbr: (props?: any, children?: any) => HTMLElement;
 declare const WV_NODE_TAG$1 = 1465273924;
 type Node$1$1<T = any> = {
 	readonly __wv: typeof WV_NODE_TAG$1;
-	type: number;
+	ft: number;
 	id: number;
-	dirty: boolean;
 	depth: number;
 	watchedVersion: number;
 	bucketIdx: number;

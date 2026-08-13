@@ -8,11 +8,13 @@ export declare const NULL_EDGE = -1;
 export declare function initCapacity(options: {
 	edgeCapacity?: number;
 }): void;
+export declare const FLAG_DIRTY: number;
+export declare const FLAG_DISPOSED: number;
+export declare const TYPE_SHIFT = 8;
 type Node$1<T = any> = {
 	readonly __wv: typeof WV_NODE_TAG;
-	type: number;
+	ft: number;
 	id: number;
-	dirty: boolean;
 	depth: number;
 	watchedVersion: number;
 	bucketIdx: number;

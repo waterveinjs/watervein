@@ -138,11 +138,14 @@ function trimSparseArrays(): boolean {
     return isEmpty;
 }
 
+export const FLAG_DIRTY    = 1 << 0;
+export const FLAG_DISPOSED = 1 << 1;
+export const TYPE_SHIFT    = 8;
+
 export type Node<T = any> = {
     readonly __wv:  typeof WV_NODE_TAG;
-    type:           number;
+    ft:           number;
     id:             number;
-    dirty:          boolean;
     depth:          number;
     watchedVersion: number;
     bucketIdx:      number;
@@ -222,9 +225,8 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
 
     const node: Node<T> = {
         __wv:           WV_NODE_TAG,
-        type:           type,
+        ft:             type << TYPE_SHIFT,
         id:             id,
-        dirty:          false,
         depth:          0,
         watchedVersion: -1,
         bucketIdx:      -1,
@@ -245,7 +247,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
 }
 
 function linkEdge(dep: Node, sub: Node): number {
-    if (dep.type === -1 || sub.type === -1) return NULL_EDGE;
+    if ((dep.ft & FLAG_DISPOSED) !== 0 || (sub.ft & FLAG_DISPOSED) !== 0) return NULL_EDGE;
 
     const edgeId = allocEdge(dep.id, sub.id);
 
@@ -301,7 +303,7 @@ function unlinkEdge(edgeId: number) {
 let edgeCommitVersion = 0;
 
 function commitEdges(sub: Node) {
-    if (sub.type === -1) return;
+    if ((sub.ft & FLAG_DISPOSED) !== 0) return;
 
     const pending = sub.pendingDeps;
     if (!pending) return;
@@ -324,7 +326,7 @@ function commitEdges(sub: Node) {
     try {
         for (let i = 0; i < pLen; i++) {
             const dep = pending[i];
-            if (dep && dep.type !== -1) {
+            if (dep && (dep.ft & FLAG_DISPOSED) === 0) {
                 dep.watchedVersion = pendingStamp;
             }
         }
@@ -337,7 +339,7 @@ function commitEdges(sub: Node) {
             const depNodeId   = edgeDep[edgeId];
             const depNode     = allNodes[depNodeId];
 
-            if (depNode && depNode.type !== -1 && depNode.watchedVersion === pendingStamp) {
+            if (depNode && (depNode.ft & FLAG_DISPOSED) === 0 && depNode.watchedVersion === pendingStamp) {
                 depNode.watchedVersion = existingStamp;
                 if (depNode.depth > maxDepDepth) {
                     maxDepDepth = depNode.depth;
@@ -350,7 +352,7 @@ function commitEdges(sub: Node) {
 
         for (let i = 0; i < pLen; i++) {
             const dep = pending[i];
-            if (dep && dep.type !== -1) {
+            if (dep && (dep.ft & FLAG_DISPOSED) === 0) {
                 if (dep.watchedVersion !== existingStamp) {
                     linkEdge(dep, sub);
                     dep.watchedVersion = existingStamp;
@@ -391,7 +393,7 @@ function propagateDepth(start: Node) {
                 const subId = edgeSub[edgeId];
                 const subNode = allNodes[subId];
 
-                if (subNode && subNode.type !== -1) {
+                if (subNode && (subNode.ft & FLAG_DISPOSED) === 0) {
                     if (subId === start.id) {
                         throw new Error(
                             `[watervein] A circular reference was detected during depth propagation (node ${subId}).`
@@ -421,8 +423,8 @@ const nextTick = typeof requestAnimationFrame !== 'undefined'
     : (cb: FrameRequestCallback) => setTimeout(cb, 0);
 
 function scheduleNode(node: Node) {
-    if (node.dirty) return;
-    node.dirty = true;
+    if ((node.ft & FLAG_DIRTY) !== 0) return;
+    node.ft |= FLAG_DIRTY;
     const d = node.depth;
     while (d >= buckets.length) {
         buckets.push([]);
@@ -486,7 +488,7 @@ function forceCleanupBuckets() {
             while (buckets[i].length > 0) {
                 const n = buckets[i].pop();
                 if (n) {
-                    n.dirty = false;
+                    n.ft &= ~FLAG_DIRTY;
                     n.bucketIdx = -1;
                 }
             }
@@ -541,17 +543,18 @@ export function flush() {
             while (bucket.length > 0) {
                 const node = bucket.pop()!;
 
-                if (node.id === -1 || node.type === -1 || allNodes[node.id] !== node) {
+                if (node.id === -1 || (node.ft & FLAG_DISPOSED) !== 0 || allNodes[node.id] !== node) {
                     continue;
                 }
 
                 node.bucketIdx = -1;
-                node.dirty = false;
+                node.ft &= ~FLAG_DIRTY;
 
                 try {
-                    if (node.type === NODE_TYPE_COMPUTE) {
+                    const nodeType = node.ft >>> TYPE_SHIFT;
+                    if (nodeType === NODE_TYPE_COMPUTE) {
                         executeCompute(node);
-                    } else if (node.type === NODE_TYPE_EFFECT) {
+                    } else if (nodeType === NODE_TYPE_EFFECT) {
                         executeEffect(node);
                     }
                 } catch (err) {
@@ -664,7 +667,7 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
                 for (let i = 0; i < subs.length; i++) {
                     const subId = subs[i];
                     const node = allNodes[subId];
-                    if (node && node.type !== -1) {
+                    if (node && (node.ft & FLAG_DISPOSED) === 0) {
                         scheduleNode(node);
                         subs[writeIdx++] = subId;
                     }
@@ -715,7 +718,7 @@ export function write<T>(node: Node<T>, value: T) {
     let edgeId = node.subsHead;
     while (edgeId !== NULL_EDGE) {
         const subNode = allNodes[edgeSub[edgeId]];
-        if (subNode && subNode.type !== -1) {
+        if (subNode && (subNode.ft & FLAG_DISPOSED) === 0) {
             scheduleNode(subNode);
         }
         edgeId = edgeNextSub[edgeId];
@@ -917,7 +920,8 @@ export const DestructionSystem = {
     },
 
     _cleanupNode(node: Node, destroying: Set<number> | null = null) {
-        if (node.type === NODE_TYPE_EFFECT && typeof node.value === "function") {
+        const nodeType = node.ft >>> TYPE_SHIFT;
+        if (nodeType === NODE_TYPE_EFFECT && typeof node.value === "function") {
             try {
                 (node.value as () => void)();
             } catch (err) {
@@ -957,7 +961,7 @@ export const DestructionSystem = {
             node.bucketIdx = -1;
         }
 
-        node.dirty = false;
+        node.ft &= ~FLAG_DIRTY;
         node.compute = null;
         if ((node as any).run) {
             (node as any).run = null;
@@ -970,7 +974,7 @@ export const DestructionSystem = {
         allNodes[node.id] = undefined;
         freeNodeIds.push(node.id);
 
-        node.type = -1;
+        node.ft |= FLAG_DISPOSED;
         node.id = -1;
     }
 };
