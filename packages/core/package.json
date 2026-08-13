@@ -1,6 +1,6 @@
 {
   "name": "@watervein/core",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "description": "Watervein core package",
   "author": "Korphere",
   "license": "MIT",
@@ -26,9 +26,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "sideEffects": false,
   "keywords": [
-    "framework",
-    "ui-framework",
+    "engine",
     "watervein",
     "waterveinjs",
     "typescript",

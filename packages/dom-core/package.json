@@ -1,6 +1,6 @@
 {
   "name": "@watervein/dom-core",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "description": "Watervein DOM core package",
   "author": "Korphere",
   "license": "MIT",
@@ -31,5 +31,17 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "sideEffects": false,
+  "keywords": [
+    "framework",
+    "ui-framework",
+    "watervein",
+    "waterveinjs",
+    "typescript",
+    "javascript",
+    "dag",
+    "ecs",
+    "nes"
+  ]
 }
