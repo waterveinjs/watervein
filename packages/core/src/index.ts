@@ -582,28 +582,17 @@ export function createState<T>(initial: T): Node<T> {
 export function createCompute<T>(fn: () => T): Node<T> {
     const node: Node<T> = createNode<T>(NODE_TYPE_COMPUTE, undefined as any, () => {
         if (import.meta.env.DEV && evaluationStack) {
-            if (evaluationStack.has(node.id)) throw new Error(
-                `[watervein] A circular reference was detected on compute node ${node.id}.`
-            );
+            if (evaluationStack.has(node.id)) throw new Error(`[watervein] Circular reference on compute ${node.id}`);
             evaluationStack.add(node.id);
         }
         pushTrackingNode(node);
-        try {
-            return (node.value = fn());
-        } finally {
+        try { return (node.value = fn()); }
+        finally {
             popTrackingNode();
             if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
         }
     });
-    trackingVersion++;
-    node.pendingDepsLen = 0;
-    pushTrackingNode(node);
-    try {
-        node.value = fn();
-    } finally {
-        popTrackingNode();
-    }
-    commitEdges(node);
+    executeCompute(node);
     return node;
 }
 
@@ -611,7 +600,7 @@ export function createEffect(fn: () => void): Node<void> {
     const node: Node<void> = createNode<void>(NODE_TYPE_EFFECT, undefined, () => {
         if (import.meta.env.DEV && evaluationStack) {
             if (evaluationStack.has(node.id)) throw new Error(
-                `[watervein] A circular reference was detected on effect node ${node.id}.`
+                `[watervein] Circular reference on effect ${node.id}`
             );
             evaluationStack.add(node.id);
         }
@@ -623,15 +612,7 @@ export function createEffect(fn: () => void): Node<void> {
             if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
         }
     });
-    trackingVersion++;
-    node.pendingDepsLen = 0;
-    pushTrackingNode(node);
-    try {
-        node.value = fn();
-    } finally {
-        popTrackingNode();
-    }
-    commitEdges(node);
+    executeEffect(node);
     return node;
 }
 
@@ -688,11 +669,8 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
                         subs[writeIdx++] = subId;
                     }
                 }
-                if (writeIdx === 0) {
-                    keyToSubs.delete(id);
-                } else {
-                    subs.length = writeIdx;
-                }
+                if (writeIdx === 0) keyToSubs.delete(id);
+                else subs.length = writeIdx;
             }
         };
 
@@ -704,22 +682,8 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
         const trk = currentTrackingNode;
         if (trk !== null) {
             let subs = keyToSubs.get(id);
-            if (!subs) {
-                subs = [];
-                keyToSubs.set(id, subs);
-            }
-            let found = false;
-            let writeIdx = 0;
-            for (let i = 0; i < subs.length; i++) {
-                const subId = subs[i];
-                const node = allNodes[subId];
-                if (node && node.type !== -1) {
-                    if (subId === trk.id) found = true;
-                    subs[writeIdx++] = subId;
-                }
-            }
-            subs.length = writeIdx;
-            if (!found) subs.push(trk.id);
+            if (!subs) keyToSubs.set(id, (subs = []));
+            if (!subs.includes(trk.id)) subs.push(trk.id);
         }
         return untrack(() => read(sourceNode)) === id;
     };
@@ -827,6 +791,22 @@ function collectRecursively(
 
 export const DestructionSystem = {
     destroyEntity(entityId: number) {
+        const children = entityChildrenMap.get(entityId);
+        if (!children || children.size === 0) {
+            const nodes = entityRegistry.get(entityId);
+            if (nodes) {
+                for (let i = 0; i < nodes.length; i++) {
+                    this._cleanupNode(nodes[i]);
+                }
+            }
+            entityRegistry.delete(entityId);
+            entityParentMap.delete(entityId);
+            entityChildrenMap.delete(entityId);
+            errorBoundaryRegistry.delete(entityId);
+            cleanupEntityEvents(entityId);
+            freeEntityIds.push(entityId);
+            return;
+        }
         this.destroyEntities([entityId]);
     },
 
@@ -921,21 +901,17 @@ export const DestructionSystem = {
                 maxDirtyDepth = -1;
                 buckets.length = 0;
             }
-            const nodesEmpty = trimSparseArrays();
-            compactEdgePoolIfNeeded(nodesEmpty);
+
+            if (freeNodeIds.length > 1000) {
+                const nodesEmpty = trimSparseArrays();
+                compactEdgePoolIfNeeded(nodesEmpty);
+            }
+
         } finally {
             destroyCallDepth--;
-            for (let i = 0; i < allCollectedNodes.length; i++) {
-                allCollectedNodes[i] = null!;
-            }
             allCollectedNodes.length = 0;
-
             for (let d = 0; d < depthBuckets.length; d++) {
-                const b = depthBuckets[d];
-                if (b) {
-                    for (let i = 0; i < b.length; i++) b[i] = null!;
-                    b.length = 0;
-                }
+                if (depthBuckets[d]) depthBuckets[d].length = 0;
             }
         }
     },
