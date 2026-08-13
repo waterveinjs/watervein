@@ -982,25 +982,26 @@ export function matchEntity(
     elseFn?: () => void
 ) {
     let currentActiveEntityId: number | null = null;
+    let prevBranch: boolean | null = null;
     createEffect(() => {
         const branchValue = read(conditionNode);
+        if (branchValue === prevBranch) return;
+        prevBranch = branchValue;
         if (currentActiveEntityId !== null) {
             DestructionSystem.destroyEntity(currentActiveEntityId);
             currentActiveEntityId = null;
         }
-        const newEntityId = createEntity();
-        currentActiveEntityId = newEntityId;
-        withEntity(newEntityId, () => {
-            if (branchValue) thenFn();
-            else if (elseFn) elseFn();
-        });
+        const targetFn = branchValue ? thenFn : elseFn;
+        if (targetFn) {
+            currentActiveEntityId = createEntity();
+            withEntity(currentActiveEntityId, targetFn);
+        }
     });
 }
 
 const DESTROY_BUF: number[] = [];
 const SET_BUF = new Set<any>();
 const TEMP_MAP = new Map<any, any>();
-const KEYS_BUF: any[] = [];
 
 function destroyBuf() {
     if (DESTROY_BUF.length > 0) {
@@ -1024,83 +1025,67 @@ export function mapEntity<T>(
     createEffect(() => {
         const list = read(listNode);
         const len = list.length;
+        const prevLen = prevList.length;
         if (len === 0) {
             if (entityCache.size > 0) {
                 for (const cache of entityCache.values()) DESTROY_BUF.push(cache.entityId);
                 destroyBuf();
                 entityCache.clear();
             }
-            prevList = [];
+            prevList = list;
             return;
         }
-        
-        const prevLen = prevList.length;
-        let startDiff = -1;
-        let endDiff = -1;
 
-        const minLen = Math.min(len, prevLen);
-        for (let i = 0; i < minLen; i++) {
-            if (prevList[i] !== list[i]) {
-                if (startDiff === -1) startDiff = i;
-                endDiff = i;
-            }
+        let start = 0;
+        let endA = prevLen - 1;
+        let endB = len - 1;
+
+        while (start <= endA && start <= endB && prevList[start] === list[start]) {
+            start++;
         }
-        if (len !== prevLen) {
-            if (startDiff === -1) startDiff = minLen;
-            endDiff = Math.max(len, prevLen) - 1;
+        while (endA >= start && endB >= start && prevList[endA] === list[endB]) {
+            endA--;
+            endB--;
         }
-
-        if (startDiff !== -1 && len === prevLen) {
-            KEYS_BUF.length = 0;
-            for (let i = startDiff; i <= endDiff; i++) {
-                if (prevList[i] !== list[i]) KEYS_BUF.push(i);
-            }
-            const changedCount = KEYS_BUF.length;
-
+        if (len === prevLen && start <= endA) {
             TEMP_MAP.clear();
 
             try {
-                for (let k = 0; k < changedCount; k++) {
-                    const i = KEYS_BUF[k];
+                for (let i = start; i <= endA; i++) {
                     const oldKey = keyFn(prevList[i]);
-                    if (!TEMP_MAP.has(oldKey)) {
-                        const cache = entityCache.get(oldKey);
-                        if (cache) {
-                            TEMP_MAP.set(oldKey, cache);
-                            entityCache.delete(oldKey);
-                        }
+                    const cache = entityCache.get(oldKey);
+                    if (cache && !TEMP_MAP.has(oldKey)) {
+                        TEMP_MAP.set(oldKey, cache);
+                        entityCache.delete(oldKey);
                     }
                 }
 
-                for (let k = 0; k < changedCount; k++) {
-                    const i = KEYS_BUF[k];
-                    const oldKey = keyFn(prevList[i]);
-                    const newKey = keyFn(list[i]);
+                for (let i = start; i <= endA; i++) {
                     const item = list[i];
+                    const newKey = keyFn(item);
 
-                    if (oldKey === newKey) {
-                        const cache = entityCache.get(newKey);
+                    let cache = TEMP_MAP.get(newKey);
+
+                    if (cache) {
+                        TEMP_MAP.delete(newKey);
+                        updateNode(cache.itemNode, item);
+                        updateNode(cache.indexNode, i);
+                        entityCache.set(newKey, cache);
+                    } else {
+                        cache = entityCache.get(newKey);
                         if (cache) {
                             updateNode(cache.itemNode, item);
                             updateNode(cache.indexNode, i);
+                        } else {
+                            // 完全な新規要素
+                            const entityId = createEntity();
+                            withEntity(entityId, () => {
+                                const itemNode = createState(item);
+                                const indexNode = createState(i);
+                                entityCache.set(newKey, { entityId, itemNode, indexNode });
+                                renderFn(newKey, () => read(itemNode), () => read(indexNode));
+                            });
                         }
-                        continue;
-                    }
-
-                    const moved = TEMP_MAP.get(newKey);
-                    if (moved) {
-                        updateNode(moved.itemNode, item);
-                        updateNode(moved.indexNode, i);
-                        entityCache.set(newKey, moved);
-                        TEMP_MAP.delete(newKey);
-                    } else {
-                        const entityId = createEntity();
-                        withEntity(entityId, () => {
-                            const itemNode = createState(item);
-                            const indexNode = createState(i);
-                            entityCache.set(newKey, { entityId, itemNode, indexNode });
-                            renderFn(newKey, () => read(itemNode), () => read(indexNode));
-                        });
                     }
                 }
 
@@ -1110,10 +1095,9 @@ export function mapEntity<T>(
                 destroyBuf();
             } finally {
                 TEMP_MAP.clear();
-                KEYS_BUF.length = 0;
             }
 
-            prevList = list.slice();
+            prevList = list;
             return;
         }
 
@@ -1147,7 +1131,7 @@ export function mapEntity<T>(
             }
         }
 
-        prevList = list.slice();
+        prevList = list;
     });
 }
 
