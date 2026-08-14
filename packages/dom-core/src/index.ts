@@ -1,4 +1,4 @@
-import { createEffect, getCurrentEntityId, read, untrack } from '@watervein/core';
+import { createEffect, getCurrentEntityId, read, untrack, Node as WvNode } from '@watervein/core';
 
 type ReactiveProp<T> = T | WvNode<T> | (() => T);
 type CSSStyleKeys = {
@@ -21,8 +21,6 @@ export type ReactiveProps = {
     className?: ReactiveClass;
     [key: string]: any;
 };
-
-import { Node as WvNode } from '@watervein/core';
 
 type Child = Node | string | number | WvNode<any> | (() => any);
 

@@ -195,6 +195,8 @@ export function For<T>(
                 pool.srcBuf = new Int32Array(32);
                 pool.keysBuf = [];
                 pool.keyIdxMap.clear();
+                pool.cacheA.clear();
+                pool.cacheB.clear();
                 oldKeys = [];
                 oldLen = 0;
                 return;
