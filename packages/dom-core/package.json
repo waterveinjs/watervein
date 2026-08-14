@@ -21,7 +21,8 @@
   "scripts": {
     "build": "pnpm build:js && pnpm build:types",
     "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/* --minify-whitespace --minify-identifiers",
-    "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check"
+    "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check",
+    "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
     "@watervein/core": "workspace:*"
@@ -43,5 +44,14 @@
     "dag",
     "ecs",
     "nes"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waterveinjs/watervein.git"
+  },
+  "bugs": {
+    "url": "https://github.com/waterveinjs/watervein/issues"
+  },
+  "homepage": "https://github.com/waterveinjs/watervein#readme",
+  "packageManager": "pnpm@11.21.0"
 }
