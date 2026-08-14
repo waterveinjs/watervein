@@ -40,28 +40,23 @@ export function element<K extends keyof HTMLElementTagNameMap>(
         return el0(tag, undefined, children as any);
     }
 
-    const coreProps: CoreProps = {};
     const entityId = getCurrentEntityId();
     let hasEvent = false;
 
-    const keys = Object.keys(props);
-    const len = keys.length;
-
-    for (let i = 0; i < len; i++) {
-        const key = keys[i];
+    for (const key in props) {
+        if (!Object.hasOwn(props, key)) continue;
         const value = props[key];
-        if (value === undefined || value === null) continue;
+        if (value == null) continue;
 
         if (key === "style") {
-            coreProps.style = isNode(value) ? () => read(value as WvNode<string>) : value;
-        } else if (key === "class" || key === "className") {
-            coreProps[key] = parseDsl1Class(value);
-        } else if (key.startsWith("on") && typeof value === "function") {
-            coreProps[key] = value;
-
+            if (isNode(value)) props.style = () => read(value as WvNode<string>);
+        } 
+        else if (key === "class" || key === "className") {
+            if (isNode(value)) props[key] = () => read(value as WvNode<string>);
+        } 
+        else if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && typeof value === "function") {
             if (entityId !== null) {
                 const eventName = key.slice(2).toLowerCase();
-
                 let reg = eventRegistry.get(eventName);
                 if (!reg) {
                     reg = new Map();
@@ -71,14 +66,12 @@ export function element<K extends keyof HTMLElementTagNameMap>(
                 reg.set(entityId, value as EventListener);
                 hasEvent = true;
             }
-        } else {
-            coreProps[key] = value;
         }
     }
 
-    const el = el0(tag, coreProps, children as any);
+    const el = el0(tag, props as CoreProps, children as any);
 
-    if (entityId !== null && hasEvent) {
+    if (hasEvent) {
         el.setAttribute('data-wv-eid', String(entityId));
     }
 

@@ -38,11 +38,9 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     const el = document.createElement(tag);
 
     if (props) {
-        const keys = Object.keys(props);
-        const len = keys.length;
-        for (let i = 0; i < len; i++) {
-            const key = keys[i];
+        for (const key in props) {
             const value = props[key];
+            if (value == null) continue;
 
             if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110) {
                 if (!el.hasAttribute('data-wv-eid')) {
@@ -50,17 +48,21 @@ export function element<K extends keyof HTMLElementTagNameMap>(
                 }
             }
             else if (key === "class" || key === "className") {
-                if (value != null) applyReactiveClass(el, value);
+                applyReactiveClass(el, value);
             }
             else if (key === "style") {
-                if (value != null) {
-                    if (typeof value === "function" || isWvNode(value)) {
-                        createEffect(() => { el.style.cssText = String(unwrap(value)); });
-                    } else if (typeof value === "object") {
-                        applyReactiveStyle(el, value as ReactiveStyle);
-                    } else {
-                        el.style.cssText = String(value);
-                    }
+                if (typeof value === "function" || isWvNode(value)) {
+                    createEffect(() => { el.style.cssText = String(unwrap(value)); });
+                } else if (typeof value === "object") {
+                    applyReactiveStyle(el, value as ReactiveStyle);
+                } else {
+                    el.style.cssText = String(value);
+                }
+            }
+            else if (key === "ref" && typeof value === "function") {
+                const cleanup = untrack(() => value(el));
+                if (typeof cleanup === "function" && getCurrentEntityId() !== null) {
+                    createEffect(() => cleanup);
                 }
             }
             else if (typeof value === "function" || isWvNode(value)) {
@@ -73,15 +75,8 @@ export function element<K extends keyof HTMLElementTagNameMap>(
                     }
                 });
             } 
-            else if (value != null) {
+            else {
                 (el as any)[key] = value;
-            }
-        }
-
-        if ("ref" in props && typeof props.ref === "function") {
-            const cleanup = untrack(() => props.ref(el));
-            if (typeof cleanup === "function" && getCurrentEntityId() !== null) {
-                createEffect(() => cleanup);
             }
         }
     }
@@ -89,14 +84,14 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     if (children !== undefined) {
         if (Array.isArray(children)) {
             const len = children.length;
-            if (len > 1) {
+            if (len === 1) {
+                appendChild(el, children[0]);
+            } else if (len > 1) {
                 const fragment = document.createDocumentFragment();
                 for (let i = 0; i < len; i++) {
                     appendChild(fragment as any, children[i]);
                 }
                 el.appendChild(fragment);
-            } else if (len === 1) {
-                appendChild(el, children[0]);
             }
         } else {
             appendChild(el, children);
