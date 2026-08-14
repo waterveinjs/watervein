@@ -30,12 +30,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
+        
+      - name: Build
+        run: pnpm build
 
       - name: Run tests
         run: pnpm test
-
-      - name: Build
-        run: pnpm build
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
