@@ -203,25 +203,27 @@ export function For<T>(
             if (pool.keysBuf.length < newLen) pool.keysBuf = new Array(newLen);
             const newKeys = pool.keysBuf;
 
-            for (let i = 0; i < newLen; i++) {
-                const item = list[i];
-                const key = keyFn(item);
-                newKeys[i] = key;
-                const cached = entityCache.get(key);
-                if (cached) {
-                    untrack(() => write(cached.itemNode, item));
-                    newCache.set(key, cached);
-                } else {
-                    const entityId = createEntity();
-                    let dom!: HTMLElement;
-                    let itemNode!: WvNode<T>;
-                    withEntity(entityId, () => {
-                        itemNode = createState(item);
-                        dom = untrack(() => renderFn(() => read(itemNode)));
-                    });
-                    newCache.set(key, { entityId, dom, itemNode });
+            untrack(() => {
+                for (let i = 0; i < newLen; i++) {
+                    const item = list[i];
+                    const key = keyFn(item);
+                    newKeys[i] = key;
+                    const cached = entityCache.get(key);
+                    if (cached) {
+                        write(cached.itemNode, item);
+                        newCache.set(key, cached);
+                    } else {
+                        const entityId = createEntity();
+                        let dom!: HTMLElement;
+                        let itemNode!: WvNode<T>;
+                        withEntity(entityId, () => {
+                            itemNode = createState(item);
+                            dom = renderFn(() => read(itemNode));
+                        });
+                        newCache.set(key, { entityId, dom, itemNode });
+                    }
                 }
-            }
+            });
 
             const toDestroyImmediate: number[] = [];
             entityCache.forEach((entry, key) => {

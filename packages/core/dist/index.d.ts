@@ -33,6 +33,16 @@ export type ResourceResult<T> = {
 };
 export declare function N(id: number): Node$1;
 export declare function createEntity(): number;
+/**
+ * Switches the current entity ownership scope for `fn`.
+ *
+ * NOTE: This does NOT isolate reactive tracking. Any `read()` call made
+ * synchronously inside `fn` (without its own createEffect/createCompute)
+ * will still register as a dependency of whichever effect/compute is
+ * currently active outside this call. If `fn` may perform such "naked"
+ * reads (e.g. a user-supplied render callback), wrap the call in `untrack()`
+ * at the call site.
+ */
 export declare function withEntity<T>(entityId: number, fn: () => T): T;
 export declare function registerCustomNodeType(): number;
 declare function propagateDepth(start: Node$1): void;

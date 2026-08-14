@@ -734,45 +734,45 @@ async function runScaleSuite() {
     await yieldMainThread();
     console.log(`[7] Deep Chain (10000): ${BenchmarkSystem.runDeepChain(1000).toFixed(2)} ms`);
     await yieldMainThread();
-    console.log(`[8] Read (10000): ${BenchmarkSystem.runRead(10000).toFixed(2)} ms`);
+    console.log(`[8r] Read (10000): ${BenchmarkSystem.runRead(10000).toFixed(2)} ms`);
     await yieldMainThread();
-    console.log(`[8] Flush (10000): ${BenchmarkSystem.runFlush(10000).toFixed(2)} ms`);
+    console.log(`[8w] Write (10000): ${BenchmarkSystem.runWrite(10000).toFixed(2)} ms`);
     await yieldMainThread();
-    console.log(`[9] Write (10000): ${BenchmarkSystem.runWrite(10000).toFixed(2)} ms`);
+    console.log(`[9] Flush (10000): ${BenchmarkSystem.runFlush(10000).toFixed(2)} ms`);
     await yieldMainThread();
-    console.log(`[10] create-state (10000): ${BenchmarkSystem.runCreateState(10000).toFixed(2)} ms`);
+    console.log(`[10s] create-state (10000): ${BenchmarkSystem.runCreateState(10000).toFixed(2)} ms`);
     await yieldMainThread();
-    console.log(`[11] create-compute (10000): ${BenchmarkSystem.runCreateCompute(10000).toFixed(2)} ms`);
+    console.log(`[10c] create-compute (10000): ${BenchmarkSystem.runCreateCompute(10000).toFixed(2)} ms`);
     await yieldMainThread();
-    console.log(`[12] create-effect (10000): ${BenchmarkSystem.runCreateEffect(10000).toFixed(2)} ms`);
+    console.log(`[10e] create-effect (10000): ${BenchmarkSystem.runCreateEffect(10000).toFixed(2)} ms`);
     await yieldMainThread();
 
     const diamondRes = BenchmarkSystem.runDiamondProblem(2000);
-    console.log(`[13] Diamond Problem (Width 2,000): ${diamondRes.time.toFixed(2)} ms (Glitch Free: ${diamondRes.glitchesPrevented})`);
+    console.log(`[11] Diamond Problem (Width 2,000): ${diamondRes.time.toFixed(2)} ms (Glitch Free: ${diamondRes.glitchesPrevented})`);
     await yieldMainThread();
 
     const cleanupTime = BenchmarkSystem.runUnusedEdgeCleanup(5000);
-    console.log(`[14] Dynamic Edge Cleanup (5,000 toggles): ${cleanupTime.toFixed(2)} ms`);
+    console.log(`[12] Dynamic Edge Cleanup (5,000 toggles): ${cleanupTime.toFixed(2)} ms`);
     await yieldMainThread();
 
     const redundantTime = BenchmarkSystem.runRedundantWriteFiltering(50000);
-    console.log(`[15] Redundant Write Filtering (50,000 identical writes): ${redundantTime.toFixed(2)} ms`);
+    console.log(`[13] Redundant Write Filtering (50,000 identical writes): ${redundantTime.toFixed(2)} ms`);
     await yieldMainThread();
 
     const dslProps = BenchmarkSystem.runDslStaticVsDynamic(1000);
-    console.log(`[16] DSL Property parsing (1,000 el) -> Static: ${dslProps.staticTime.toFixed(2)} ms / Dynamic: ${dslProps.dynamicTime.toFixed(2)} ms`);
+    console.log(`[14] DSL Property parsing (1,000 el) -> Static: ${dslProps.staticTime.toFixed(2)} ms / Dynamic: ${dslProps.dynamicTime.toFixed(2)} ms`);
     await yieldMainThread();
 
     const listResetTime = BenchmarkSystem.runForListReset(1000);
-    console.log(`[17] For-Loop List Clear & Re-populate (1,000 elements): ${listResetTime.toFixed(2)} ms`);
+    console.log(`[15] For-Loop List Clear & Re-populate (1,000 elements): ${listResetTime.toFixed(2)} ms`);
     await yieldMainThread();
 
     const itemPropTime = BenchmarkSystem.runForItemPropUpdate(1000, 5000);
-    console.log(`[18] For-Loop Single Item Property Update (5,000 writes): ${itemPropTime.toFixed(2)} ms`);
+    console.log(`[16] For-Loop Single Item Property Update (5,000 writes): ${itemPropTime.toFixed(2)} ms`);
     await yieldMainThread();
 
     const crossEntityTime = BenchmarkSystem.runCrossEntityDependency(2000);
-    console.log(`[19] Cross-Entity Dependency & Cascade Destroy (2,000 entities): ${crossEntityTime.toFixed(2)} ms`);
+    console.log(`[17] Cross-Entity Dependency & Cascade Destroy (2,000 entities): ${crossEntityTime.toFixed(2)} ms`);
 
     console.log("=== BENCHMARK END ===");
 };
