@@ -1,8 +1,8 @@
 {
   "name": "@watervein/dom-core",
-  "version": "0.1.41",
+  "version": "0.1.44",
   "description": "Watervein DOM core package",
-  "author": "Korphere",
+  "author": "KoHaRxnP",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

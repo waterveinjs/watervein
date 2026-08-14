@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createState, createEffect, write, UISystem } from '@watervein/core';
+import { createState, createEffect, read, write, UISystem } from '@watervein/core';
 import { Show, For, ForHandle } from '../src/base.js';
 
 function mountFor(container: ForHandle): HTMLElement {
@@ -161,6 +161,114 @@ describe('Watervein DOM - Show', () => {
         UISystem.flush();
 
         expect(effectSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('handles rapid toggling multiple times without leaking effects from earlier branches', () => {
+        const condition = createState(true);
+        const innerState = createState(0);
+        const effectSpy = vi.fn();
+
+        const el = Show(
+            condition,
+            () => {
+                const d = document.createElement('div');
+                createEffect(() => {
+                    effectSpy(read(innerState));
+                });
+                return d;
+            },
+            () => document.createElement('div')
+        );
+        document.body.appendChild(el);
+
+        
+        write(condition, false);
+        UISystem.flush();
+        write(condition, true);
+        UISystem.flush();
+        write(condition, false);
+        UISystem.flush();
+        write(condition, true);
+        UISystem.flush();
+
+        effectSpy.mockClear();
+        write(innerState, 99);
+        UISystem.flush();
+
+        
+        expect(effectSpy).toHaveBeenCalledTimes(1);
+        expect(effectSpy).toHaveBeenCalledWith(99);
+    });
+
+    it('cleans up a nested For when its containing Show branch is removed', () => {
+        const condition = createState(true);
+        const list = createState([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        const itemEffectSpy = vi.fn();
+
+        const el = Show(
+            condition,
+            () => {
+                const container = For(
+                    list,
+                    (item) => item.id,
+                    (getItem) => {
+                        const d = document.createElement('div');
+                        createEffect(() => {
+                            itemEffectSpy(getItem().label);
+                        });
+                        return d;
+                    }
+                );
+                const wrapper = document.createElement('div');
+                wrapper.appendChild(container.fragment);
+                return wrapper;
+            }
+        );
+        document.body.appendChild(el);
+        itemEffectSpy.mockClear();
+
+        write(condition, false);
+        UISystem.flush();
+
+        write(list, [{ id: 1, label: 'A-changed' }, { id: 2, label: 'B-changed' }]);
+        UISystem.flush();
+
+        expect(itemEffectSpy).not.toHaveBeenCalled();
+        expect(el.querySelectorAll('div').length).toBe(0);
+    });
+
+    it('supports a Show nested inside another Show, disposing the inner branch when the outer switches', () => {
+        const outer = createState(true);
+        const inner = createState(true);
+        const innerEffectSpy = vi.fn();
+
+        const el = Show(
+            outer,
+            () => {
+                const innerEl = Show(
+                    inner,
+                    () => {
+                        const d = document.createElement('div');
+                        createEffect(() => innerEffectSpy());
+                        return d;
+                    }
+                );
+                return innerEl;
+            },
+            () => document.createElement('div')
+        );
+        document.body.appendChild(el);
+        expect(innerEffectSpy).toHaveBeenCalledTimes(1);
+
+        write(outer, false);
+        UISystem.flush();
+
+        innerEffectSpy.mockClear();
+        write(inner, false);
+        UISystem.flush();
+
+        
+        expect(innerEffectSpy).not.toHaveBeenCalled();
     });
 });
 
@@ -439,5 +547,203 @@ describe('Watervein DOM - For', () => {
 
         expect(item2EffectSpy).toHaveBeenCalledWith('B-updated');
         expect(item1EffectSpy).not.toHaveBeenCalled();
+    });
+
+    it('swaps two rows in place and preserves the DOM element identity for both', () => {
+        const list = makeList([
+            { id: 1, label: 'A' },
+            { id: 2, label: 'B' },
+            { id: 3, label: 'C' }
+        ]);
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+
+        const before = Array.from(w.querySelectorAll('div'));
+
+        write(list, [
+            { id: 3, label: 'C' },
+            { id: 2, label: 'B' },
+            { id: 1, label: 'A' }
+        ]);
+        UISystem.flush();
+
+        const after = Array.from(w.querySelectorAll('div'));
+        expect(after.map((d) => d.textContent)).toEqual(['C', 'B', 'A']);
+        
+        expect(after[0]).toBe(before[2]);
+        expect(after[1]).toBe(before[1]);
+        expect(after[2]).toBe(before[0]);
+    });
+
+    it('goes from populated to empty and back to populated without stale DOM nodes', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+
+        write(list, []);
+        UISystem.flush();
+        expect(w.querySelectorAll('div').length).toBe(0);
+
+        write(list, [{ id: 3, label: 'X' }]);
+        UISystem.flush();
+
+        const labels = Array.from(w.querySelectorAll('div')).map((d) => d.textContent);
+        expect(labels).toEqual(['X']);
+    });
+
+    it('disposes all inner effects when the list is fully cleared', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
+        const effectSpy = vi.fn();
+
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                createEffect(() => {
+                    effectSpy(getItem().id);
+                });
+                return d;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+        effectSpy.mockClear();
+
+        write(list, []);
+        UISystem.flush();
+
+        
+        
+        write(list, []);
+        UISystem.flush();
+
+        expect(effectSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not re-run renderFn for items that are only reordered, not changed', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
+        const renderCalls = vi.fn();
+
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                renderCalls();
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+        renderCalls.mockClear();
+
+        write(list, [{ id: 3, label: 'C' }, { id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        UISystem.flush();
+
+        expect(renderCalls).not.toHaveBeenCalled();
+    });
+
+    it('handles consecutive updates within separate flushes correctly (no dropped changes)', () => {
+        const list = makeList([{ id: 1, label: 'A' }]);
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+
+        write(list, [{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        UISystem.flush();
+        write(list, [{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
+        UISystem.flush();
+        write(list, [{ id: 2, label: 'B' }, { id: 3, label: 'C' }]);
+        UISystem.flush();
+
+        const labels = Array.from(w.querySelectorAll('div')).map((d) => d.textContent);
+        expect(labels).toEqual(['B', 'C']);
+    });
+
+    it('renders a For nested inside another For without cross-contaminating item state', () => {
+        const outerList = createState([
+            { id: 1, items: createState([{ id: 10, label: 'a' }]) },
+            { id: 2, items: createState([{ id: 20, label: 'b' }]) }
+        ]);
+
+        const container = For(
+            outerList,
+            (outerItem) => outerItem.id,
+            (getOuterItem) => {
+                const outerDiv = document.createElement('div');
+                const innerContainer = For(
+                    getOuterItem().items,
+                    (innerItem) => innerItem.id,
+                    (getInnerItem) => {
+                        const innerDiv = document.createElement('span');
+                        innerDiv.textContent = getInnerItem().label;
+                        return innerDiv;
+                    }
+                );
+                outerDiv.appendChild(innerContainer.fragment);
+                return outerDiv;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+
+        const labels = Array.from(w.querySelectorAll('span')).map((s) => s.textContent);
+        expect(labels).toEqual(['a', 'b']);
+    });
+
+    it('leaves DOM untouched when writing an identical list (same keys, same references)', () => {
+        const items = [{ id: 1, label: 'A' }, { id: 2, label: 'B' }];
+        const list = createState(items);
+        const renderCalls = vi.fn();
+
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                renderCalls();
+                const d = document.createElement('div');
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+        const w = mountFor(container);
+        document.body.appendChild(w);
+        renderCalls.mockClear();
+        const before = Array.from(w.querySelectorAll('div'));
+
+        write(list, items);
+        UISystem.flush();
+
+        const after = Array.from(w.querySelectorAll('div'));
+        expect(renderCalls).not.toHaveBeenCalled();
+        expect(after).toEqual(before);
     });
 });
