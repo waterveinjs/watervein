@@ -217,7 +217,7 @@ export function For<T>(
                     let itemNode!: WvNode<T>;
                     withEntity(entityId, () => {
                         itemNode = createState(item);
-                        dom = renderFn(() => read(itemNode));
+                        dom = untrack(() => renderFn(() => read(itemNode)));
                     });
                     newCache.set(key, { entityId, dom, itemNode });
                 }

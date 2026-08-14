@@ -209,6 +209,16 @@ export function createEntity(): number {
     return id;
 }
 
+/**
+ * Switches the current entity ownership scope for `fn`.
+ * 
+ * NOTE: This does NOT isolate reactive tracking. Any `read()` call made
+ * synchronously inside `fn` (without its own createEffect/createCompute)
+ * will still register as a dependency of whichever effect/compute is
+ * currently active outside this call. If `fn` may perform such "naked"
+ * reads (e.g. a user-supplied render callback), wrap the call in `untrack()`
+ * at the call site.
+ */
 export function withEntity<T>(entityId: number, fn: () => T): T {
     const prev = currentEntityId;
     currentEntityId = entityId;
@@ -543,7 +553,7 @@ export function flush() {
             while (bucket.length > 0) {
                 const node = bucket.pop()!;
 
-                if (node.id === -1 || (node.ft & FLAG_DISPOSED) !== 0 || allNodes[node.id] !== node) {
+                if ((node.ft & FLAG_DISPOSED) !== 0 || allNodes[node.id] !== node) {
                     continue;
                 }
 
@@ -994,7 +1004,7 @@ export function matchEntity(
         const targetFn = branchValue ? thenFn : elseFn;
         if (targetFn) {
             currentActiveEntityId = createEntity();
-            withEntity(currentActiveEntityId, targetFn);
+            withEntity(currentActiveEntityId, () => untrack(targetFn))
         }
     });
 }
