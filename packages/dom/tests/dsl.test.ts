@@ -7,6 +7,7 @@ describe('Watervein DOM - High Level DSL (element/Show/For)', () => {
 
     it('should create valid element sub-graphs with atomic text tracking', () => {
         const container = document.createElement('div');
+        document.body.appendChild(container);
         const count = createState(0);
 
         const app = span({}, [
@@ -25,6 +26,7 @@ describe('Watervein DOM - High Level DSL (element/Show/For)', () => {
         btnEl.click();
 
         expect(textEl.textContent).toBe('Value: 10');
+        container.remove();
     });
 
     it('binds a plain attribute reactively when passed a WvNode directly (non-style/class key)', () => {

@@ -4,10 +4,9 @@ import {
     createState, 
     read, 
     write, 
-    registerErrorBoundary, 
-    unregisterErrorBoundary,
-    cleanupEntityEvents,
-    DestructionSystem
+    registerErrorBoundary,
+    DestructionSystem,
+    untrack
 } from '@watervein/core';
 
 export function errorBoundary(
@@ -26,7 +25,6 @@ export function errorBoundary(
 
         const renderBranch = () => {
             if (currentChildEntityId !== null) {
-                cleanupEntityEvents(currentChildEntityId);
                 DestructionSystem.destroyEntity(currentChildEntityId);
                 wrapper.innerHTML = '';
             }
@@ -35,7 +33,7 @@ export function errorBoundary(
             const newEntityId = createEntity();
             currentChildEntityId = newEntityId;
 
-            withEntity(newEntityId, () => {
+            withEntity(newEntityId, () => untrack(() => {
                 let childDOM: HTMLElement;
                 if (currentError) {
                     childDOM = fallbackFactory(currentError);
@@ -43,7 +41,7 @@ export function errorBoundary(
                     childDOM = normalFactory();
                 }
                 wrapper.appendChild(childDOM);
-            });
+            }));
         };
 
         registerErrorBoundary(boundaryEntityId, (err) => {

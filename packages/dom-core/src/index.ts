@@ -40,12 +40,7 @@ export function element<K extends keyof HTMLElementTagNameMap>(
             const value = props[key];
             if (value == null) continue;
 
-            if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110) {
-                if (!el.hasAttribute('data-wv-eid')) {
-                    el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
-                }
-            }
-            else if (key === "class" || key === "className") {
+            if (key === "class" || key === "className") {
                 applyReactiveClass(el, value);
             }
             else if (key === "style") {

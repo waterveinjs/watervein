@@ -2,14 +2,11 @@ import {
     Node as WvNode,
     isNode,
     read,
-    getCurrentEntityId,
-    handleDelegatedEvent,
-    eventRegistry
+    registerHandler
 } from '@watervein/core';
 import { 
     element as el0,
     ReactiveStyle as Style0,
-    ReactiveClass as Class0,
     ReactiveProps as CoreProps
 } from '@watervein/dom-core';
 
@@ -40,8 +37,7 @@ export function element<K extends keyof HTMLElementTagNameMap>(
         return el0(tag, undefined, children as any);
     }
 
-    const entityId = getCurrentEntityId();
-    let hasEvent = false;
+    let pendingHandlers: [string, EventListener][] | null = null;
 
     for (const key in props) {
         if (!Object.hasOwn(props, key)) continue;
@@ -55,32 +51,19 @@ export function element<K extends keyof HTMLElementTagNameMap>(
             if (isNode(value)) props[key] = () => read(value as WvNode<string>);
         } 
         else if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && typeof value === "function") {
-            if (entityId !== null) {
-                const eventName = key.slice(2).toLowerCase();
-                let reg = eventRegistry.get(eventName);
-                if (!reg) {
-                    reg = new Map();
-                    eventRegistry.set(eventName, reg);
-                    document.addEventListener(eventName, handleDelegatedEvent);
-                }
-                reg.set(entityId, value as EventListener);
-                hasEvent = true;
-            }
+            const eventName = key.slice(2).toLowerCase();
+            (pendingHandlers ??= []).push([eventName, value as EventListener]);
+            (props as any)[key] = undefined;
         }
     }
 
     const el = el0(tag, props as CoreProps, children as any);
 
-    if (hasEvent) {
-        el.setAttribute('data-wv-eid', String(entityId));
+    if (pendingHandlers) {
+        for (let i = 0; i < pendingHandlers.length; i++) {
+            registerHandler(el, pendingHandlers[i][0], pendingHandlers[i][1]);
+        }
     }
 
     return el as HTMLElementTagNameMap[K];
-}
-
-function parseDsl1Class(classVal: Dsl1Class): Class0 {
-    if (isNode(classVal)) {
-        return () => read(classVal as WvNode<string>);
-    }
-    return classVal as Class0;
 }

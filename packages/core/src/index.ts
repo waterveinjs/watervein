@@ -816,7 +816,6 @@ export const DestructionSystem = {
             entityParentMap.delete(entityId);
             entityChildrenMap.delete(entityId);
             errorBoundaryRegistry.delete(entityId);
-            cleanupEntityEvents(entityId);
             freeEntityIds.push(entityId);
             return;
         }
@@ -892,7 +891,6 @@ export const DestructionSystem = {
                 entityParentMap.delete(eId);
                 entityChildrenMap.delete(eId);
                 errorBoundaryRegistry.delete(eId);
-                cleanupEntityEvents(eId);
                 freeEntityIds.push(eId);
             }
             if (freeEntityIds.length === ENTITY_COUNT) {
@@ -1168,36 +1166,45 @@ export function batch(fn: () => void) {
     }
 }
 
-export const eventRegistry = new Map<string, Map<number, EventListener>>();
-
 export function getCurrentEntityId(): number | null {
     return currentEntityId;
 }
 
-export function handleDelegatedEvent(e: Event) {
-    const registry = eventRegistry.get(e.type);
-    if (!registry) return;
+const WV_HANDLERS = Symbol('wv-handlers');
+const attachedEventTypesByDoc = new WeakMap<Document, Set<string>>();
 
+export function registerHandler(el: HTMLElement, eventName: string, handler: EventListener) {
+    let handlers = (el as any)[WV_HANDLERS];
+    if (!handlers) {
+        handlers = Object.create(null);
+        (el as any)[WV_HANDLERS] = handlers;
+    }
+    handlers[eventName] = handler;
+
+    const doc = el.ownerDocument;
+    let attached = attachedEventTypesByDoc.get(doc);
+    if (!attached) {
+        attached = new Set();
+        attachedEventTypesByDoc.set(doc, attached);
+    }
+    if (!attached.has(eventName)) {
+        attached.add(eventName);
+        doc.addEventListener(eventName, handleDelegatedEvent);
+    }
+}
+
+export function handleDelegatedEvent(e: Event) {
     let target = e.target as HTMLElement | null;
     while (target) {
-        const entityIdStr = target.getAttribute('data-wv-eid');
-        if (entityIdStr) {
-            const handler = registry.get(parseInt(entityIdStr, 10));
+        const handlers = (target as any)[WV_HANDLERS];
+        if (handlers) {
+            const handler = handlers[e.type];
             if (handler) {
                 handler(e);
                 if ((e as any).cancelBubble) return;
             }
         }
         target = target.parentElement;
-    }
-}
-
-export function cleanupEntityEvents(entityId: number) {
-    for (const [eventType, registry] of eventRegistry.entries()) {
-        registry.delete(entityId);
-        if (registry.size === 0) {
-            eventRegistry.delete(eventType);
-        }
     }
 }
 

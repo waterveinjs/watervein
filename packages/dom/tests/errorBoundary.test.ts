@@ -49,6 +49,7 @@ describe('Watervein DOM - errorBoundary Functional Integration', () => {
 
     it('should support rendering state values inside the fallback view', () => {
         const container = document.createElement('div');
+        document.body.appendChild(container);
         const shouldCrash = createState(false);
         const retryCount = createState(0);
 
@@ -75,9 +76,10 @@ describe('Watervein DOM - errorBoundary Functional Integration', () => {
         const btn = container.querySelector('#retry-btn') as HTMLButtonElement;
         expect(btn.textContent).toBe('Retry Count: 0');
 
-        btn.dispatchEvent(new MouseEvent('click'));
+        btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         UISystem.flush();
 
         expect(btn.textContent).toBe('Retry Count: 1');
+        container.remove();
     });
 });
