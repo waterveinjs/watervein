@@ -913,7 +913,7 @@ export const DestructionSystem = {
                 buckets.length = 0;
             }
 
-            if (freeNodeIds.length > 1000) {
+            if (freeNodeIds.length > 512) {
                 const nodesEmpty = trimSparseArrays();
                 compactEdgePoolIfNeeded(nodesEmpty);
             }
