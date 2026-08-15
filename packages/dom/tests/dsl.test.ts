@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from 'vitest';
 import { createState, write, UISystem, read, createCompute } from '@watervein/core';
-import { mount, Show, For, button, span, div } from '../src/index.js';
+import { mount, Show, For } from '@watervein/dom-core';
+import { button, span, div } from '../src/index.js';
 
 describe('Watervein DOM - High Level DSL (element/Show/For)', () => {
 

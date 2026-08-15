@@ -1,5 +1,6 @@
 import { createState, createCompute, createResource, write, read, UISystem, untrack } from '@watervein/core';
-import { element, Show, For, mountToBody } from '@watervein/dom';
+import { Show, For, mountToBody } from '@watervein/dom-core';
+import { element } from '@watervein/dom';
 
 const serverId = createState("srv-node-01");
 

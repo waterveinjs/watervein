@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from 'vitest';
 import { createState, write, UISystem, read } from '@watervein/core';
-import { mount, div, button, span } from '../src/index.js';
+import { mount } from '@watervein/dom-core';
+import { div, button, span } from '../src/index.js';
 import { errorBoundary } from '../src/errorBoundary.js'; 
 
 describe('Watervein DOM - errorBoundary Functional Integration', () => {

@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest';
 import { scope } from '../src/scope.js';
-import { div, mount, unmount } from '../src/index.js';
+import { div } from '../src/index.js';
 import { createState, read, UISystem } from '@watervein/core';
+import { mount, unmount } from '@watervein/dom-core';
 
 describe('Watervein DOM - Explicit Entity Cleanup', () => {
     it('should destroy entity and trigger cleanup instantly on unmount', () => {
