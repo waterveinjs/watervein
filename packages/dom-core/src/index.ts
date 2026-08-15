@@ -10,7 +10,7 @@ export type ReactiveStyle = {
     [key: string]: ReactiveProp<string | number | null | undefined>;
 };
 export type ReactiveClass = 
-    | string 
+    | string
     | WvNode<string>
     | (() => string)
     | { [key: string]: boolean | WvNode<boolean> | (() => boolean) }

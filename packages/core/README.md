@@ -75,6 +75,11 @@ Conditional structural rendering. Creates and discards internal reactive entity 
 
 ## Advanced Architecture (Design Goals)
 
+![cr_1](assets/readme/cr_1.png)
+
+<details>
+<summary>Mermeid Source Code</summary>
+
 ```mermaid
 graph TD
     State["[ State Node ]"]
@@ -97,6 +102,8 @@ graph TD
     style Bucket fill:#edf2f7,stroke:#4a5568,stroke-width:1px
     style Flush fill:#d4edda,stroke:#155724,stroke-width:1px
 ```
+
+</details>
 
 1. **Memory Compact Nodes**: Nodes use continuous flat array tracking (`subsDense` and `depsDense`) instead of nested `Set`/`Map` structures, reducing garbage-collection pressure during large-scale updates.
 
