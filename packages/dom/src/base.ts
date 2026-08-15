@@ -1,6 +1,5 @@
 import {
-    Node as WvNode,
-    registerHandler
+    Node as WvNode
 } from '@watervein/core';
 import { 
     element as el0,
@@ -26,31 +25,5 @@ export function element<K extends keyof HTMLElementTagNameMap>(
     props?: Dsl1Props,
     children?: Dsl1Child | Dsl1Child[]
 ): HTMLElementTagNameMap[K] {
-    if (!props) {
-        return el0(tag, undefined, children as any);
-    }
-
-    let pendingHandlers: [string, EventListener][] | null = null;
-
-    for (const key in props) {
-        if (!Object.hasOwn(props, key)) continue;
-        const value = props[key];
-        if (value == null) continue;
-
-        if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && typeof value === "function") {
-            const eventName = key.slice(2).toLowerCase();
-            (pendingHandlers ??= []).push([eventName, value as EventListener]);
-            (props as any)[key] = undefined;
-        }
-    }
-
-    const el = el0(tag, props as CoreProps, children as any);
-
-    if (pendingHandlers) {
-        for (let i = 0; i < pendingHandlers.length; i++) {
-            registerHandler(el, pendingHandlers[i][0], pendingHandlers[i][1]);
-        }
-    }
-
-    return el as HTMLElementTagNameMap[K];
+    return el0(tag, props as CoreProps, children as any) as HTMLElementTagNameMap[K];
 }

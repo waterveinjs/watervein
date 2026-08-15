@@ -1,4 +1,4 @@
-import { createEffect, getCurrentEntityId, read, untrack, Node as WvNode } from '@watervein/core';
+import { createEffect, getCurrentEntityId, read, untrack, Node as WvNode, registerHandler } from '@watervein/core';
 
 type ReactiveProp<T> = T | WvNode<T> | (() => T);
 type CSSStyleKeys = {
@@ -47,7 +47,11 @@ export function element<K extends keyof HTMLElementTagNameMap>(
             const value = props[key];
             if (value == null) continue;
 
-            if (key === "class" || key === "className") {
+            if (key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && typeof value === "function") {
+                const eventName = key.slice(2).toLowerCase();
+                registerHandler(el, eventName, value as EventListener);
+            }
+            else if (key === "class" || key === "className") {
                 applyReactiveClass(el, value);
             }
             else if (key === "style") {
