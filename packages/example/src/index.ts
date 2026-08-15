@@ -1,6 +1,6 @@
 import { createState, createCompute, createResource, write, read, UISystem, untrack } from '@watervein/core';
 import { Show, For, mountToBody } from '@watervein/dom-core';
-import { element } from '@watervein/dom';
+import { button, div, h1, h3, p, section, span, strong } from '@watervein/dom';
 
 const serverId = createState("srv-node-01");
 
@@ -46,60 +46,60 @@ const sortedProcesses = createCompute(() => {
     });
 });
 
-const app = element("div", { class: "monitoring-dashboard", style: { padding: "20px", fontFamily: "sans-serif" } }, [
-    element("h1", {}, "watervein 2026 Core Metrics Dashboard"),
+const app = div({ class: "monitoring-dashboard", style: { padding: "20px", fontFamily: "sans-serif" } }, [
+    h1({}, "watervein 2026 Core Metrics Dashboard"),
     
-    element("section", { class: "panel spec-panel" }, [
-        element("h3", {}, "System Specifications"),
+    section({ class: "panel spec-panel" }, [
+        h3({}, "System Specifications"),
         Show(
             () => read(serverSpecResource).loading,
-            () => element("div", { class: "loading" }, "Fetching remote hardware details via stream pipeline..."),
+            () => div({ class: "loading" }, "Fetching remote hardware details via stream pipeline..."),
             () => {
                 const res = read(serverSpecResource);
-                if (res.error) return element("div", {}, `Error: ${res.error.message}`);
-                return element("div", { class: "spec-grid" }, [
-                    element("p", {}, `Node ID: ${res.data?.id}`),
-                    element("p", {}, `CPU Architecture: ${res.data?.cpu}`),
-                    element("p", {}, `Operating System: ${res.data?.os}`)
+                if (res.error) return div({}, `Error: ${res.error.message}`);
+                return div({ class: "spec-grid" }, [
+                    p({}, `Node ID: ${res.data?.id}`),
+                    p({}, `CPU Architecture: ${res.data?.cpu}`),
+                    p({}, `Operating System: ${res.data?.os}`)
                 ]);
             }
         )
     ]),
 
-    element("section", { class: "panel metrics-panel" }, [
-        element("h3", {}, "■ Real-time Telemetry (100ms intervals)"),
-        element("div", { class: "grid" }, [
-            element("div", { class: "card" }, [
-                element("span", {}, "CPU Core Total Load: "),
-                element("strong", {}, () => `${read(cpuLoad)}%`)
+    section({ class: "panel metrics-panel" }, [
+        h3({}, "■ Real-time Telemetry (100ms intervals)"),
+        div({ class: "grid" }, [
+            div({ class: "card" }, [
+                span({}, "CPU Core Total Load: "),
+                strong({}, () => `${read(cpuLoad)}%`)
             ]),
-            element("div", { class: "card" }, [
-                element("span", {}, "System Alert Level: "),
-                element("span", {
+            div({ class: "card" }, [
+                span({}, "System Alert Level: "),
+                span({
                     fontWeight: "bold"
                 }, alertLevel)
             ])
         ])
     ]),
 
-    element("section", { class: "panel process-panel" }, [
-        element("h3", {}, "Process Monitor"),
+    section({ class: "panel process-panel" }, [
+        h3({}, "Process Monitor"),
         
-        element("div", { class: "toolbar", style: { marginBottom: "10px" } }, [
-            element("span", {}, "Sort By: "),
-            element("button", { onclick: () => {write(sortBy, "pid")} }, "Process ID"),
-            element("button", { onclick: () => write(sortBy, "cpu") }, "Highest CPU"),
-            element("button", { onclick: () => write(sortBy, "memory") }, "Highest Memory"),
+        div({ class: "toolbar", style: { marginBottom: "10px" } }, [
+            span({}, "Sort By: "),
+            button({ onclick: () => {write(sortBy, "pid")} }, "Process ID"),
+            button({ onclick: () => write(sortBy, "cpu") }, "Highest CPU"),
+            button({ onclick: () => write(sortBy, "memory") }, "Highest Memory"),
         ]),
 
-        element("div", { class: "table-header", style: { display: "flex", fontWeight: "bold", borderBottom: "2px solid #ccc" } }, [
-            element("div", { style: { width: "100px" } }, "PID"),
-            element("div", { style: { width: "250px" } }, "Process Name"),
-            element("div", { style: { width: "100px" } }, "CPU Load"),
-            element("div", { style: { width: "100px" } }, "Memory")
+        div({ class: "table-header", style: { display: "flex", fontWeight: "bold", borderBottom: "2px solid #ccc" } }, [
+            div({ style: { width: "100px" } }, "PID"),
+            div({ style: { width: "250px" } }, "Process Name"),
+            div({ style: { width: "100px" } }, "CPU Load"),
+            div({ style: { width: "100px" } }, "Memory")
         ]),
 
-        element("div", { class: "table-body" }, [
+        div({ class: "table-body" }, [
             For(sortedProcesses, (p) => p.pid, (rawItem) => {
                 const getRowCpu = () => {
                     const list = read(sortedProcesses);
@@ -113,11 +113,11 @@ const app = element("div", { class: "monitoring-dashboard", style: { padding: "2
                     return latest ? `${latest.memory} MB` : `${rawItem().memory} MB`;
                 };
 
-                return element("div", { class: "table-row", style: { display: "flex", padding: "5px 0", borderBottom: "1px solid #eee" } }, [
-                    element("div", { style: { width: "100px" } }, `${rawItem().pid}`),
-                    element("div", { style: { width: "250px" } }, rawItem.name),
-                    element("div", { style: { width: "100px" } }, getRowCpu),
-                    element("div", { style: { width: "100px" } }, getRowMemory)
+                return div({ class: "table-row", style: { display: "flex", padding: "5px 0", borderBottom: "1px solid #eee" } }, [
+                    div({ style: { width: "100px" } }, `${rawItem().pid}`),
+                    div({ style: { width: "250px" } }, rawItem.name),
+                    div({ style: { width: "100px" } }, getRowCpu),
+                    div({ style: { width: "100px" } }, getRowMemory)
                 ]);
             }).fragment
         ])
