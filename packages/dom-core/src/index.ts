@@ -28,12 +28,19 @@ const WV_NODE_TAG = 0x57564E44;
 
 const isWvNode = (val: any): val is WvNode<any> => val && val.__wv === WV_NODE_TAG;
 
+const elementCache = new Map<string, HTMLElement>();
+
 export function element<K extends keyof HTMLElementTagNameMap>(
     tag: K,
     props?: ReactiveProps,
     children?: Child | Child[]
 ): HTMLElementTagNameMap[K] {
-    const el = document.createElement(tag);
+    let proto = elementCache.get(tag);
+    if (!proto) {
+        proto = document.createElement(tag);
+        elementCache.set(tag, proto);
+    }
+    const el = proto.cloneNode(false) as HTMLElementTagNameMap[K];
 
     if (props) {
         for (const key in props) {
