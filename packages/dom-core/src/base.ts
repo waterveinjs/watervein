@@ -192,6 +192,7 @@ export function For<T>(
                 } else if (parent) {
                     destroyCache(entityCache);
                 }
+                entityCache.clear();
                 pool.srcBuf = new Int32Array(32);
                 pool.keysBuf = [];
                 pool.keyIdxMap.clear();
