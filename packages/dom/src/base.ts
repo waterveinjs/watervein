@@ -5,17 +5,14 @@ import {
     element as el0,
     ReactiveStyle as Style0,
     ReactiveProps as CoreProps,
-    ReactiveClass
+    BaseReactiveProps
 } from '@watervein/dom-core';
 
 export type Dsl1Value<T> = T | WvNode<T>;
 export type Dsl1Style = { [K in keyof Style0]?: Style0[K] | WvNode<any>; };
 
-export type Dsl1Props = {
+export type Dsl1Props = BaseReactiveProps & {
     style?: Dsl1Style | WvNode<string> | (() => string);
-    class?: ReactiveClass;
-    className?: ReactiveClass;
-    [key: string]: any;
 };
 
 export type Dsl1Child = Node | string | number | WvNode<any> | (() => any);
