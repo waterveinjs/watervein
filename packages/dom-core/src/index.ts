@@ -15,16 +15,13 @@ export type ReactiveClass =
     | (() => string)
     | { [key: string]: boolean | WvNode<boolean> | (() => boolean) }
     | Array<string | WvNode<string> | (() => string)>;
-export type BaseReactiveProps = {
+export type ReactiveProps = {
     class?: ReactiveClass;
     className?: ReactiveClass;
     [key: string]: any;
+    style?: ReactiveStyle | WvNode<string> | (() => string);
 };
-export type ReactiveProps = BaseReactiveProps & {
-    style?: ReactiveStyle | (() => string);
-};
-
-type Child = Node | string | number | WvNode<any> | (() => any);
+export type Child = Node | string | number | WvNode<any> | (() => any);
 
 const WV_NODE_TAG = 0x57564E44;
 

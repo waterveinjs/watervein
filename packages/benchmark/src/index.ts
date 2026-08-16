@@ -15,7 +15,6 @@ import {
     element as el0,
     For as for0
 } from '@watervein/dom-core';
-import { element as el1 } from '@watervein/dom';
 
 type MemorySnapshot = { usedMB: number; totalMB: number };
 
@@ -139,29 +138,6 @@ const BenchmarkSystem = {
             for (let i = 0; i < count; i++) {
                 const s = createState(0);
                 const el = el0("div", {
-                    class: { "box": true },
-                    style: { fontSize: () => `${read(s)}px` }
-                }, [
-                    () => `Value: ${read(s)}`
-                ]);
-                container.appendChild(el);
-            }
-        });
-
-        const end = performance.now();
-        DestructionSystem.destroyEntity(entityId);
-        return end - start;
-    },
-
-    runDsl1Construction(count: number) {
-        const entityId = createEntity();
-        const container = document.createElement("div");
-        const start = performance.now();
-
-        withEntity(entityId, () => {
-            for (let i = 0; i < count; i++) {
-                const s = createState(0);
-                const el = el1("div", {
                     class: { "box": true },
                     style: { fontSize: () => `${read(s)}px` }
                 }, [
@@ -709,14 +685,7 @@ async function runScaleSuite() {
     const dsl0Time = BenchmarkSystem.runDsl0Construction(1000);
     console.log(`[DOM-CORE] Mounting 1,000 elements using raw DOM (raw arrow functions): ${dsl0Time.toFixed(2)} ms`);
     await yieldMainThread();
-
-    const dsl1Time = BenchmarkSystem.runDsl1Construction(1000);
-    console.log(`[DOM] Mounting 1,000 elements using DSL1 (Node direct passing): ${dsl1Time.toFixed(2)} ms`);
-    await yieldMainThread();
-
-    const overhead = dsl1Time - dsl0Time;
-    console.log(`[Analyze] Pure Overhead from the dom Mapping Abstraction: ${overhead.toFixed(2)} ms (Per element ${(overhead / 1000 * 1000).toFixed(2)} 𝝁s)`);
-
+    
     const reorderTime = BenchmarkSystem.runForReorderPerformance(1000);
     console.log(`[For Optimization] Batch Reverse Sort (Reorder) of 1,000 DOM Elements: ${reorderTime.toFixed(2)} ms`);
     await yieldMainThread();

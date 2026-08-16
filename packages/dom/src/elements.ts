@@ -1,4 +1,4 @@
-import { element } from './base.js';
+import { element } from '@watervein/dom-core';
 
 export const a = (props?: any, children?: any) => element("a", props, children);
 export const abbr = (props?: any, children?: any) => element("abbr", props, children);
