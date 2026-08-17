@@ -190,7 +190,21 @@ export function For<T>(
                     initialFragment!.appendChild(marker);
                     isInitial = false;
                 } else if (parent) {
-                    destroyCache(entityCache);
+                    if (entityCache.size > 0) {
+                        const ids: number[] = [];
+                        entityCache.forEach((entry) => ids.push(entry.entityId));
+
+                        const firstEntry = entityCache.get(oldKeys[0]);
+                        if (firstEntry) {
+                            const range = document.createRange();
+                            range.setStartBefore(firstEntry.dom);
+                            range.setEndBefore(marker);
+                            range.deleteContents();
+                        }
+
+                        DestructionSystem.destroyEntities(ids);
+                        entityCache.clear();
+                    }
                 }
                 pool.srcBuf = new Int32Array(32);
                 pool.keysBuf = [];
