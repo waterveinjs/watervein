@@ -1,0 +1,3 @@
+[submodule "dowsing"]
+	path = dowsing
+	url = https://github.com/waterveinjs/dowsing.git
