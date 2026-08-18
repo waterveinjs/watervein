@@ -62,8 +62,6 @@ export function Show(
     return wrapper;
 }
 
-export const leaveHooks = new WeakMap<HTMLElement, (resolve: () => void) => void>();
-
 type Entry<T> = { entityId: number; dom: HTMLElement; itemNode: WvNode<T> };
 
 function destroyEntry(entry: Entry<any>) {
@@ -167,7 +165,7 @@ export function For<T>(
 
     let oldKeys: any[] = [];
     let oldLen = 0;
-    let entityCache = new Map<any, Entry<T>>();
+    let entityCache = cacheA;
     let disposed = false;
 
     const e = createEffect(() => {

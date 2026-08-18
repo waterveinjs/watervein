@@ -15,7 +15,9 @@
     "bump:patch": "node scripts/bump.js patch",
     "bump:minor": "node scripts/bump.js minor",
     "bump:major": "node scripts/bump.js major",
-    "bump:dev": "node scripts/bump.js dev"
+    "bump:dev": "node scripts/bump.js dev",
+    "dowse:s": "cd dowsing/s && runghc Spec.hs",
+    "dowse:s:l": "node -e \"const n = process.argv[1] || 3; for(let i=0; i<n; i++) require('child_process').execSync('cd dowsing/s && runghc Spec.hs', {stdio: 'inherit'})\" --"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
