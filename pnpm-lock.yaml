@@ -78,23 +78,71 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/example:
+  packages/examples/counter:
     dependencies:
       '@watervein/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../core
       '@watervein/dom':
         specifier: workspace:*
-        version: link:../dom
+        version: link:../../dom
       '@watervein/dom-core':
         specifier: workspace:*
-        version: link:../dom-core
+        version: link:../../dom-core
+    devDependencies:
+      vite:
+        specifier: ^8.1.1
+        version: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)
+
+  packages/examples/helloworld:
+    dependencies:
+      '@watervein/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@watervein/dom':
+        specifier: workspace:*
+        version: link:../../dom
+      '@watervein/dom-core':
+        specifier: workspace:*
+        version: link:../../dom-core
+    devDependencies:
+      vite:
+        specifier: ^8.1.1
+        version: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)
+
+  packages/examples/system-monitoring-dashboard:
+    dependencies:
+      '@watervein/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@watervein/dom':
+        specifier: workspace:*
+        version: link:../../dom
+      '@watervein/dom-core':
+        specifier: workspace:*
+        version: link:../../dom-core
     devDependencies:
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
       vite:
         specifier: ^8.2.1
+        version: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)
+
+  packages/examples/todo:
+    dependencies:
+      '@watervein/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@watervein/dom':
+        specifier: workspace:*
+        version: link:../../dom
+      '@watervein/dom-core':
+        specifier: workspace:*
+        version: link:../../dom-core
+    devDependencies:
+      vite:
+        specifier: ^8.1.1
         version: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)
 
 packages:
