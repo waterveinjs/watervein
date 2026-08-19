@@ -110,7 +110,15 @@ function appendChild(parent: HTMLElement, child: Child) {
         parent.appendChild(textNode);
 
         createEffect(() => {
-            textNode.nodeValue = String(unwrap(child));
+            const value = unwrap(child);
+            if (import.meta.env.DEV && value !== null && value !== undefined && typeof value === "object") {
+                console.warn(
+                    `[watervein] A reactive text binding returned an object, which will be rendered as "${String(value)}". ` +
+                    `Did you forget to access a specific property?`,
+                    value
+                );
+            }
+            textNode.nodeValue = String(value);
         });
     } else if (child instanceof Node) {
         parent.appendChild(child);
