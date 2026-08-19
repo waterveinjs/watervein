@@ -746,4 +746,174 @@ describe('Watervein DOM - For', () => {
         expect(renderCalls).not.toHaveBeenCalled();
         expect(after).toEqual(before);
     });
+
+    it('does not remove sibling elements when clearing the list to empty', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.className = 'row';
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+
+        const before = document.createElement('span');
+        before.id = 'before-sibling';
+        before.textContent = 'before';
+        parent.appendChild(before);
+
+        parent.appendChild(container.fragment);
+
+        const after = document.createElement('span');
+        after.id = 'after-sibling';
+        after.textContent = 'after';
+        parent.appendChild(after);
+
+        expect(parent.querySelectorAll('.row').length).toBe(2);
+        expect(parent.querySelector('#before-sibling')).not.toBeNull();
+        expect(parent.querySelector('#after-sibling')).not.toBeNull();
+
+        write(list, []);
+        UISystem.flush();
+
+        expect(parent.querySelectorAll('.row').length).toBe(0);
+        expect(parent.querySelector('#before-sibling')).not.toBeNull();
+        expect(parent.querySelector('#after-sibling')).not.toBeNull();
+        expect(parent.querySelector('#before-sibling')!.textContent).toBe('before');
+        expect(parent.querySelector('#after-sibling')!.textContent).toBe('after');
+    });
+
+    it('does not remove another For\'s rows when clearing one For sharing the same parent', () => {
+        const listA = makeList([{ id: 1, label: 'A1' }, { id: 2, label: 'A2' }]);
+        const listB = makeList([{ id: 10, label: 'B1' }, { id: 11, label: 'B2' }, { id: 12, label: 'B3' }]);
+
+        const containerA = For(
+            listA,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.className = 'row-a';
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+
+        const containerB = For(
+            listB,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.className = 'row-b';
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+        parent.appendChild(containerA.fragment);
+        parent.appendChild(containerB.fragment);
+
+        expect(parent.querySelectorAll('.row-a').length).toBe(2);
+        expect(parent.querySelectorAll('.row-b').length).toBe(3);
+
+        write(listA, []);
+        UISystem.flush();
+
+        expect(parent.querySelectorAll('.row-a').length).toBe(0);
+        expect(parent.querySelectorAll('.row-b').length).toBe(3);
+        const bLabels = Array.from(parent.querySelectorAll('.row-b')).map((d) => d.textContent);
+        expect(bLabels).toEqual(['B1', 'B2', 'B3']);
+    });
+
+    it('does not remove the other For\'s rows when clearing the second For sharing the same parent (reverse order)', () => {
+        const listA = makeList([{ id: 1, label: 'A1' }, { id: 2, label: 'A2' }]);
+        const listB = makeList([{ id: 10, label: 'B1' }, { id: 11, label: 'B2' }]);
+
+        const containerA = For(
+            listA,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.className = 'row-a';
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+
+        const containerB = For(
+            listB,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.className = 'row-b';
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+        parent.appendChild(containerA.fragment);
+        parent.appendChild(containerB.fragment);
+
+        write(listB, []);
+        UISystem.flush();
+
+        expect(parent.querySelectorAll('.row-b').length).toBe(0);
+        expect(parent.querySelectorAll('.row-a').length).toBe(2);
+        const aLabels = Array.from(parent.querySelectorAll('.row-a')).map((d) => d.textContent);
+        expect(aLabels).toEqual(['A1', 'A2']);
+    });
+
+    it('preserves siblings and can repopulate correctly after clearing with siblings present', () => {
+        const list = makeList([{ id: 1, label: 'A' }, { id: 2, label: 'B' }, { id: 3, label: 'C' }]);
+        const container = For(
+            list,
+            (item) => item.id,
+            (getItem) => {
+                const d = document.createElement('div');
+                d.className = 'row';
+                d.textContent = getItem().label;
+                return d;
+            }
+        );
+
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+
+        const marker1 = document.createElement('p');
+        marker1.id = 'marker1';
+        parent.appendChild(marker1);
+
+        parent.appendChild(container.fragment);
+
+        const marker2 = document.createElement('p');
+        marker2.id = 'marker2';
+        parent.appendChild(marker2);
+
+        write(list, []);
+        UISystem.flush();
+
+        expect(parent.querySelectorAll('.row').length).toBe(0);
+        expect(parent.querySelector('#marker1')).not.toBeNull();
+        expect(parent.querySelector('#marker2')).not.toBeNull();
+
+        write(list, [{ id: 4, label: 'D' }, { id: 5, label: 'E' }]);
+        UISystem.flush();
+
+        const labels = Array.from(parent.querySelectorAll('.row')).map((d) => d.textContent);
+        expect(labels).toEqual(['D', 'E']);
+        expect(parent.querySelector('#marker1')).not.toBeNull();
+        expect(parent.querySelector('#marker2')).not.toBeNull();
+        const childTags = Array.from(parent.children).map((c) => c.tagName + (c.id ? `#${c.id}` : c.className ? `.${c.className}` : ''));
+        expect(childTags[0]).toBe('P#marker1');
+        expect(childTags[childTags.length - 1]).toBe('P#marker2');
+    });
 });

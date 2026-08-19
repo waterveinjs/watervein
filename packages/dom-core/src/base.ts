@@ -62,8 +62,6 @@ export function Show(
     return wrapper;
 }
 
-export const leaveHooks = new WeakMap<HTMLElement, (resolve: () => void) => void>();
-
 type Entry<T> = { entityId: number; dom: HTMLElement; itemNode: WvNode<T> };
 
 function destroyEntry(entry: Entry<any>) {
@@ -129,25 +127,19 @@ function getLISInPlace(arr: Int32Array, len: number, outBuffer: Int32Array): num
     return resultLen;
 }
 
-type DepthPool = {
-    cacheA: Map<any, Entry<any>>;
-    cacheB: Map<any, Entry<any>>;
+type SharedScratch = {
     keyIdxMap: Map<any, number>;
     srcBuf: Int32Array;
     keysBuf: any[];
-    isA: boolean;
 };
 
-const POOLS: DepthPool[] = [];
+const SCRATCH_POOLS: SharedScratch[] = [];
 
-function getPool(depth: number): DepthPool {
-    return POOLS[depth] || (POOLS[depth] = {
-        cacheA: new Map(),
-        cacheB: new Map(),
+function getScratch(depth: number): SharedScratch {
+    return SCRATCH_POOLS[depth] || (SCRATCH_POOLS[depth] = {
         keyIdxMap: new Map(),
         srcBuf: new Int32Array(64),
-        keysBuf: [],
-        isA: true
+        keysBuf: []
     });
 }
 
@@ -163,18 +155,22 @@ export function For<T>(
     keyFn: (item: T) => any,
     renderFn: (getItem: () => T) => HTMLElement
 ): ForHandle {
+    let cacheA = new Map<any, Entry<T>>();
+    let cacheB = new Map<any, Entry<T>>();
+    let isA = true;
+
     const marker = document.createComment("wv-for");
     let isInitial = true;
     let initialFragment: DocumentFragment | null = document.createDocumentFragment();
 
     let oldKeys: any[] = [];
     let oldLen = 0;
-    let entityCache = new Map<any, Entry<T>>();
+    let entityCache = cacheA;
     let disposed = false;
 
     const e = createEffect(() => {
         if (disposed) return;
-        const pool = getPool(callDepth++);
+        const scratch = getScratch(callDepth++);
 
         try {
             const list = read(listNode);
@@ -182,7 +178,7 @@ export function For<T>(
             if (!isInitial && !parent) return;
 
             const newLen = list.length;
-            const newCache = pool.isA ? pool.cacheB : pool.cacheA;
+            const newCache = isA ? cacheB : cacheA;
             newCache.clear();
 
             if (newLen === 0) {
@@ -190,20 +186,32 @@ export function For<T>(
                     initialFragment!.appendChild(marker);
                     isInitial = false;
                 } else if (parent) {
-                    destroyCache(entityCache);
+                    if (entityCache.size > 0) {
+                        const ids: number[] = [];
+                        entityCache.forEach((entry) => ids.push(entry.entityId));
+
+                        const firstEntry = entityCache.get(oldKeys[0]);
+                        if (firstEntry) {
+                            const range = document.createRange();
+                            range.setStartBefore(firstEntry.dom);
+                            range.setEndBefore(marker);
+                            range.deleteContents();
+                        }
+
+                        DestructionSystem.destroyEntities(ids);
+                        entityCache.clear();
+                    }
                 }
-                pool.srcBuf = new Int32Array(32);
-                pool.keysBuf = [];
-                pool.keyIdxMap.clear();
-                pool.cacheA.clear();
-                pool.cacheB.clear();
+                scratch.srcBuf = new Int32Array(32);
+                scratch.keysBuf = [];
+                scratch.keyIdxMap.clear();
                 oldKeys = [];
                 oldLen = 0;
                 return;
             }
 
-            if (pool.keysBuf.length < newLen) pool.keysBuf = new Array(newLen);
-            const newKeys = pool.keysBuf;
+            if (scratch.keysBuf.length < newLen) scratch.keysBuf = new Array(newLen);
+            const newKeys = scratch.keysBuf;
 
             untrack(() => {
                 for (let i = 0; i < newLen; i++) {
@@ -263,31 +271,31 @@ export function For<T>(
 
                 const count = newEnd - start + 1;
                 if (count > 0) {
-                    if (pool.srcBuf.length < count) {
-                        pool.srcBuf = new Int32Array(Math.max(count, pool.srcBuf.length * 2));
+                    if (scratch.srcBuf.length < count) {
+                        scratch.srcBuf = new Int32Array(Math.max(count, scratch.srcBuf.length * 2));
                     }
-                    pool.srcBuf.fill(-1, 0, count);
+                    scratch.srcBuf.fill(-1, 0, count);
 
-                    const keyIdxMap = pool.keyIdxMap;
+                    const keyIdxMap = scratch.keyIdxMap;
                     keyIdxMap.clear();
                     for (let i = start; i <= newEnd; i++) keyIdxMap.set(newKeys[i], i);
                     for (let i = start; i <= oldEnd; i++) {
                         const oldKey = oldKeys[i];
                         if (keyIdxMap.has(oldKey)) {
-                            pool.srcBuf[keyIdxMap.get(oldKey)! - start] = i;
+                            scratch.srcBuf[keyIdxMap.get(oldKey)! - start] = i;
                         }
                     }
                     if (LIS_OUT.length < count) {
                         LIS_OUT = new Int32Array(Math.max(count, LIS_OUT.length * 2));
                     }
-                    const lisLen = getLISInPlace(pool.srcBuf, count, LIS_OUT);
+                    const lisLen = getLISInPlace(scratch.srcBuf, count, LIS_OUT);
                     let lisIdx = lisLen - 1;
                     let anchor: Node = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1])!.dom : marker;
 
                     for (let i = count - 1; i >= 0; i--) {
                         const key = newKeys[start + i];
                         const entry = newCache.get(key)!;
-                        if (pool.srcBuf[i] === -1 || lisIdx < 0 || i !== LIS_OUT[lisIdx]) {
+                        if (scratch.srcBuf[i] === -1 || lisIdx < 0 || i !== LIS_OUT[lisIdx]) {
                             parent.insertBefore(entry.dom, anchor);
                         } else {
                             lisIdx--;
@@ -297,18 +305,18 @@ export function For<T>(
                 }
             }
             entityCache = newCache;
-            pool.isA = !pool.isA;
+            isA = !isA;
 
             const tempKeys = oldKeys;
             oldKeys = newKeys;
-            pool.keysBuf = tempKeys;
+            scratch.keysBuf = tempKeys;
             oldLen = newLen;
 
-            if (pool.srcBuf.length > 64 && newLen < (pool.srcBuf.length >> 2)) {
-                pool.srcBuf = new Int32Array(Math.max(64, pool.srcBuf.length >> 1));
+            if (scratch.srcBuf.length > 64 && newLen < (scratch.srcBuf.length >> 2)) {
+                scratch.srcBuf = new Int32Array(Math.max(64, scratch.srcBuf.length >> 1));
             }
-            if (pool.keysBuf.length > 64 && newLen < (pool.keysBuf.length >> 2)) {
-                pool.keysBuf.length = Math.max(64, newLen);
+            if (scratch.keysBuf.length > 64 && newLen < (scratch.keysBuf.length >> 2)) {
+                scratch.keysBuf.length = Math.max(64, newLen);
             }
             if (LIS_P.length > 256 && newLen < 64) {
                 LIS_P = new Int32Array(128);

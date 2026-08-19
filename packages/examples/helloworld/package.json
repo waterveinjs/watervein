@@ -1,9 +1,12 @@
 {
-  "name": "@watervein/example",
+  "name": "@watervein/example-helloworld",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@watervein/core": "workspace:*",
@@ -11,7 +14,6 @@
     "@watervein/dom": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "vite": "^6.4.3"
+    "vite": "^8.1.1"
   }
 }
