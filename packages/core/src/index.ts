@@ -1,3 +1,20 @@
+type MaybeProcess = { env?: { NODE_ENV?: string } } | undefined;
+
+export const isDev: boolean = (() => {
+    try {
+        if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+            return !!(import.meta as any).env.DEV;
+        }
+    } catch {}
+    try {
+        const proc = (globalThis as any).process as MaybeProcess;
+        if (typeof proc !== 'undefined' && proc?.env) {
+            return proc.env.NODE_ENV !== 'production';
+        }
+    } catch {}
+    return true;
+})();
+
 export const NODE_TYPE_STATE   = 0;
 export const NODE_TYPE_COMPUTE = 1;
 export const NODE_TYPE_EFFECT  = 2;
@@ -103,7 +120,7 @@ function freeEdge(edgeId: number) {
 }
 
 function compactEdgePoolIfNeeded(nodesEmpty: boolean) {
-    if (import.meta.env.DEV && nodesEmpty && activeEdgeCount !== 0) {
+    if (isDev && nodesEmpty && activeEdgeCount !== 0) {
         console.error(
             `[watervein] Invariant violation: all nodes destroyed but activeEdgeCount=${activeEdgeCount}. ` +
             `This indicates a leaked edge reference.`
@@ -449,7 +466,7 @@ function scheduleNode(node: Node) {
 }
 
 let evaluationStack: Set<number> | null = null;
-if (import.meta.env.DEV) evaluationStack = new Set<number>();
+if (isDev) evaluationStack = new Set<number>();
 
 let activeCompute: Node | null = null;
 function executeCompute(node: Node) {
@@ -473,7 +490,7 @@ function executeCompute(node: Node) {
         }
     } finally {
         activeCompute = prevActive;
-        if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
+        if (isDev && evaluationStack) evaluationStack.delete(node.id);
     }
 }
 
@@ -486,7 +503,7 @@ function executeEffect(node: Node) {
         commitEdges(node);
     } finally {
         popTrackingNode();
-        if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
+        if (isDev && evaluationStack) evaluationStack.delete(node.id);
     }
 }
 
@@ -507,7 +524,7 @@ function forceCleanupBuckets() {
 }
 
 function handleFlushError(node: any, err: any) {
-    if (import.meta.env.DEV) {
+    if (isDev) {
         console.error(
             `[watervein-error] Exception caught during flush (Node ID: ${node.id}, Type: ${node.type}).\n` +
             `Entity ID: ${node.entityId ?? 'Global'}\n`,
@@ -594,7 +611,7 @@ export function createState<T>(initial: T): Node<T> {
 
 export function createCompute<T>(fn: () => T): Node<T> {
     const node: Node<T> = createNode<T>(NODE_TYPE_COMPUTE, undefined as any, () => {
-        if (import.meta.env.DEV && evaluationStack) {
+        if (isDev && evaluationStack) {
             if (evaluationStack.has(node.id)) throw new Error(`[watervein] Circular reference on compute ${node.id}`);
             evaluationStack.add(node.id);
         }
@@ -602,7 +619,7 @@ export function createCompute<T>(fn: () => T): Node<T> {
         try { return (node.value = fn()); }
         finally {
             popTrackingNode();
-            if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
+            if (isDev && evaluationStack) evaluationStack.delete(node.id);
         }
     });
     executeCompute(node);
@@ -611,7 +628,7 @@ export function createCompute<T>(fn: () => T): Node<T> {
 
 export function createEffect(fn: () => void): Node<void> {
     const node: Node<void> = createNode<void>(NODE_TYPE_EFFECT, undefined, () => {
-        if (import.meta.env.DEV && evaluationStack) {
+        if (isDev && evaluationStack) {
             if (evaluationStack.has(node.id)) throw new Error(
                 `[watervein] Circular reference on effect ${node.id}`
             );
@@ -622,7 +639,7 @@ export function createEffect(fn: () => void): Node<void> {
             return (node.value = fn());
         } finally {
             popTrackingNode();
-            if (import.meta.env.DEV && evaluationStack) evaluationStack.delete(node.id);
+            if (isDev && evaluationStack) evaluationStack.delete(node.id);
         }
     });
     executeEffect(node);
@@ -703,7 +720,7 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
 }
 
 export function read<T>(node: Node<T>): T {
-    if (import.meta.env.DEV && !isNode(node)) {
+    if (isDev && !isNode(node)) {
         throw new Error('[watervein] read() was called with a value that is not a reactive Node.');
     }
     const trk = currentTrackingNode;

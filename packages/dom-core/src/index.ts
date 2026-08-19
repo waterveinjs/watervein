@@ -1,4 +1,4 @@
-import { createEffect, getCurrentEntityId, read, untrack, Node as WvNode, registerHandler } from '@watervein/core';
+import { createEffect, getCurrentEntityId, read, untrack, Node as WvNode, registerHandler, isDev } from '@watervein/core';
 
 type ReactiveProp<T> = T | WvNode<T> | (() => T);
 type CSSStyleKeys = {
@@ -111,7 +111,7 @@ function appendChild(parent: HTMLElement, child: Child) {
 
         createEffect(() => {
             const value = unwrap(child);
-            if (import.meta.env.DEV && value !== null && value !== undefined && typeof value === "object") {
+            if (isDev && value !== null && value !== undefined && typeof value === "object") {
                 console.warn(
                     `[watervein] A reactive text binding returned an object, which will be rendered as "${String(value)}". ` +
                     `Did you forget to access a specific property?`,
