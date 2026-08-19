@@ -1,0 +1,104 @@
+@import '@share/share.less';
+
+body > div {
+  .glass-panel;
+  padding: 2.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+h1 {
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+input[type="text"] {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.3s ease;
+
+  &:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 12px var(--water-glow);
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+button {
+  background: linear-gradient(135deg, var(--primary-blue), var(--deep-blue));
+  border: none;
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 91, 234, 0.3);
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 15px var(--primary-blue);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+ul li {
+  border-bottom: 1px solid rgba(0, 210, 255, 0.1);
+  transition: background 0.2s ease;
+  border-radius: 8px;
+  padding: 8px 6px !important;
+
+  &:hover {
+    background: rgba(0, 210, 255, 0.05);
+  }
+
+  button {
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-sub);
+    padding: 2px 8px;
+    font-size: 1rem;
+
+    &:hover {
+      color: #ff5252;
+      box-shadow: none;
+      background: rgba(255, 82, 82, 0.1);
+    }
+  }
+}
+
+input[type="checkbox"] {
+  accent-color: var(--primary-blue);
+  cursor: pointer;
+  transform: scale(1.1);
+}
+
+footer {
+  color: var(--text-sub);
+  border-top: 1px solid rgba(0, 210, 255, 0.15);
+  padding-top: 15px;
+
+  button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    box-shadow: none;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    color: var(--text-sub);
+
+    &:hover {
+      background: rgba(0, 210, 255, 0.15);
+      color: #fff;
+      box-shadow: none;
+    }
+  }
+}

@@ -11,6 +11,9 @@
     "example:helloworld": "pnpm --filter @watervein/example-helloworld run dev",
     "example:smd": "pnpm --filter @watervein/example-smd run dev",
     "example:todo": "pnpm --filter @watervein/example-todo run dev",
+    "example:counter:less": "pnpm --filter @watervein/example-counter run dev:less",
+    "example:helloworld:less": "pnpm --filter @watervein/example-helloworld run dev:less",
+    "example:todo:less": "pnpm --filter @watervein/example-todo run dev:less",
     "test": "NODE_OPTIONS=--expose-gc vitest run",
     "test:pnpm": "pnpm --filter \"./packages/*\" test",
     "test:watch": "NODE_OPTIONS=--expose-gc vitest",
@@ -24,6 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "cross-env": "^10.1.0",
     "dts-bundle-generator": "^9.5.1",
     "esbuild": "^0.28.2",
     "happy-dom": "^20.11.2",

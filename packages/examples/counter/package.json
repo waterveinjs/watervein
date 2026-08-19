@@ -5,15 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:less": "cross-env VITE_STYLE_MODE=less vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@watervein/core": "workspace:*",
-    "@watervein/dom-core": "workspace:*",
-    "@watervein/dom": "workspace:*"
+    "@watervein/dom": "workspace:*",
+    "@watervein/dom-core": "workspace:*"
   },
   "devDependencies": {
+    "less": "^4.9.0",
     "vite": "^8.1.1"
   }
 }
