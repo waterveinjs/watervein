@@ -886,14 +886,17 @@ export const DestructionSystem = {
                     }
                 }
             }
+            const willFreeAll = (freeEntityIds.length + allTargetEntityIds.size) === ENTITY_COUNT;
             for (const eId of allTargetEntityIds) {
                 entityRegistry[eId] = undefined;
-                entityParentMap.delete(eId);
-                entityChildrenMap.delete(eId);
+                if (!willFreeAll) {
+                    entityParentMap.delete(eId);
+                    entityChildrenMap.delete(eId);
+                }
                 errorBoundaryRegistry.delete(eId);
                 freeEntityIds.push(eId);
             }
-            if (freeEntityIds.length === ENTITY_COUNT) {
+            if (willFreeAll) {
                 ENTITY_COUNT = 0;
                 freeEntityIds.length = 0;
                 entityRegistry.length = 0;
