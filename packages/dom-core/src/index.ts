@@ -202,7 +202,7 @@ export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
                     prevClasses = newClasses;
                 });
             } else {
-                const classes = String(item).trim().split(/\s+/);
+                const classes = item.trim().split(/\s+/);
                 for (let j = 0; j < classes.length; j++) {
                     if (classes[j]) el.classList.add(classes[j]);
                 }
