@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "clean": "rimraf packages/*/dist && find packages -path '*/src/*' \\( -name '*.js' -o -name '*.js.map' -o -name '*.d.ts' -o -name '*.d.ts.map' \\) -delete",
+    "clean": "rimraf packages/*/dist",
     "build": "pnpm run clean && pnpm --filter \"./packages/*\" run build",
     "bt": "pnpm build && pnpm test",
     "bench": "pnpm --filter @watervein/benchmark run dev",
