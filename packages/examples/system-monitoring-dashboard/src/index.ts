@@ -1,4 +1,4 @@
-import { createState, createCompute, createResource, write, read, UISystem, untrack } from '@watervein/core';
+import { createState, createCompute, createResource, write, read, untrack } from '@watervein/core';
 import { Show, For, mountToBody } from '@watervein/dom-core';
 import { button, div, h1, h3, p, section, span, strong } from '@watervein/dom';
 
@@ -143,7 +143,4 @@ setInterval(() => {
         
         write(processes, nextList);
     })
-
-    UISystem.flush();
-
 }, 100);

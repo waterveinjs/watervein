@@ -1,4 +1,4 @@
-import { createState, read, UISystem } from '@watervein/core';
+import { createState, read } from '@watervein/core';
 import { mountToHead, mountToBody } from '@watervein/dom-core';
 import { meta, title, div, h1, p } from '@watervein/dom';
 
@@ -24,4 +24,3 @@ const app = div({ class: "hello-container" }, [
 ]);
 
 mountToBody(app);
-UISystem.flush();

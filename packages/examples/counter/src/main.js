@@ -1,7 +1,10 @@
-import { createState, read, write, createEntity, withEntity, UISystem } from '@watervein/core';
-import { mountToHead, mountToBody, Show } from '@watervein/dom-core';
-import { meta, title, link, button, div, h2, span } from '@watervein/dom';
+import { createState, read, write, createEntity, withEntity } from '@watervein/core';
+import { mountToHead, mountToBody } from '@watervein/dom-core';
+import { meta, title, button, div, h2, span } from '@watervein/dom';
 
+/*
+ * Switch Styles Dynamically
+ */
 if (import.meta.env.VITE_STYLE_MODE === 'less') {
   import('../style.less');
 } else {
@@ -16,6 +19,20 @@ const headElements = [
 
 headElements.forEach(node => mountToHead(node));
 
+/**
+ * 
+ * @param initialValue The initial value of the counter
+ * @example 
+ * ```javascript
+ * const app = div({}, [
+ *   createCounter(0), 
+ *   createCounter(10) // The state of these two `createCounter` instances is maintained separately and is not shared.
+ * ]);
+ * ```
+ * 
+ * Use `createEntity` to generate a unique entity ID, and then use `withEntity` to associate it with state and elements.
+ * This approach allows you to achieve state isolation similar to that of components in React.
+ */
 function createCounter(initialValue = 0) {
   const entityId = createEntity();
 
@@ -24,12 +41,10 @@ function createCounter(initialValue = 0) {
 
     const increment = () => {
       write(count, read(count) + 1);
-      UISystem.flush();
     };
 
     const decrement = () => {
       write(count, read(count) - 1);
-      UISystem.flush();
     };
 
     return div({ class: "counter-box", style: { display: "flex", gap: "10px", alignItems: "center" } }, [
@@ -47,4 +62,3 @@ const app = div({}, [
 ]);
 
 mountToBody(app);
-UISystem.flush();

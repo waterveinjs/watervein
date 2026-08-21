@@ -1,4 +1,4 @@
-import { createState, createCompute, read, write, batch, UISystem } from '@watervein/core';
+import { createState, createCompute, read, write, batch } from '@watervein/core';
 import { For, mountToHead, mountToBody } from '@watervein/dom-core';
 import { meta, title, link, input, button, div, footer, span, label, li, ul, h1 } from '@watervein/dom';
 
@@ -47,18 +47,15 @@ const addTodo = () => {
     write(todos, [...current, { id: Date.now(), text: titleText, completed: false }]);
     write(newTitle, ""); 
   });
-  UISystem.flush();
 };
 
 const toggleTodo = (id: number) => {
   const updated = read(todos).map(t => t.id === id ? { ...t, completed: !t.completed } : t);
   write(todos, updated);
-  UISystem.flush();
 };
 
 const removeTodo = (id: number) => {
   write(todos, read(todos).filter(t => t.id !== id));
-  UISystem.flush();
 };
 
 const app = div({ style: { maxWidth: "400px", margin: "20px auto", fontFamily: "sans-serif" } }, [
@@ -106,12 +103,11 @@ const app = div({ style: { maxWidth: "400px", margin: "20px auto", fontFamily: "
     span({}, () => `${read(remainingCount)} items left`),
 
     div({ style: { display: "flex", gap: "5px" } }, [
-      button({ onclick: () => { write(filter, "all"); UISystem.flush(); } }, "All"),
-      button({ onclick: () => { write(filter, "active"); UISystem.flush(); } }, "Active"),
-      button({ onclick: () => { write(filter, "completed"); UISystem.flush(); } }, "Completed")
+      button({ onclick: () => { write(filter, "all"); } }, "All"),
+      button({ onclick: () => { write(filter, "active"); } }, "Active"),
+      button({ onclick: () => { write(filter, "completed"); } }, "Completed")
     ])
   ])
 ]);
 
 mountToBody(app);
-UISystem.flush();
