@@ -6,5 +6,8 @@ export default defineConfig({
     alias: {
       '@share': path.resolve(import.meta.dirname, '../.share')
     }
+  },
+  server: {
+        port: 3000
   }
 });
