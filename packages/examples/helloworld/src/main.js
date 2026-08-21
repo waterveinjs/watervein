@@ -1,6 +1,6 @@
 import { createState, read, UISystem } from '@watervein/core';
 import { mountToHead, mountToBody } from '@watervein/dom-core';
-import { meta, title, link, div, h1, p } from '@watervein/dom';
+import { meta, title, div, h1, p } from '@watervein/dom';
 
 if (import.meta.env.VITE_STYLE_MODE === 'less') {
   import('../style.less');
