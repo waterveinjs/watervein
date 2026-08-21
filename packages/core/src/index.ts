@@ -173,7 +173,8 @@ export type Node<T = any> = {
     subsHead:       number;
     depsHead:       number;
     pendingDeps:    (Node<any> | null)[] | null;
-    cleanups:       (() => void)[] | null;
+    cleanups:    ((arg?: any) => void)[] | null;
+    cleanupArgs: any[] | null;
 };
 
 export type ResourceResult<T> = {
@@ -265,7 +266,8 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         subsHead:       NULL_EDGE,
         depsHead:       NULL_EDGE,
         pendingDeps:    null,
-        cleanups:       null,
+        cleanups:    null,
+        cleanupArgs: null,
     };
 
     allNodes[node.id] = node;
@@ -680,6 +682,16 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
     const keyToSubs = new Map<number, number[]>();
     let prevId = untrack(() => read(sourceNode));
 
+    const removeSub = (pair: [number, number]) => {
+        const [id, nodeId] = pair;
+        const s = keyToSubs.get(id);
+        if (s) {
+            const idx = s.indexOf(nodeId);
+            if (idx !== -1) s.splice(idx, 1);
+            if (s.length === 0) keyToSubs.delete(id);
+        }
+    };
+
     createEffect(() => {
         const nextId = read(sourceNode);
         if (prevId === nextId) return;
@@ -717,14 +729,7 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
             if (!subs) keyToSubs.set(id, (subs = []));
             if (!subs.includes(trk.id)) {
                 subs.push(trk.id);
-                onCleanup(() => {
-                    const s = keyToSubs.get(id);
-                    if (s) {
-                        const idx = s.indexOf(trk.id);
-                        if (idx !== -1) s.splice(idx, 1);
-                        if (s.length === 0) keyToSubs.delete(id);
-                    }
-                });
+                onCleanup(removeSub, [id, trk.id]);
             }
         }
         return untrack(() => read(sourceNode)) === id;
@@ -970,11 +975,13 @@ export const DestructionSystem = {
         }
 
         if (node.cleanups !== null) {
-            const list = node.cleanups;
+            const fns = node.cleanups;
+            const args = node.cleanupArgs!;
             node.cleanups = null;
-            for (let i = 0; i < list.length; i++) {
+            node.cleanupArgs = null;
+            for (let i = 0; i < fns.length; i++) {
                 try {
-                    list[i]();
+                    fns[i](args[i]);
                 } catch (err) {
                     if (isDev) console.error(`[watervein] Error during onCleanup callback on node ${node.id}:`, err);
                 }
@@ -1282,9 +1289,15 @@ export function getDependencyCount(node: Node): number {
     return count;
 }
 
-export function onCleanup(fn: () => void): void {
+export function onCleanup(fn: () => void): void;
+export function onCleanup<T>(fn: (arg: T) => void, arg: T): void;
+export function onCleanup(fn: (arg?: any) => void, arg?: any): void {
     const node = currentTrackingNode;
     if (node === null) return;
-    if (node.cleanups === null) node.cleanups = [];
+    if (node.cleanups === null) {
+        node.cleanups = [];
+        node.cleanupArgs = [];
+    }
     node.cleanups.push(fn);
+    node.cleanupArgs!.push(arg);
 }
