@@ -173,6 +173,7 @@ export type Node<T = any> = {
     subsHead:       number;
     depsHead:       number;
     pendingDeps:    (Node<any> | null)[] | null;
+    cleanups:       (() => void)[] | null;
 };
 
 export type ResourceResult<T> = {
@@ -264,6 +265,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         subsHead:       NULL_EDGE,
         depsHead:       NULL_EDGE,
         pendingDeps:    null,
+        cleanups:       null,
     };
 
     allNodes[node.id] = node;
@@ -713,7 +715,17 @@ export function createSelector(sourceNode: Node<number>): (id: number) => boolea
         if (trk !== null) {
             let subs = keyToSubs.get(id);
             if (!subs) keyToSubs.set(id, (subs = []));
-            if (!subs.includes(trk.id)) subs.push(trk.id);
+            if (!subs.includes(trk.id)) {
+                subs.push(trk.id);
+                onCleanup(() => {
+                    const s = keyToSubs.get(id);
+                    if (s) {
+                        const idx = s.indexOf(trk.id);
+                        if (idx !== -1) s.splice(idx, 1);
+                        if (s.length === 0) keyToSubs.delete(id);
+                    }
+                });
+            }
         }
         return untrack(() => read(sourceNode)) === id;
     };
@@ -954,6 +966,18 @@ export const DestructionSystem = {
                 (node.value as () => void)();
             } catch (err) {
                 console.error(`[watervein] Error during effect cleanup on node ${node.id}:`, err);
+            }
+        }
+
+        if (node.cleanups !== null) {
+            const list = node.cleanups;
+            node.cleanups = null;
+            for (let i = 0; i < list.length; i++) {
+                try {
+                    list[i]();
+                } catch (err) {
+                    if (isDev) console.error(`[watervein] Error during onCleanup callback on node ${node.id}:`, err);
+                }
             }
         }
 
@@ -1256,4 +1280,11 @@ export function getDependencyCount(node: Node): number {
         edgeId = edgeNextDep[edgeId];
     }
     return count;
+}
+
+export function onCleanup(fn: () => void): void {
+    const node = currentTrackingNode;
+    if (node === null) return;
+    if (node.cleanups === null) node.cleanups = [];
+    node.cleanups.push(fn);
 }
