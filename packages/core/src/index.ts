@@ -842,6 +842,13 @@ export const DestructionSystem = {
                 }
             }
             entityRegistry[entityId] = undefined;
+            const parentId = entityParentMap.get(entityId);
+            if (parentId !== undefined && parentId !== null) {
+                const parentChildren = entityChildrenMap.get(parentId);
+                if (parentChildren) {
+                    parentChildren.delete(entityId);
+                }
+            }
             entityParentMap.delete(entityId);
             entityChildrenMap.delete(entityId);
             errorBoundaryRegistry.delete(entityId);
