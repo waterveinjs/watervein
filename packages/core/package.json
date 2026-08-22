@@ -3,7 +3,7 @@
   "version": "0.1.54-dev.0",
   "description": "Watervein core package",
   "author": "KoHaRxnP",
-  "license": "MIT",
+  "license": "(MIT OR Apache-2.0)",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

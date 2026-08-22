@@ -119,4 +119,10 @@ graph TD
 2. **True Componentless Lifecycles**: Since there are no nested class-based components, lifecycle teardown happens directly through `@watervein/core`'s entity registry. When a keyed row is removed, its entity is destroyed and every dependent node/edge is pruned from the reactive graph in the same pass.
 
 ## License
-MIT License.
+
+This project is licensed under either of:
+
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.

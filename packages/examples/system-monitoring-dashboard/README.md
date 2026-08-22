@@ -51,4 +51,10 @@ const getRowCpu = () => {
 3. Because the child element uses the evaluation lambda `getRowCpu` directly, text changes on existing rows happen inside highly localized target text mutations—without causing widespread canvas layouts or parent element destruction loops.
 
 ## License
-MIT License. Built with passion for maximum speed.
+
+This project is licensed under either of:
+
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.

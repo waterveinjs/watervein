@@ -96,4 +96,10 @@ graph TD
 By adding a dedicated DSL layer, Watervein protects runtime performance while offering clean developer aesthetics. It checks for reactive boundary nodes (via `isNode`) upfront, avoiding parsing loops when `dom-core` begins binding side-effects to the real tree.
 
 ## License
-MIT License. Built with passion for maximum speed.
+
+This project is licensed under either of:
+
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.

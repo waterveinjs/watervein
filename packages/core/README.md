@@ -116,4 +116,10 @@ graph TD
 `flush()` does not currently isolate exceptions between nodes. If a `compute` or `effect` throws during a flush pass, the exception propagates out of `flush()`, and any remaining dirty nodes scheduled for that pass are left unprocessed until the next `write()` re-triggers them (if it does). There is no error-boundary mechanism at the core level yet. If your `compute`/`effect` callbacks can throw, wrap the risky part in your own `try/catch` for now.
 
 ## License
-MIT License.
+
+This project is licensed under either of:
+
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.

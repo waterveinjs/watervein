@@ -13,5 +13,6 @@
   "devDependencies": {
     "typescript": "^5.0.0",
     "vite": "^8.2.1"
-  }
+  },
+  "license": "(MIT OR Apache-2.0)"
 }
