@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { createState, createCompute, read, write, batch } from '@watervein/core';
 import { For, mountToHead, mountToBody } from '@watervein/dom-core';
 import { meta, title, link, input, button, div, footer, span, label, li, ul, h1 } from '@watervein/dom';

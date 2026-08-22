@@ -65,24 +65,24 @@ export function initCapacity(options: { edgeCapacity?: number }): void {
     edgePoolInitialized = true;
 }
 
+function expandInt32<T extends ArrayBufferLike>(old: Int32Array<T>, newCap: number): Int32Array<T> {
+    const n = new Int32Array(newCap) as Int32Array<T>;
+    n.set(old);
+    return n;
+}
+
 function ensureEdgeCapacity(minCapacity: number) {
     edgePoolInitialized = true;
     if (minCapacity < edgeCapacity) return;
     let newCap = edgeCapacity + (edgeCapacity >> 1) + 1;
     while (newCap <= minCapacity) newCap += (newCap >> 1) + 1;
 
-    const expandInt32 = (old: Int32Array) => {
-        const n = new Int32Array(newCap);
-        n.set(old);
-        return n;
-    };
-
-    edgeDep     = expandInt32(edgeDep);
-    edgeSub     = expandInt32(edgeSub);
-    edgeNextSub = expandInt32(edgeNextSub);
-    edgePrevSub = expandInt32(edgePrevSub);
-    edgeNextDep = expandInt32(edgeNextDep);
-    edgePrevDep = expandInt32(edgePrevDep);
+    edgeDep     = expandInt32(edgeDep, newCap);
+    edgeSub     = expandInt32(edgeSub, newCap);
+    edgeNextSub = expandInt32(edgeNextSub, newCap);
+    edgePrevSub = expandInt32(edgePrevSub, newCap);
+    edgeNextDep = expandInt32(edgeNextDep, newCap);
+    edgePrevDep = expandInt32(edgePrevDep, newCap);
 
     edgeCapacity = newCap;
 }
@@ -923,21 +923,21 @@ export const DestructionSystem = {
                 }
             }
             const willFreeAll = (freeEntityIds.length + allTargetEntityIds.size) === ENTITY_COUNT;
-            for (const eId of allTargetEntityIds) {
-                entityRegistry[eId] = undefined;
-                if (!willFreeAll) {
-                    entityParentMap.delete(eId);
-                    entityChildrenMap.delete(eId);
-                }
-                errorBoundaryRegistry.delete(eId);
-                freeEntityIds.push(eId);
-            }
             if (willFreeAll) {
                 ENTITY_COUNT = 0;
                 freeEntityIds.length = 0;
                 entityRegistry.length = 0;
                 entityChildrenMap = new Map();
                 entityParentMap = new Map();
+                errorBoundaryRegistry.clear();
+            } else {
+                for (const eId of allTargetEntityIds) {
+                    entityRegistry[eId] = undefined;
+                    entityParentMap.delete(eId);
+                    entityChildrenMap.delete(eId);
+                    errorBoundaryRegistry.delete(eId);
+                    freeEntityIds.push(eId);
+                }
             }
             let hasRemainingDirty = false;
             for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
