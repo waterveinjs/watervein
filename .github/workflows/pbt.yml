@@ -1,0 +1,63 @@
+name: PBT
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Haskell
+      uses: haskell-actions/setup@v2
+      with:
+        ghc-version: '9.10.3'
+        cabal-version: '3.16.1.0'
+
+    - name: Cache cabal dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cabal/packages
+          ~/.cabal/store
+          dist-newstyle
+        key: ${{ runner.os }}-cabal-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project*') }}
+        restore-keys: |
+          ${{ runner.os }}-cabal-
+
+    - name: Update Cabal and Install Haskell dependencies
+      run: |
+        cabal update
+        cabal build --only-dependencies --enable-tests
+
+    - name: Build Haskell project
+      run: cabal build --enable-tests
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 11
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'pnpm'
+
+    - name: Install Node dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Run dowse:s:loop
+      run: pnpm dowse:s:loop
+
+    - name: Run dowse:ddg:loop
+      run: pnpm dowse:ddg:loop
