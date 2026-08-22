@@ -23,6 +23,12 @@ jobs:
       uses: haskell-actions/setup@v2
       with:
         ghc-version: '9.10.3'
+        cabal-version: 'latest'
+
+    - name: Install Haskell Dependencies
+      run: |
+        cabal update
+        cabal install --lib aeson QuickCheck process containers bytestring --package-env .
 
     - name: Install pnpm
       uses: pnpm/action-setup@v4
