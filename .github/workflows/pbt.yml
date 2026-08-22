@@ -44,6 +44,9 @@ jobs:
     - name: Install Node dependencies
       run: pnpm install --frozen-lockfile
 
+    - name: Build packages
+      run: pnpm build
+
     - name: Run dowse:s:loop
       run: pnpm dowse:s:loop
 
