@@ -1,19 +1,5 @@
-type MaybeProcess = { env?: { NODE_ENV?: string } } | undefined;
-
-export const isDev: boolean = (() => {
-    try {
-        if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-            return !!(import.meta as any).env.DEV;
-        }
-    } catch {}
-    try {
-        const proc = (globalThis as any).process as MaybeProcess;
-        if (typeof proc !== 'undefined' && proc?.env) {
-            return proc.env.NODE_ENV !== 'production';
-        }
-    } catch {}
-    return true;
-})();
+declare const __DEV__: boolean;
+export const isDev: boolean = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
 
 export const NODE_TYPE_STATE   = 0;
 export const NODE_TYPE_COMPUTE = 1;

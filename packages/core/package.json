@@ -5,13 +5,15 @@
   "author": "KoHaRxnP",
   "license": "(MIT OR Apache-2.0)",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
+  "main": "./dist/index.prod.js",
+  "module": "./dist/index.prod.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "development": "./dist/index.dev.js",
+      "production": "./dist/index.prod.js",
+      "default": "./dist/index.prod.js"
     }
   },
   "files": [
@@ -19,8 +21,9 @@
     "README.md"
   ],
   "scripts": {
-    "build": "pnpm build:js && pnpm build:types",
-    "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --platform=browser --external:@watervein/* --minify-whitespace --minify-identifiers --legal-comments=none --drop:debugger --target=es2022",
+    "build": "pnpm build:js-dev && pnpm build:js-prod && pnpm build:types",
+    "build:js-dev": "esbuild src/index.ts --bundle --outfile=dist/index.dev.js --format=esm --platform=browser --external:@watervein/* --define:__DEV__=true --target=es2022",
+    "build:js-prod": "esbuild src/index.ts --bundle --outfile=dist/index.prod.js --format=esm --platform=browser --external:@watervein/* --define:__DEV__=false --minify-whitespace --minify-identifiers --legal-comments=none --drop:debugger --target=es2022",
     "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check",
     "prepublishOnly": "pnpm build"
   },

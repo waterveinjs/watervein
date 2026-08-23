@@ -2,7 +2,7 @@
 
 import { createState, createCompute, read, write, batch } from '@watervein/core';
 import { For, mountToHead, mountToBody } from '@watervein/dom-core';
-import { meta, title, link, input, button, div, footer, span, label, li, ul, h1 } from '@watervein/dom';
+import { meta, title, input, button, div, footer, span, label, li, ul, h1 } from '@watervein/dom';
 
 if (import.meta.env.VITE_STYLE_MODE === 'less') {
   import('../style.less');
