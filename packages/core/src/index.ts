@@ -150,6 +150,7 @@ export type Node<T = any> = {
     ft:           number;
     id:             number;
     depth:          number;
+    scheduledDepth: number;
     watchedVersion: number;
     bucketIdx:      number;
     pendingDepsLen: number;
@@ -242,6 +243,7 @@ function createNode<T>(type: number, value: T, compute: (() => T) | null = null)
         ft:             type << TYPE_SHIFT,
         id:             id,
         depth:          0,
+        scheduledDepth: -1,
         watchedVersion: -1,
         bucketIdx:      -1,
         pendingDepsLen: 0,
@@ -441,10 +443,9 @@ function scheduleNode(node: Node) {
     if ((node.ft & FLAG_DIRTY) !== 0) return;
     node.ft |= FLAG_DIRTY;
     const d = node.depth;
-    while (d >= buckets.length) {
-        buckets.push([]);
-    }
+    while (d >= buckets.length) buckets.push([]);
     node.bucketIdx = buckets[d].length;
+    node.scheduledDepth = d;
     buckets[d].push(node);
     if (d < minDirtyDepth) minDirtyDepth = d;
     if (d > maxDirtyDepth) maxDirtyDepth = d;
@@ -721,6 +722,9 @@ export function read<T>(node: Node<T>): T {
     if (isDev && !isNode(node)) {
         throw new Error('[watervein] read() was called with a value that is not a reactive Node.');
     }
+    if (isDev && (node.ft & FLAG_DISPOSED) !== 0) {
+        console.warn(`[watervein] read() called on a disposed node. Returning stale value.`);
+    }
     const trk = currentTrackingNode;
     if (trk !== null && trk !== node) {
         if (trk.pendingDeps === null) {
@@ -819,6 +823,7 @@ function collectRecursively(
 
 export const DestructionSystem = {
     destroyEntity(entityId: number) {
+        if (entityRegistry[entityId] === undefined) return;
         const children = entityChildrenMap.get(entityId);
         if (!children || children.size === 0) {
             const nodes = entityRegistry[entityId];
@@ -845,6 +850,7 @@ export const DestructionSystem = {
     },
 
     destroyEntities(entityIds: number[]) {
+        entityIds = entityIds.filter(id => entityRegistry[id] !== undefined);
         const len = entityIds.length;
         if (len === 0) return;
 
@@ -993,17 +999,16 @@ export const DestructionSystem = {
         }
 
         if (node.bucketIdx !== -1) {
-            const bucket = buckets[node.depth];
+            const bucket = buckets[node.scheduledDepth];
             const idx = node.bucketIdx;
             if (bucket && idx < bucket.length) {
                 const last = bucket[bucket.length - 1];
                 bucket[idx] = last;
-                if (last) {
-                    last.bucketIdx = idx;
-                }
+                if (last) last.bucketIdx = idx;
                 bucket.pop();
             }
             node.bucketIdx = -1;
+            node.scheduledDepth = -1;
         }
 
         node.ft &= ~FLAG_DIRTY;
