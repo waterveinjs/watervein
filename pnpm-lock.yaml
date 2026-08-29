@@ -48,6 +48,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  dowsing/map:
+    dependencies:
+      '@watervein/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   dowsing/s:
     dependencies:
       '@watervein/core':
