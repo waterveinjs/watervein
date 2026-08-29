@@ -1,7 +1,7 @@
 ![Watervein Logo](https://github.com/waterveinjs.png)
 
 [![npm version](https://badge.fury.io/js/%40watervein%2Fcore.svg)](https://www.npmjs.com/package/@watervein/core)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT or Apache2.0](https://img.shields.io/badge/license-MIT_or_Apache2.0-blue.svg)](https://github.com/waterveinjs/watervein#license)
 
 # Watervein
 
