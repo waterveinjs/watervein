@@ -1,12 +1,12 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const packagesDir = path.resolve(__dirname, '../packages');
 const folders = fs.readdirSync(packagesDir);
 
 let hasError = false;
 
-folders.forEach(folder => {
+folders.forEach((folder) => {
   const pkgPath = path.join(packagesDir, folder, 'package.json');
   if (!fs.existsSync(pkgPath)) return;
 
@@ -17,7 +17,9 @@ folders.forEach(folder => {
     if (!filePath) return;
     const resolved = path.resolve(packagesDir, folder, filePath);
     if (!fs.existsSync(resolved)) {
-      console.error(`[${folder}] Field "${key}" points to missing file: ${filePath}`);
+      console.error(
+        `[${folder}] Field "${key}" points to missing file: ${filePath}`,
+      );
       hasError = true;
     }
   };

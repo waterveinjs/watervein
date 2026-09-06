@@ -1,19 +1,16 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const packagesDir = path.resolve(__dirname, '../packages');
 const folders = fs.readdirSync(packagesDir);
 
-const ignoreFolders = [
-    'benchmark',
-    'example'
-]; 
+const ignoreFolders = ['benchmark', 'example'];
 
 let hasError = false;
 
 console.log('Verifying package.json configurations...\n');
 
-folders.forEach(folder => {
+folders.forEach((folder) => {
   if (ignoreFolders.includes(folder)) return;
 
   const pkgPath = path.join(packagesDir, folder, 'package.json');
@@ -27,7 +24,7 @@ folders.forEach(folder => {
   }
 
   const requiredFields = ['name', 'version', 'main', 'types'];
-  requiredFields.forEach(field => {
+  requiredFields.forEach((field) => {
     if (!pkg[field]) {
       console.error(`Missing "${field}" in packages/${folder}/package.json`);
       hasError = true;

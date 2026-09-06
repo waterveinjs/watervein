@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const targetFiles = [
   './packages/core/package.json',
@@ -61,14 +61,16 @@ if (semverRegex.test(inputArg)) {
 
     default:
       console.error(`ERROR: Invalid argument "${inputArg}"`);
-      console.error(`USAGE: node scripts/bump.js [patch | minor | major | dev | <version>]`);
+      console.error(
+        `USAGE: node scripts/bump.js [patch | minor | major | dev | <version>]`,
+      );
       process.exit(1);
   }
 }
 
 console.log(`Updating version: ${currentVersion} -> ${nextVersion}`);
 
-targetFiles.forEach(relPath => {
+targetFiles.forEach((relPath) => {
   const fullPath = path.resolve(__dirname, '..', relPath);
   if (fs.existsSync(fullPath)) {
     const pkg = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
