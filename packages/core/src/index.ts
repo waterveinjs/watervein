@@ -1254,7 +1254,7 @@ export function mapEntity<T>(
   });
 }
 
-export function isNode(value: unknown): value is Node<any> {
+export function isNode(value: unknown): value is Node<unknown> {
   return (value as any)?.__wv === WV_NODE_TAG;
 }
 
@@ -1285,15 +1285,21 @@ export function getCurrentEntityId(): number | null {
 const WV_HANDLERS = Symbol('wv-handlers');
 const attachedEventTypesByDoc = new WeakMap<Document, Set<string>>();
 
+declare global {
+  interface HTMLElement {
+    [WV_HANDLERS]?: Record<string, EventListener>;
+  }
+}
+
 export function registerHandler(
   el: HTMLElement,
   eventName: string,
   handler: EventListener,
 ) {
-  let handlers = (el as any)[WV_HANDLERS];
+  let handlers = el[WV_HANDLERS];
   if (!handlers) {
-    handlers = Object.create(null);
-    (el as any)[WV_HANDLERS] = handlers;
+    handlers = Object.create(null) as Record<string, EventListener>;
+    el[WV_HANDLERS] = handlers;
   }
   handlers[eventName] = handler;
 
@@ -1312,12 +1318,12 @@ export function registerHandler(
 export function handleDelegatedEvent(e: Event) {
   let target = e.target as HTMLElement | null;
   while (target) {
-    const handlers = (target as any)[WV_HANDLERS];
+    const handlers = target[WV_HANDLERS];
     if (handlers) {
       const handler = handlers[e.type];
       if (handler) {
         handler(e);
-        if ((e as any).cancelBubble) return;
+        if (e.cancelBubble) return;
       }
     }
     target = target.parentElement;
