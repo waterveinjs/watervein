@@ -157,10 +157,13 @@ function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
 
     if (styleValue === undefined || styleValue === null) continue;
 
+    const isCssVar =
+      styleKey.charCodeAt(0) === 45 && styleKey.charCodeAt(1) === 45;
+
     if (typeof styleValue === 'function' || isWvNode(styleValue)) {
       createEffect(() => {
         const computedValue = String(unwrap(styleValue));
-        if (styleKey.charCodeAt(0) === 45 && styleKey.charCodeAt(1) === 45) {
+        if (isCssVar) {
           el.style.setProperty(styleKey, computedValue);
         } else {
           elStyle[styleKey] = computedValue;
@@ -168,7 +171,7 @@ function applyReactiveStyle(el: HTMLElement, styleObj: ReactiveStyle) {
       });
     } else {
       const staticValue = String(styleValue);
-      if (styleKey.charCodeAt(0) === 45 && styleKey.charCodeAt(1) === 45) {
+      if (isCssVar) {
         el.style.setProperty(styleKey, staticValue);
       } else {
         elStyle[styleKey] = staticValue;

@@ -374,19 +374,10 @@ describe('Watervein Core - createResource', () => {
     UISystem.flush();
 
     expect(read(resource).data).toBe('data');
-    const savedNodeId = resource.id;
 
     DestructionSystem.destroyEntity(entityId);
 
-    expect(() => {
-      const deletedNode = (UISystem as any)._allNodes
-        ? (UISystem as any)._allNodes[savedNodeId]
-        : null;
-      if (deletedNode) {
-        expect(deletedNode.id).toBe(-1);
-      }
-    });
-
+    expect(resource.id).toBe(-1);
     expect(resource.subsHead).toBe(-1);
     expect(resource.depsHead).toBe(-1);
   });
