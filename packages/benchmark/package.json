@@ -11,7 +11,7 @@
     "@watervein/dom": "workspace:*"
   },
   "devDependencies": {
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   },
   "license": "(MIT OR Apache-2.0)"
 }
