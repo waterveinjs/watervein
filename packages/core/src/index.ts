@@ -1108,8 +1108,8 @@ export function matchEntity(
 }
 
 const DESTROY_BUF: number[] = [];
-const SET_BUF = new Set<any>();
-const TEMP_MAP = new Map<any, any>();
+const SET_BUF = new Set<unknown>();
+const TEMP_MAP = new Map<unknown, any>();
 
 function destroyBuf() {
   if (DESTROY_BUF.length > 0) {
