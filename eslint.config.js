@@ -22,7 +22,6 @@ export default defineConfig(
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
-
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -33,6 +32,13 @@ export default defineConfig(
         { prefer: 'type-imports' },
       ],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/strict-boolean-expressions': 'warn',
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      'no-useless-catch': 'error',
+      '@typescript-eslint/require-array-sort-compare': 'warn',
     },
   },
 
