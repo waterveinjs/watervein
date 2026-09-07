@@ -139,9 +139,9 @@ function getLISInPlace(
 }
 
 type SharedScratch = {
-  keyIdxMap: Map<any, number>;
+  keyIdxMap: Map<unknown, number>;
   srcBuf: Int32Array;
-  keysBuf: any[];
+  keysBuf: unknown[];
 };
 
 const SCRATCH_POOLS: SharedScratch[] = [];
@@ -169,8 +169,8 @@ export function For<T>(
   keyFn: (item: T) => any,
   renderFn: (getItem: () => T) => HTMLElement,
 ): ForHandle {
-  const cacheA = new Map<any, Entry<T>>();
-  const cacheB = new Map<any, Entry<T>>();
+  const cacheA = new Map<unknown, Entry<T>>();
+  const cacheB = new Map<unknown, Entry<T>>();
   let isA = true;
 
   const marker = document.createComment('wv-for');
@@ -178,7 +178,7 @@ export function For<T>(
   let initialFragment: DocumentFragment | null =
     document.createDocumentFragment();
 
-  let oldKeys: any[] = [];
+  let oldKeys: unknown[] = [];
   let oldLen = 0;
   let entityCache = cacheA;
   let disposed = false;

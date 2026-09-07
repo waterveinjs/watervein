@@ -16,7 +16,7 @@ export function errorBoundary(
   const boundaryEntityId = createEntity();
 
   return withEntity(boundaryEntityId, () => {
-    const errorState = createState<any | null>(null);
+    const errorState = createState<unknown | null>(null);
 
     const wrapper = document.createElement('div');
     wrapper.style.display = 'contents';

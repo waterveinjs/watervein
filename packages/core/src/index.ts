@@ -551,7 +551,7 @@ function handleFlushError(node: Node, err: any) {
   }
 
   let currentSearchId: number | null = node.entityId;
-  let handler: ((err: any) => void) | undefined = undefined;
+  let handler: ((err: unknown) => void) | undefined = undefined;
 
   while (currentSearchId !== null) {
     if (errorBoundaryRegistry.has(currentSearchId)) {
@@ -1128,7 +1128,7 @@ export function mapEntity<T>(
   renderFn: (key: any, getItem: () => T, getIndex: () => number) => void,
 ) {
   const entityCache = new Map<
-    any,
+    unknown,
     { entityId: number; itemNode: Node<T>; indexNode: Node<number> }
   >();
   let prevList: T[] = [];
@@ -1330,11 +1330,11 @@ export function handleDelegatedEvent(e: Event) {
   }
 }
 
-const errorBoundaryRegistry = new Map<number, (err: any) => void>();
+const errorBoundaryRegistry = new Map<number, (err: unknown) => void>();
 
 export function registerErrorBoundary(
   entityId: number,
-  handler: (err: any) => void,
+  handler: (err: unknown) => void,
 ) {
   errorBoundaryRegistry.set(entityId, handler);
 }
