@@ -15,7 +15,7 @@
     "@watervein/dom-core": "workspace:*"
   },
   "devDependencies": {
-    "less": "^4.9.0",
+    "less": "^4.9.1",
     "vite": "^8.2.2"
   },
   "license": "(MIT OR Apache-2.0)"
