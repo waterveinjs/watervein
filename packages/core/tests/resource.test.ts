@@ -185,7 +185,7 @@ describe('Watervein Core - createResource', () => {
     expect(read(resource).loading).toBe(true);
     expect(read(resource).data).toBe('first-data');
 
-    resolveSecond!('second-data');
+    resolveSecond('second-data');
     await Promise.resolve();
     await Promise.resolve();
 
