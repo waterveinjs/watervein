@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "less": "^4.9.1",
-    "vite": "^8.3.2"
+    "vite": "^8.3.3"
   },
   "license": "(MIT OR Apache-2.0)"
 }
