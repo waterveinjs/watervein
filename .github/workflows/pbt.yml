@@ -52,3 +52,9 @@ jobs:
 
     - name: Run dowse:ddg:loop
       run: pnpm dowse:ddg:loop
+
+    - name: Run dowse:entity:loop
+      run: pnpm dowse:entity:loop
+
+    - name: Run dowse:map:loop
+      run: pnpm dowse:map:loop
