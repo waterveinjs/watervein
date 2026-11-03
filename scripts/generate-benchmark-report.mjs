@@ -68,7 +68,7 @@ const html = [
 '<footer id="footer"></footer></main><script>',
 "const DATA="+data+";",
 'const $=id=>document.getElementById(id);const fmt=n=>Number.isFinite(n)?n.toFixed(2):"—";',
-'const esc=s=>String(s).replace(/[&<>"\\']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;","\\\'":"&#39;"}[c]));',
+'const esc=s=>String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");',
 '$("meta").innerHTML=[["Generated",DATA.metadata.generatedAt],["Commit",DATA.metadata.commit.slice(0,12)],["Browser",DATA.metadata.browser],["Benchmark revision",DATA.metadata.benchmarkRevision.slice(0,12)]].map(x=>\'<span class="pill"><b>\'+esc(x[0])+":</b> "+esc(x[1])+"</span>").join("");',
 '$("coverage").innerHTML=DATA.coverage.map(x=>\'<span class="pill \'+(x.count?"good":"missing")+\'">\'+esc(x.name)+": "+x.count+" results</span>").join("");',
 '$("footer").textContent=DATA.records.length+" result files · "+DATA.records.filter(x=>x.type==="cpu").length+" CPU · "+DATA.records.filter(x=>x.type==="memory").length+" memory · "+DATA.records.filter(x=>x.type==="size").length+" size/paint records";',
