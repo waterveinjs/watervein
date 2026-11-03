@@ -121,6 +121,21 @@ jobs:
           npm run install-server
           npm run install-webdriver-ts-results
 
+      - name: Start benchmark server
+        working-directory: js-framework-benchmark
+        shell: bash
+        run: |
+          npm run start > "$RUNNER_TEMP/js-framework-benchmark-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/js-framework-benchmark-server.pid"
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8080/ls > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/js-framework-benchmark-server.log"
+          exit 1
+
       - name: Build comparison framework implementations
         working-directory: js-framework-benchmark
         shell: bash
@@ -180,21 +195,6 @@ jobs:
             exit 1
           fi
           echo "CHROME_BINARY=$CHROME_BINARY" >> "$GITHUB_ENV"
-
-      - name: Start benchmark server
-        working-directory: js-framework-benchmark
-        shell: bash
-        run: |
-          npm run start > "$RUNNER_TEMP/js-framework-benchmark-server.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/js-framework-benchmark-server.pid"
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent http://localhost:8080/ls > /dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          cat "$RUNNER_TEMP/js-framework-benchmark-server.log"
-          exit 1
 
       - name: Run comparison benchmark smoke checks
         working-directory: js-framework-benchmark
