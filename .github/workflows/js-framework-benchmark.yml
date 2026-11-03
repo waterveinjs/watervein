@@ -120,6 +120,10 @@ jobs:
           npm run install-webdriver-ts
           npm run install-server
 
+      - name: Validate HTML report generator
+        working-directory: watervein
+        run: node --check scripts/generate-benchmark-report.mjs
+
       - name: Build comparison framework implementations
         working-directory: js-framework-benchmark
         shell: bash
