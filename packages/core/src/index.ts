@@ -541,7 +541,7 @@ function forceCleanupBuckets() {
   }
 }
 
-function handleFlushError(node: Node, err: any) {
+function handleFlushError(node: Node, err: unknown) {
   if (isDev) {
     console.error(
       `[watervein-error] Exception caught during flush (Node ID: ${node.id}, Type: ${node.ft >>> TYPE_SHIFT}).\n` +
@@ -1255,7 +1255,7 @@ export function mapEntity<T>(
 }
 
 export function isNode(value: unknown): value is Node<unknown> {
-  return (value as any)?.__wv === WV_NODE_TAG;
+  return (value as { __wv: number })?.__wv === WV_NODE_TAG;
 }
 
 export function batch(fn: () => void) {

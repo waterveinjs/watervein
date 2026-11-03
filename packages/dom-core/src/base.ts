@@ -65,12 +65,12 @@ export function Show(
 
 type Entry<T> = { entityId: number; dom: HTMLElement; itemNode: WvNode<T> };
 
-function destroyEntry(entry: Entry<any>) {
+function destroyEntry(entry: Entry<unknown>) {
   entry.dom.remove();
   return entry.entityId;
 }
 
-function destroyCache(cache: Map<any, Entry<any>>) {
+function destroyCache(cache: Map<unknown, Entry<unknown>>) {
   if (cache.size === 0) return;
   const ids: number[] = [];
   cache.forEach((entry) => ids.push(destroyEntry(entry)));
@@ -368,7 +368,7 @@ export function For<T>(
   const res = initialFragment;
   initialFragment = null;
   return {
-    fragment: res!,
+    fragment: res,
     unmount() {
       disposed = true;
       if (marker.parentNode) marker.remove();
