@@ -110,7 +110,7 @@ jobs:
 
       - name: Install benchmark root dependencies
         working-directory: js-framework-benchmark
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --legacy-peer-deps
 
       - name: Install benchmark runner dependencies
         working-directory: js-framework-benchmark
