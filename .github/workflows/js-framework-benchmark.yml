@@ -1,0 +1,149 @@
+name: js-framework-benchmark
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watervein-benchmark-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Watervein benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout watervein
+        uses: actions/checkout@v4
+        with:
+          path: watervein
+          persist-credentials: false
+
+      - name: Checkout js-framework-benchmark
+        uses: actions/checkout@v4
+        with:
+          repository: waterveinjs/js-framework-benchmark
+          ref: master
+          path: js-framework-benchmark
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: watervein/pnpm-lock.yaml
+
+      - name: Install watervein dependencies
+        working-directory: watervein
+        run: pnpm install --frozen-lockfile
+
+      - name: Build watervein packages
+        working-directory: watervein
+        run: pnpm build
+
+      - name: Pack local watervein packages
+        working-directory: watervein
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK_DIR="$RUNNER_TEMP/watervein-packages"
+          mkdir -p "$PACK_DIR"
+          for package in core dom-core dom; do
+            (cd "packages/$package" && npm pack --pack-destination "$PACK_DIR")
+          done
+          echo "WATERVEIN_PACK_DIR=$PACK_DIR" >> "$GITHUB_ENV"
+
+      - name: Install benchmark dependencies against local watervein build
+        working-directory: js-framework-benchmark/frameworks/keyed/watervein
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+
+          const packagePath = path.resolve("package.json");
+          const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+          const packDir = process.env.WATERVEIN_PACK_DIR;
+          const packages = {
+            "@watervein/core": "watervein-core-*.tgz",
+            "@watervein/dom-core": "watervein-dom-core-*.tgz",
+            "@watervein/dom": "watervein-dom-*.tgz",
+          };
+
+          for (const [name, pattern] of Object.entries(packages)) {
+            const prefix = pattern.replace("*", "");
+            const file = fs.readdirSync(packDir).find((entry) =>
+              entry.startsWith(prefix) && entry.endsWith(".tgz")
+            );
+            if (!file) throw new Error(`Missing packed package for ${name}`);
+            pkg.dependencies[name] = `file:${path.join(packDir, file)}`;
+          }
+
+          fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + "\n");
+          NODE
+          npm install --no-package-lock
+
+      - name: Build benchmark application
+        working-directory: js-framework-benchmark/frameworks/keyed/watervein
+        run: npm run build-prod
+
+      - name: Install benchmark runner dependencies
+        working-directory: js-framework-benchmark
+        run: |
+          npm run install-webdriver-ts
+          npm run install-server
+
+      - name: Install Playwright Chromium
+        working-directory: js-framework-benchmark/webdriver-ts
+        run: npx playwright install --with-deps chromium
+
+      - name: Start benchmark server
+        working-directory: js-framework-benchmark
+        shell: bash
+        run: |
+          npm run start > "$RUNNER_TEMP/js-framework-benchmark-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/js-framework-benchmark-server.pid"
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8080/ls > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/js-framework-benchmark-server.log"
+          exit 1
+
+      - name: Run Watervein benchmark smoke checks
+        working-directory: js-framework-benchmark
+        run: |
+          npm run bench -- --runner playwright --headless true --smoketest true keyed/watervein
+          npm run isKeyed -- --runner playwright --headless true keyed/watervein
+          npm run checkCSP -- --headless true keyed/watervein
+
+      - name: Run Watervein benchmarks
+        working-directory: js-framework-benchmark
+        run: npm run bench -- --runner playwright --headless true keyed/watervein
+
+      - name: Upload benchmark results and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watervein-js-framework-benchmark-${{ github.sha }}
+          path: |
+            js-framework-benchmark/webdriver-ts/results/
+            ${{ runner.temp }}/js-framework-benchmark-server.log
+          if-no-files-found: warn
+          retention-days: 30
