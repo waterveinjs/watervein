@@ -108,6 +108,10 @@ jobs:
         working-directory: js-framework-benchmark/frameworks/keyed/watervein
         run: npm run build-prod
 
+      - name: Install benchmark root dependencies
+        working-directory: js-framework-benchmark
+        run: npm ci --ignore-scripts
+
       - name: Install benchmark runner dependencies
         working-directory: js-framework-benchmark
         run: |
@@ -137,7 +141,7 @@ jobs:
         working-directory: js-framework-benchmark
         run: |
           npm run bench -- --runner playwright --headless true --smoketest true keyed/watervein
-          npm run isKeyed -- --runner playwright --headless true keyed/watervein
+          npm --prefix webdriver-ts run isKeyed -- --runner playwright --headless true keyed/watervein
           npm run checkCSP -- --headless true keyed/watervein
 
       - name: Run Watervein benchmarks
