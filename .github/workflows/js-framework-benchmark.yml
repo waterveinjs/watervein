@@ -22,6 +22,16 @@ jobs:
     env:
       BENCHMARK_FRAMEWORKS: "keyed/vanillajs keyed/vanjs keyed/react-hooks keyed/preact-hooks keyed/mikado keyed/vue keyed/solid keyed/svelte keyed/watervein"
     steps:
+      - name: Show runner resources
+        shell: bash
+        run: |
+          echo "=== CPU ==="
+          lscpu
+          echo "=== Logical CPUs ==="
+          nproc
+          echo "=== Memory ==="
+          free -h
+
       - name: Checkout watervein
         uses: actions/checkout@v4
         with:
