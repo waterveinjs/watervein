@@ -18,7 +18,9 @@ jobs:
   benchmark:
     name: Watervein benchmark
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
+    env:
+      BENCHMARK_FRAMEWORKS: "keyed/vanillajs keyed/vanjs keyed/react-hooks keyed/preact-hooks keyed/mikado keyed/vue keyed/solid keyed/svelte keyed/watervein"
     steps:
       - name: Checkout watervein
         uses: actions/checkout@v4
@@ -104,7 +106,7 @@ jobs:
           NODE
           npm install --no-package-lock
 
-      - name: Build benchmark application
+      - name: Build Watervein benchmark application
         working-directory: js-framework-benchmark/frameworks/keyed/watervein
         run: npm run build-prod
 
@@ -117,6 +119,19 @@ jobs:
         run: |
           npm run install-webdriver-ts
           npm run install-server
+
+      - name: Build comparison framework implementations
+        working-directory: js-framework-benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
+          NON_WATERVEIN=("${FRAMEWORKS[@]/keyed\/watervein}")
+          FILTERED=()
+          for framework in "${FRAMEWORKS[@]}"; do
+            if [[ "$framework" != "keyed/watervein" ]]; then FILTERED+=("$framework"); fi
+          done
+          node cli.js rebuild-single --ci true --frameworks "${FILTERED[@]}"
 
       - name: Configure Chromium for GitHub Actions sandbox restrictions
         working-directory: js-framework-benchmark
@@ -181,24 +196,39 @@ jobs:
           cat "$RUNNER_TEMP/js-framework-benchmark-server.log"
           exit 1
 
-      - name: Run Watervein benchmark smoke checks
+      - name: Run comparison benchmark smoke checks
         working-directory: js-framework-benchmark
+        shell: bash
         run: |
-          npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" --smoketest true keyed/watervein
-          npm --prefix webdriver-ts run isKeyed -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" keyed/watervein
-          npm run checkCSP -- --headless true --chromeBinary "$CHROME_BINARY" keyed/watervein
+          set -euo pipefail
+          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
+          npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" --smoketest true "${FRAMEWORKS[@]}"
+          npm --prefix webdriver-ts run isKeyed -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
+          npm run checkCSP -- --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
 
-      - name: Run Watervein benchmarks
+      - name: Run framework comparison benchmarks
         working-directory: js-framework-benchmark
-        run: npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" keyed/watervein
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf webdriver-ts/results
+          mkdir -p webdriver-ts/results
+          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
+          npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
 
-      - name: Upload benchmark results and diagnostics
+      - name: Generate HTML comparison report
+        if: always()
+        working-directory: watervein
+        run: node scripts/generate-benchmark-report.mjs ../js-framework-benchmark/webdriver-ts/results ../benchmark-report/index.html
+
+      - name: Upload benchmark results, HTML report, and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: watervein-js-framework-benchmark-${{ github.sha }}
+          name: watervein-framework-comparison-${{ github.sha }}
           path: |
             js-framework-benchmark/webdriver-ts/results/
+            benchmark-report/index.html
             ${{ runner.temp }}/js-framework-benchmark-server.log
           if-no-files-found: warn
           retention-days: 30
