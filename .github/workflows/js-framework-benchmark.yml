@@ -136,17 +136,21 @@ jobs:
           cat "$RUNNER_TEMP/js-framework-benchmark-server.log"
           exit 1
 
-      - name: Build comparison framework implementations
-        working-directory: js-framework-benchmark
+      - name: Install Playwright Chromium
+        working-directory: js-framework-benchmark/webdriver-ts
+        run: npx playwright install --with-deps chromium
+
+      - name: Resolve Playwright Chromium executable
         shell: bash
         run: |
           set -euo pipefail
-          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
-          FILTERED=()
-          for framework in "${FRAMEWORKS[@]}"; do
-            if [[ "$framework" != "keyed/watervein" ]]; then FILTERED+=("$framework"); fi
-          done
-          node cli.js rebuild-single --ci true --frameworks "${FILTERED[@]}"
+          CHROME_BINARY="$(find "$HOME/.cache/ms-playwright" -type f -name chrome -perm -u+x -print -quit)"
+          if [[ -z "$CHROME_BINARY" ]]; then
+            echo "Playwright Chromium executable was not found" >&2
+            find "$HOME/.cache/ms-playwright" -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+          echo "CHROME_BINARY=$CHROME_BINARY" >> "$GITHUB_ENV"
 
       - name: Configure Chromium for GitHub Actions sandbox restrictions
         working-directory: js-framework-benchmark
@@ -189,6 +193,18 @@ jobs:
           }
           NODE
           npm run compile-webdriver-ts
+
+      - name: Build comparison framework implementations
+        working-directory: js-framework-benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
+          FILTERED=()
+          for framework in "${FRAMEWORKS[@]}"; do
+            if [[ "$framework" != "keyed/watervein" ]]; then FILTERED+=("$framework"); fi
+          done
+          node cli.js rebuild-single --ci true --frameworks "${FILTERED[@]}"
 
       - name: Run comparison benchmark smoke checks
         working-directory: js-framework-benchmark
