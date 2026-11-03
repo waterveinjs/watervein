@@ -114,15 +114,12 @@ jobs:
         working-directory: js-framework-benchmark
         run: npm ci --ignore-scripts --legacy-peer-deps
 
-      - name: Install benchmark runner dependencies
+      - name: Install benchmark runner, server, and results app dependencies
         working-directory: js-framework-benchmark
         run: |
           npm run install-webdriver-ts
           npm run install-server
-
-      - name: Validate HTML report generator
-        working-directory: watervein
-        run: node --check scripts/generate-benchmark-report.mjs
+          npm run install-webdriver-ts-results
 
       - name: Build comparison framework implementations
         working-directory: js-framework-benchmark
@@ -219,19 +216,20 @@ jobs:
           read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
           npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
 
-      - name: Generate HTML comparison report
+      - name: Generate standard js-framework-benchmark results table
         if: always()
-        working-directory: watervein
-        run: node scripts/generate-benchmark-report.mjs ../js-framework-benchmark/webdriver-ts/results ../benchmark-report/index.html
+        working-directory: js-framework-benchmark
+        run: npm run results
 
-      - name: Upload benchmark results, HTML report, and diagnostics
+      - name: Upload standard comparison table and raw results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: watervein-framework-comparison-${{ github.sha }}
           path: |
+            js-framework-benchmark/webdriver-ts-results/dist/
+            js-framework-benchmark/webdriver-ts/results.json
             js-framework-benchmark/webdriver-ts/results/
-            benchmark-report/index.html
             ${{ runner.temp }}/js-framework-benchmark-server.log
           if-no-files-found: warn
           retention-days: 30
