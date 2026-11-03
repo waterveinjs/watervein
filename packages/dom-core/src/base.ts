@@ -73,7 +73,7 @@ function destroyEntry(entry: Entry<unknown>) {
 function destroyCache(cache: Map<unknown, Entry<unknown>>) {
   if (cache.size === 0) return;
   const ids: number[] = [];
-  cache.forEach((entry) => ids.push(destroyEntry(entry)));
+  for (const entry of cache.values()) ids.push(destroyEntry(entry));
   DestructionSystem.destroyEntities(ids);
   cache.clear();
 }
@@ -203,7 +203,7 @@ export function For<T>(
         } else if (parent) {
           if (entityCache.size > 0) {
             const ids: number[] = [];
-            entityCache.forEach((entry) => ids.push(entry.entityId));
+            for (const entry of entityCache.values()) ids.push(entry.entityId);
 
             const firstEntry = entityCache.get(oldKeys[0]);
             if (firstEntry) {
@@ -251,7 +251,7 @@ export function For<T>(
       });
 
       const toDestroyImmediate: number[] = [];
-      entityCache.forEach((entry, key) => {
+      for (const [key, entry] of entityCache) {
         if (!newCache.has(key)) {
           const dom = entry.dom as InternalDOM;
           if (dom[wvLeaveKey]) {
@@ -264,7 +264,7 @@ export function For<T>(
             toDestroyImmediate.push(destroyEntry(entry));
           }
         }
-      });
+      }
       if (toDestroyImmediate.length > 0) {
         DestructionSystem.destroyEntities(toDestroyImmediate);
       }
