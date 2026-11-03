@@ -122,6 +122,18 @@ jobs:
         working-directory: js-framework-benchmark/webdriver-ts
         run: npx playwright install --with-deps chromium
 
+      - name: Resolve Playwright Chromium executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BINARY="$(find "$HOME/.cache/ms-playwright" -type f -name chrome -perm -u+x -print -quit)"
+          if [[ -z "$CHROME_BINARY" ]]; then
+            echo "Playwright Chromium executable was not found" >&2
+            find "$HOME/.cache/ms-playwright" -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+          echo "CHROME_BINARY=$CHROME_BINARY" >> "$GITHUB_ENV"
+
       - name: Start benchmark server
         working-directory: js-framework-benchmark
         shell: bash
@@ -140,13 +152,13 @@ jobs:
       - name: Run Watervein benchmark smoke checks
         working-directory: js-framework-benchmark
         run: |
-          npm run bench -- --runner playwright --headless true --smoketest true keyed/watervein
-          npm --prefix webdriver-ts run isKeyed -- --runner playwright --headless true keyed/watervein
-          npm run checkCSP -- --headless true keyed/watervein
+          npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" --smoketest true keyed/watervein
+          npm --prefix webdriver-ts run isKeyed -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" keyed/watervein
+          npm run checkCSP -- --headless true --chromeBinary "$CHROME_BINARY" keyed/watervein
 
       - name: Run Watervein benchmarks
         working-directory: js-framework-benchmark
-        run: npm run bench -- --runner playwright --headless true keyed/watervein
+        run: npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" keyed/watervein
 
       - name: Upload benchmark results and diagnostics
         if: always()
