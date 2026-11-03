@@ -87,11 +87,17 @@ export function element<K extends keyof HTMLElementTagNameMap>(
         createEffect(() => {
           const evaluated = unwrap(value);
           if (evaluated != null) {
-            (el as any)[key] = evaluated;
+            if (key.startsWith('aria-') || key.startsWith('data-')) {
+              el.setAttribute(key, String(evaluated));
+            } else {
+              (el as any)[key] = evaluated;
+            }
           } else {
             el.removeAttribute(key);
           }
         });
+      } else if (key.startsWith('aria-') || key.startsWith('data-')) {
+        el.setAttribute(key, String(value));
       } else {
         (el as any)[key] = value;
       }
