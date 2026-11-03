@@ -31,33 +31,31 @@ using its `rebuild-single` CI path and their checked-in lockfiles. The benchmark
 runner then performs smoke tests, keyed and CSP checks, followed by the full
 comparison run.
 
-## HTML report and artifacts
+## Standard HTML results table and artifact
 
-After the benchmark run, `scripts/generate-benchmark-report.mjs` reads the
-benchmark JSON output and generates `benchmark-report/index.html`. The
-self-contained HTML report includes:
+The workflow uses the benchmark project's own results pipeline rather than a
+Watervein-specific report generator:
 
-- CPU benchmark comparisons with total, JavaScript, and paint medians, plus
-  mean, standard deviation, minimum, and maximum;
-- memory measurements;
-- uncompressed and compressed bundle sizes;
-- first-paint measurements;
-- framework coverage, so missing results are visible rather than treated as
-  zero;
-- benchmark revision, commit, browser, and generation metadata.
+1. Install `webdriver-ts-results` dependencies with
+   `npm run install-webdriver-ts-results`.
+2. After collecting benchmark JSON files, run `npm run results` from the
+   benchmark repository root.
+3. This invokes `webdriver-ts/src/createResultJS.ts` to aggregate the raw
+   measurements into `webdriver-ts/results.json` and
+   `webdriver-ts-results/src/results.ts`, then builds the standard results
+   web app.
 
-The report supports filtering by framework/operation, switching between total,
-JavaScript, and paint CPU timings, and sorting numeric columns. It uses no
-external scripts or services.
+The generated static comparison site is uploaded from
+`webdriver-ts-results/dist/` together with the raw JSON files and server
+diagnostics as a 30-day GitHub Actions artifact named
+`watervein-framework-comparison-<commit-sha>`. Download the artifact and open
+`webdriver-ts-results/dist/index.html` locally to inspect the standard
+interactive framework comparison table.
 
-The workflow uploads the report together with the raw JSON result files and
-server diagnostics as a 30-day GitHub Actions artifact named
-`watervein-framework-comparison-<commit-sha>`. Download and open
-`benchmark-report/index.html` locally to inspect the comparison.
-
-The report generator runs even when a benchmark step fails, allowing partial
-results and framework coverage to be inspected. A missing result is not a
-zero-duration result.
+The results-generation step runs even if a benchmark step fails, so partial
+results can still be aggregated when the runner and results dependencies were
+installed successfully. Missing measurements remain missing; they are not
+interpreted as zero.
 
 ## CI-specific compatibility patches
 
