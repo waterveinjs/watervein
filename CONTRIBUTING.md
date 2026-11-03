@@ -23,7 +23,7 @@ Watervein is managed as a monorepo using `pnpm`. It consists of the following pa
 Clone the repository and install all dependencies from the root directory:
 
 ```bash
-git clone [https://github.com/your-username/watervein.git](https://github.com/your-username/watervein.git)
+git clone --recurse-submodules https://github.com/waterveinjs/watervein
 cd watervein
 pnpm install
 ```
