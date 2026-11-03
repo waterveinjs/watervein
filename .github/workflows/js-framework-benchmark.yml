@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: waterveinjs/js-framework-benchmark
-          ref: master
+          ref: 1e4e53d411defc4a02e5842efda9bfe73be8567b
           path: js-framework-benchmark
           persist-credentials: false
 
@@ -79,19 +79,26 @@ jobs:
           const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
           const packDir = process.env.WATERVEIN_PACK_DIR;
           const packages = {
-            "@watervein/core": "watervein-core-*.tgz",
-            "@watervein/dom-core": "watervein-dom-core-*.tgz",
-            "@watervein/dom": "watervein-dom-*.tgz",
+            "@watervein/core": "watervein-core-",
+            "@watervein/dom-core": "watervein-dom-core-",
+            "@watervein/dom": "watervein-dom-",
           };
 
-          for (const [name, pattern] of Object.entries(packages)) {
-            const prefix = pattern.replace("*", "");
+          let frameworkVersion;
+          for (const [name, prefix] of Object.entries(packages)) {
             const file = fs.readdirSync(packDir).find((entry) =>
               entry.startsWith(prefix) && entry.endsWith(".tgz")
             );
             if (!file) throw new Error(`Missing packed package for ${name}`);
             pkg.dependencies[name] = `file:${path.join(packDir, file)}`;
+            if (name === "@watervein/core") {
+              frameworkVersion = file.slice(prefix.length, -".tgz".length);
+            }
           }
+
+          if (!frameworkVersion) throw new Error("Could not determine the local Watervein version");
+          pkg.version = frameworkVersion;
+          pkg["js-framework-benchmark"].frameworkVersion = frameworkVersion;
 
           fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + "\n");
           NODE
