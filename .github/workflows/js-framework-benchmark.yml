@@ -160,6 +160,16 @@ jobs:
             ["webdriver-ts/src/puppeteerAccess.ts", "const args = [", 'const args = [\n    "--no-sandbox",'],
             ["webdriver-ts/src/playwrightAccess.ts", "let args = [", 'let args = [\n    "--no-sandbox",'],
             [
+              "webdriver-ts/src/puppeteerAccess.ts",
+              "function browserPath(benchmarkOptions: BenchmarkOptions) {",
+              "function browserPath(benchmarkOptions: BenchmarkOptions) {\n  if (process.env.CHROME_BINARY) return process.env.CHROME_BINARY;",
+            ],
+            [
+              "webdriver-ts/src/playwrightAccess.ts",
+              "function browserPath(benchmarkOptions: BenchmarkOptions) {",
+              "function browserPath(benchmarkOptions: BenchmarkOptions) {\n  if (process.env.CHROME_BINARY) return process.env.CHROME_BINARY;",
+            ],
+            [
               "webdriver-ts/src/isKeyed.ts",
               'main().catch((error) => {\n  console.log("Error in isKeyed", error);\n});',
               'main().catch((error) => {\n  console.error("Error in isKeyed", error);\n  process.exitCode = 1;\n});',
@@ -179,22 +189,6 @@ jobs:
           }
           NODE
           npm run compile-webdriver-ts
-
-      - name: Install Playwright Chromium
-        working-directory: js-framework-benchmark/webdriver-ts
-        run: npx playwright install --with-deps chromium
-
-      - name: Resolve Playwright Chromium executable
-        shell: bash
-        run: |
-          set -euo pipefail
-          CHROME_BINARY="$(find "$HOME/.cache/ms-playwright" -type f -name chrome -perm -u+x -print -quit)"
-          if [[ -z "$CHROME_BINARY" ]]; then
-            echo "Playwright Chromium executable was not found" >&2
-            find "$HOME/.cache/ms-playwright" -maxdepth 4 -type f | head -100
-            exit 1
-          fi
-          echo "CHROME_BINARY=$CHROME_BINARY" >> "$GITHUB_ENV"
 
       - name: Run comparison benchmark smoke checks
         working-directory: js-framework-benchmark
