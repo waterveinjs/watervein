@@ -126,7 +126,6 @@ jobs:
         run: |
           set -euo pipefail
           read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
-          NON_WATERVEIN=("${FRAMEWORKS[@]/keyed\/watervein}")
           FILTERED=()
           for framework in "${FRAMEWORKS[@]}"; do
             if [[ "$framework" != "keyed/watervein" ]]; then FILTERED+=("$framework"); fi
