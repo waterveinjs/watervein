@@ -9,6 +9,9 @@ implementation at those tarballs.
 This means pull requests are measured against their own watervein source without
 publishing prerelease packages to npm or changing the benchmark repository.
 
+The benchmark root install uses `--legacy-peer-deps` because the pinned upstream
+revision declares an ESLint 10 / `eslint-plugin-react` peer range conflict. This
+is isolated to benchmark tooling; it does not change Watervein dependencies.
 The workflow installs the benchmark root, runner, and server dependencies, then
 runs the benchmark's smoke test, keyed check, CSP check, and full Watervein
 benchmark. JSON results and server diagnostics are uploaded as a
