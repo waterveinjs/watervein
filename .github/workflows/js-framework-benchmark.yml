@@ -129,12 +129,22 @@ jobs:
           const patches = [
             ["webdriver-ts/src/puppeteerAccess.ts", "const args = [", 'const args = [\n    "--no-sandbox",'],
             ["webdriver-ts/src/playwrightAccess.ts", "let args = [", 'let args = [\n    "--no-sandbox",'],
+            [
+              "webdriver-ts/src/isKeyed.ts",
+              'main().catch((error) => {\n  console.log("Error in isKeyed", error);\n});',
+              'main().catch((error) => {\n  console.error("Error in isKeyed", error);\n  process.exitCode = 1;\n});',
+            ],
+            [
+              "webdriver-ts/src/isCSPCompliant.ts",
+              'main().catch((error) => {\n  console.log("Error in isKeyed", error);\n});',
+              'main().catch((error) => {\n  console.error("Error in isCSPCompliant", error);\n  process.exitCode = 1;\n});',
+            ],
           ];
 
           for (const [file, before, after] of patches) {
             const source = fs.readFileSync(file, "utf8");
-            if (!source.includes(before)) throw new Error(`Expected browser args declaration not found in ${file}`);
-            if (source.includes('"--no-sandbox"')) continue;
+            if (source.includes(after)) continue;
+            if (!source.includes(before)) throw new Error(`Expected patch target not found in ${file}`);
             fs.writeFileSync(file, source.replace(before, after));
           }
           NODE
