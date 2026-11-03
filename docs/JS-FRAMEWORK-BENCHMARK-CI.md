@@ -13,10 +13,10 @@ The workflow runs the benchmark's smoke test, keyed check, CSP check, and full
 Watervein benchmark. JSON results and server diagnostics are uploaded as a
 30-day Actions artifact.
 
-The benchmark repository is currently checked out from its `master` branch.
-The workflow records the exact checkout in the Actions log; pinning a reviewed
-benchmark commit can be added once the benchmark integration is ready to be
-maintained against a fixed upstream revision.
+The benchmark repository is checked out at the reviewed commit
+`1e4e53d411defc4a02e5842efda9bfe73be8567b` so upstream changes cannot silently
+alter the benchmark environment. Update this SHA deliberately when adopting a
+new benchmark revision.
 
 Performance numbers from GitHub-hosted runners are informational: shared-runner
 load can vary. The workflow fails on build, smoke-test, benchmark, keyed, or CSP
