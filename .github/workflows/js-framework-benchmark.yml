@@ -223,7 +223,7 @@ jobs:
           import { rebuildFrameworks } from "./cli/rebuild-build-single.js";
 
           const frameworks = process.env.BENCHMARK_FRAMEWORKS
-            .split(/\\s+/)
+            .split(/\s+/)
             .filter((framework) => framework && framework !== "keyed/watervein");
           if (!rebuildFrameworks(frameworks, true)) {
             process.exitCode = 1;
