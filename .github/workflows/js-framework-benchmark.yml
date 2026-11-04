@@ -201,62 +201,62 @@ jobs:
             [
               "webdriver-ts/src/timeline.ts",
               `  // Find mousedown event. This is the start of the benchmark
-    let mousedowns = R.filter(type_eq("mousedown"))(events);
-    // Invariant: There must be exactly one click event
-    if (mousedowns.length === 0) {
-      console.log("no mousedown event", fileName);
-    } else if (mousedowns.length == 1) {
-      console.log("one mousedown event", fileName);
-    } else if (mousedowns.length > 1) {
-      console.log("more than one mousedown event", fileName, events);
-      throw "at most one mousedown event is expected";
-    }
+              let mousedowns = R.filter(type_eq("mousedown"))(events);
+              // Invariant: There must be exactly one click event
+              if (mousedowns.length === 0) {
+                console.log("no mousedown event", fileName);
+              } else if (mousedowns.length == 1) {
+                console.log("one mousedown event", fileName);
+              } else if (mousedowns.length > 1) {
+                console.log("more than one mousedown event", fileName, events);
+                throw "at most one mousedown event is expected";
+              }
 
-  // Find click event. This is the start of the benchmark. We're using the synthetic "startLogicEvent" event we've created above
-  let clicks = R.filter(type_eq("startLogicEvent"))(events);
-  // Invariant: There must be exactly one click event
-  if (clicks.length !== 1) {
-    console.log("exactly one click event is expected", fileName, events);
-    throw "exactly one click event is expected";
-  }
-  let click = clicks[0];
+            // Find click event. This is the start of the benchmark. We're using the synthetic "startLogicEvent" event we've created above
+            let clicks = R.filter(type_eq("startLogicEvent"))(events);
+            // Invariant: There must be exactly one click event
+            if (clicks.length !== 1) {
+              console.log("exactly one click event is expected", fileName, events);
+              throw "exactly one click event is expected";
+            }
+            let click = clicks[0];
 
-  // check is delay from mousedown to click it unusually long
-  if (mousedowns.length>0) {
-    let mousedownToClick = click.ts - mousedowns[0].ts;
-    if (mousedownToClick>0) {
-      console.log("mousedownToClick", mousedownToClick, fileName);
-    }
-    if (mousedownToClick > 5000) {
-      console.log("difference between mousedown and click is unusually long", mousedownToClick, fileName);
-      // throw "difference between mousedown and click is unusually long";
-    }
-  }
+            // check is delay from mousedown to click it unusually long
+            if (mousedowns.length>0) {
+              let mousedownToClick = click.ts - mousedowns[0].ts;
+              if (mousedownToClick>0) {
+                console.log("mousedownToClick", mousedownToClick, fileName);
+              }
+              if (mousedownToClick > 5000) {
+                console.log("difference between mousedown and click is unusually long", mousedownToClick, fileName);
+                // throw "difference between mousedown and click is unusually long";
+              }
+            }
 
-`,
+          `,
               `  // Find the synthetic event that marks the start of the measured interaction.
-  let clicks = R.filter(type_eq("startLogicEvent"))(events);
-  if (clicks.length !== 1) {
-    console.log("exactly one click event is expected", fileName, events);
-    throw "exactly one click event is expected";
-  }
-  let click = clicks[0];
+            let clicks = R.filter(type_eq("startLogicEvent"))(events);
+            if (clicks.length !== 1) {
+              console.log("exactly one click event is expected", fileName, events);
+              throw "exactly one click event is expected";
+            }
+            let click = clicks[0];
 
-  // Warmup interactions are recorded in the same trace. Only consider the
-  // last mousedown before the measured interaction, not every warmup click.
-  let mousedowns = R.filter((e: TimingResult) => e.type === "mousedown" && e.ts <= click.ts)(events);
-  let mousedown = mousedowns.at(-1);
-  if (mousedown) {
-    let mousedownToClick = click.ts - mousedown.ts;
-    if (mousedownToClick > 0) {
-      console.log("mousedownToClick", mousedownToClick, fileName);
-    }
-    if (mousedownToClick > 5000) {
-      console.log("difference between mousedown and click is unusually long", mousedownToClick, fileName);
-    }
-  }
+            // Warmup interactions are recorded in the same trace. Only consider the
+            // last mousedown before the measured interaction, not every warmup click.
+            let mousedowns = R.filter((e: TimingResult) => e.type === "mousedown" && e.ts <= click.ts)(events);
+            let mousedown = mousedowns.at(-1);
+            if (mousedown) {
+              let mousedownToClick = click.ts - mousedown.ts;
+              if (mousedownToClick > 0) {
+                console.log("mousedownToClick", mousedownToClick, fileName);
+              }
+              if (mousedownToClick > 5000) {
+                console.log("difference between mousedown and click is unusually long", mousedownToClick, fileName);
+              }
+            }
 
-`,
+          `,
             ],
           ];
 
