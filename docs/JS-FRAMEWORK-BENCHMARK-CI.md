@@ -8,7 +8,7 @@ separately, pinned to the reviewed commit
 ## Compared implementations
 
 The workflow builds and benchmarks these keyed implementations in one
-GitHub-hosted job, using the same Playwright Chromium runner:
+GitHub-hosted job, using the same Puppeteer runner and pinned Chromium executable:
 
 - Watervein (`keyed/watervein`)
 - Vanilla JS (`keyed/vanillajs`)
@@ -23,13 +23,14 @@ GitHub-hosted job, using the same Playwright Chromium runner:
 Watervein is built from the current pull-request checkout. The three local
 workspace packages (`@watervein/core`, `@watervein/dom-core`, and
 `@watervein/dom`) are packed and installed from local tarballs in the temporary
-benchmark checkout. No prerelease package is published to npm and no changes
-are committed to the benchmark repository.
+benchmark checkout. The workflow rewrites that checkout's Watervein
+`package.json` locally to point at those tarballs; this change exists only on
+the runner and is not pushed to the benchmark repository. No prerelease package
+is published to npm.
 
 The other eight implementations are built from the pinned benchmark checkout
-using its `rebuild-single` CI path and their checked-in lockfiles. The benchmark
-runner then performs smoke tests, keyed and CSP checks, followed by the full
-comparison run.
+using its build-only helper and their checked-in lockfiles. After the server and Chromium are ready, the benchmark runner performs
+smoke tests, keyed and CSP checks, followed by the full comparison run.
 
 ## Standard HTML results table and artifact
 
