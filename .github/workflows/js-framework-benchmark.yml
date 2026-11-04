@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["main"]
+    branches: ["main", "ci/js-framework-benchmark"]
   workflow_dispatch:
 
 permissions:
