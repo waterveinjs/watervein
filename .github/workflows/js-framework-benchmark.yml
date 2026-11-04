@@ -193,6 +193,11 @@ jobs:
               'main().catch((error) => {\n  console.log("Error in isKeyed", error);\n});',
               'main().catch((error) => {\n  console.error("Error in isCSPCompliant", error);\n  process.exitCode = 1;\n});',
             ],
+            [
+              "webdriver-ts/src/isCSPCompliant.ts",
+              '  } finally {\n    await page.goto(`http://${benchmarkOptions.host}:${benchmarkOptions.port}/csp/disable`);\n    await page.close();\n    await browser.close();\n  }',
+              '  } finally {\n    try {\n      await page.goto(`http://${benchmarkOptions.host}:${benchmarkOptions.port}/csp/disable`);\n    } finally {\n      try {\n        await page.close();\n      } finally {\n        await browser.close();\n      }\n    }\n  }',
+            ],
           ];
 
           for (const [file, before, after] of patches) {
@@ -214,7 +219,16 @@ jobs:
           for framework in "${FRAMEWORKS[@]}"; do
             if [[ "$framework" != "keyed/watervein" ]]; then FILTERED+=("$framework"); fi
           done
-          node cli.js rebuild-single --ci true --frameworks "${FILTERED[@]}"
+          node --input-type=module <<'NODE'
+          import { rebuildFrameworks } from "./cli/rebuild-build-single.js";
+
+          const frameworks = process.env.BENCHMARK_FRAMEWORKS
+            .split(/\\s+/)
+            .filter((framework) => framework && framework !== "keyed/watervein");
+          if (!rebuildFrameworks(frameworks, true)) {
+            process.exitCode = 1;
+          }
+          NODE
 
       - name: Run comparison benchmark smoke checks
         working-directory: js-framework-benchmark
