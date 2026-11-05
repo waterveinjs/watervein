@@ -4,23 +4,23 @@ import {
   createResource,
   write,
   read,
-  untrack,
 } from '@watervein/core';
 import { Show, For, mountToBody } from '@watervein/dom-core';
 import { button, div, h1, h3, p, section, span, strong } from '@watervein/dom';
 
+/* ------------------------------------------------------------------ */
+/* Server spec (async resource)                                        */
+/* ------------------------------------------------------------------ */
 const serverId = createState('srv-node-01');
 
 const serverSpecResource = createResource(serverId, async (id) => {
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  return {
-    id,
-    cpu: 'ExampleCPU',
-    cores: 8,
-    os: 'ExampleOS',
-  };
+  return { id, cpu: 'ExampleCPU', cores: 8, os: 'ExampleOS' };
 });
 
+/* ------------------------------------------------------------------ */
+/* Global telemetry                                                    */
+/* ------------------------------------------------------------------ */
 const cpuLoad = createState(0);
 const memoryUsage = createState(0);
 
@@ -31,27 +31,55 @@ const alertLevel = createCompute(() => {
   return 'HEALTHY';
 });
 
-type Process = { pid: number; name: string; cpu: number; memory: number };
+type Row = {
+  pid: number;
+  name: string;
+  cpu: ReturnType<typeof createState<number>>;
+  memory: ReturnType<typeof createState<number>>;
+  raw: { cpu: number; memory: number };
+};
 
-const initialProcesses: Process[] = Array.from({ length: 100 }, (_, i) => ({
-  pid: 1000 + i,
-  name: `korphere-worker-${i.toString().padStart(2, '0')}`,
-  cpu: Math.floor(Math.random() * 20),
-  memory: Math.floor(Math.random() * 200),
-}));
+const makeRow = (i: number): Row => {
+  const cpu = Math.floor(Math.random() * 20);
+  const memory = Math.floor(Math.random() * 200);
+  return {
+    pid: 1000 + i,
+    name: `korphere-worker-${i.toString().padStart(2, '0')}`,
+    cpu: createState(cpu),
+    memory: createState(memory),
+    raw: { cpu, memory },
+  };
+};
 
-const processes = createState<Process[]>(initialProcesses);
+const rows = createState<Row[]>(
+  Array.from({ length: 100 }, (_, i) => makeRow(i)),
+);
 const sortBy = createState<'pid' | 'cpu' | 'memory'>('pid');
 
-const sortedProcesses = createCompute(() => {
-  const list = [...read(processes)];
+const sortTick = createState(0);
+const SORT_REFRESH_EVERY = 10;
+
+const sortedRows = createCompute(() => {
+  const list = [...read(rows)];
   const key = read(sortBy);
 
-  return list.sort((a, b) => {
-    if (key === 'pid') return a.pid - b.pid;
-    return b[key] - a[key];
-  });
+  if (key === 'pid') {
+    return list.sort((a, b) => a.pid - b.pid);
+  }
+
+  read(sortTick);
+  return list.sort((a, b) => b.raw[key] - a.raw[key]);
 });
+
+/* ------------------------------------------------------------------ */
+/* View                                                                */
+/* ------------------------------------------------------------------ */
+const col = (width: string) => ({ width });
+const COL_PID = col('100px');
+const COL_NAME = col('250px');
+const COL_NUM = col('100px');
+
+const ALERT_STYLE = { fontWeight: 'bold' };
 
 const app = div(
   {
@@ -61,7 +89,7 @@ const app = div(
   [
     h1({}, 'watervein 2026 Core Metrics Dashboard'),
 
-    section({ class: 'panel spec-panel' }, [
+    section({ class: 'panel spec-panel', style: { minHeight: '120px' } }, [
       h3({}, 'System Specifications'),
       Show(
         () => read(serverSpecResource).loading,
@@ -74,7 +102,10 @@ const app = div(
           const res = read(serverSpecResource);
           return div({ class: 'spec-grid' }, [
             p({}, `Node ID: ${res.data?.id}`),
-            p({}, `CPU Architecture: ${res.data?.cpu}`),
+            p(
+              {},
+              `CPU Architecture: ${res.data?.cpu} (${res.data?.cores} cores)`,
+            ),
             p({}, `Operating System: ${res.data?.os}`),
           ]);
         },
@@ -89,13 +120,12 @@ const app = div(
           strong({}, () => `${read(cpuLoad)}%`),
         ]),
         div({ class: 'card' }, [
+          span({}, 'Memory Usage: '),
+          strong({}, () => `${read(memoryUsage)} MB`),
+        ]),
+        div({ class: 'card' }, [
           span({}, 'System Alert Level: '),
-          span(
-            {
-              fontWeight: 'bold',
-            },
-            alertLevel,
-          ),
+          span({ style: ALERT_STYLE }, alertLevel),
         ]),
       ]),
     ]),
@@ -105,14 +135,7 @@ const app = div(
 
       div({ class: 'toolbar', style: { marginBottom: '10px' } }, [
         span({}, 'Sort By: '),
-        button(
-          {
-            onclick: () => {
-              write(sortBy, 'pid');
-            },
-          },
-          'Process ID',
-        ),
+        button({ onclick: () => write(sortBy, 'pid') }, 'Process ID'),
         button({ onclick: () => write(sortBy, 'cpu') }, 'Highest CPU'),
         button({ onclick: () => write(sortBy, 'memory') }, 'Highest Memory'),
       ]),
@@ -127,29 +150,19 @@ const app = div(
           },
         },
         [
-          div({ style: { width: '100px' } }, 'PID'),
-          div({ style: { width: '250px' } }, 'Process Name'),
-          div({ style: { width: '100px' } }, 'CPU Load'),
-          div({ style: { width: '100px' } }, 'Memory'),
+          div({ style: COL_PID }, 'PID'),
+          div({ style: COL_NAME }, 'Process Name'),
+          div({ style: COL_NUM }, 'CPU Load'),
+          div({ style: COL_NUM }, 'Memory'),
         ],
       ),
 
       div({ class: 'table-body' }, [
         For(
-          sortedProcesses,
-          (p) => p.pid,
-          (rawItem) => {
-            const getRowCpu = () => {
-              const list = read(sortedProcesses);
-              const latest = list.find((x) => x.pid === rawItem().pid);
-              return latest ? `${latest.cpu}%` : `${rawItem().cpu}%`;
-            };
-
-            const getRowMemory = () => {
-              const list = read(sortedProcesses);
-              const latest = list.find((x) => x.pid === rawItem().pid);
-              return latest ? `${latest.memory} MB` : `${rawItem().memory} MB`;
-            };
+          sortedRows,
+          (row) => row.pid,
+          (item) => {
+            const row = item();
 
             return div(
               {
@@ -161,10 +174,10 @@ const app = div(
                 },
               },
               [
-                div({ style: { width: '100px' } }, `${rawItem().pid}`),
-                div({ style: { width: '250px' } }, rawItem.name),
-                div({ style: { width: '100px' } }, getRowCpu),
-                div({ style: { width: '100px' } }, getRowMemory),
+                div({ style: COL_PID }, `${row.pid}`),
+                div({ style: COL_NAME }, row.name),
+                div({ style: COL_NUM }, () => `${read(row.cpu)}%`),
+                div({ style: COL_NUM }, () => `${read(row.memory)} MB`),
               ],
             );
           },
@@ -176,24 +189,27 @@ const app = div(
 
 mountToBody(app);
 
+/* ------------------------------------------------------------------ */
+/* Simulator                                                           */
+/* ------------------------------------------------------------------ */
+let tick = 0;
+
 setInterval(() => {
-  const cpu = Math.floor(Math.random() * 100);
-  console.log(
-    '⚡ [write] The simulator updates the value. Current value:',
-    cpu,
-  );
-  write(cpuLoad, cpu);
+  tick++;
+
+  write(cpuLoad, Math.floor(Math.random() * 100));
   write(memoryUsage, Math.floor(Math.random() * 16384));
 
-  untrack(() => {
-    const currentList = read(processes);
-    const nextList = currentList.map((p) => ({
-      pid: p.pid,
-      name: p.name,
-      cpu: Math.floor(Math.random() * 100),
-      memory: Math.floor(Math.random() * 2048),
-    }));
+  for (const row of read(rows)) {
+    const cpu = Math.floor(Math.random() * 100);
+    const memory = Math.floor(Math.random() * 2048);
+    row.raw.cpu = cpu;
+    row.raw.memory = memory;
+    write(row.cpu, cpu);
+    write(row.memory, memory);
+  }
 
-    write(processes, nextList);
-  });
+  if (tick % SORT_REFRESH_EVERY === 0 && read(sortBy) !== 'pid') {
+    write(sortTick, tick);
+  }
 }, 100);
