@@ -10,17 +10,17 @@ const appPath = path.join(benchmarkRoot, "webdriver-ts-results", "src", "App.tsx
 const webdriverPackagePath = path.join(benchmarkRoot, "webdriver-ts", "package.json");
 
 if (!fs.existsSync(appPath)) {
-  throw new Error(`Benchmark results app not found: ${appPath}`);
+  throw new Error(\`Benchmark results app not found: \${appPath}\`);
 }
 if (!fs.existsSync(webdriverPackagePath)) {
-  throw new Error(`Benchmark webdriver package not found: ${webdriverPackagePath}`);
+  throw new Error(\`Benchmark webdriver package not found: \${webdriverPackagePath}\`);
 }
 
 const benchmarkRequire = createRequire(webdriverPackagePath);
 const { chromium } = benchmarkRequire("playwright");
 const browserPath = process.env.CHROME_BINARY || chromium.executablePath();
 const browserOutput = execFileSync(browserPath, ["--version"], { encoding: "utf8" }).trim();
-const browserVersion = browserOutput.replace(/^(?:Chromium|Chrome)\\s+/i, "");
+const browserVersion = browserOutput.replace(/^(?:Chromium|Chrome)\s+/i, "");
 const browserLabel = process.env.BENCHMARK_BROWSER_NAME || "Chromium";
 const driver = process.env.BENCHMARK_DRIVER || "Playwright";
 
@@ -28,10 +28,10 @@ const cpuList = os.cpus();
 const cpuModel = cpuList[0]?.model?.trim() || "Unknown CPU";
 const logicalCpuCount = cpuList.length || os.availableParallelism?.() || "Unknown";
 const memoryGiB = (os.totalmem() / 1024 ** 3).toFixed(1);
-const hardware = `${cpuModel} · ${logicalCpuCount} logical CPUs · ${memoryGiB} GiB RAM`;
+const hardware = \`\${cpuModel} · \${logicalCpuCount} logical CPUs · \${memoryGiB} GiB RAM\`;
 
 const osReleaseFile = "/etc/os-release";
-let operatingSystem = `${os.type()} ${os.release()}`;
+let operatingSystem = \`\${os.type()} \${os.release()}\`;
 if (fs.existsSync(osReleaseFile)) {
   const release = fs.readFileSync(osReleaseFile, "utf8");
   const prettyName = release.match(/^PRETTY_NAME=(?:"([^"]+)"|'([^']+)'|(.+))$/m);
@@ -44,13 +44,13 @@ const isWsl = Boolean(process.env.WSL_DISTRO_NAME) || /microsoft/i.test(os.relea
 if (isWsl) operatingSystem += " (WSL2)";
 
 const architecture = os.arch();
-const versionLabel = `${browserLabel} ${browserVersion}`;
+const versionLabel = \`\${browserLabel} \${browserVersion}\`;
 let app = fs.readFileSync(appPath, "utf8");
 
 function replaceExactlyOnce(source, pattern, replacement, label) {
   const matches = source.match(pattern);
   if (!matches || matches.length !== 1) {
-    throw new Error(`Expected exactly one ${label} in ${appPath}; found ${matches?.length ?? 0}`);
+    throw new Error(\`Expected exactly one \${label} in \${appPath}; found \${matches?.length ?? 0}\`);
   }
   return source.replace(pattern, replacement);
 }
@@ -58,37 +58,37 @@ function replaceExactlyOnce(source, pattern, replacement, label) {
 app = replaceExactlyOnce(
   app,
   /const version = "[^"]*";/,
-  `const version = ${JSON.stringify(versionLabel)};\\n  const architecture = ${JSON.stringify(architecture)};`,
+  \`const version = \${JSON.stringify(versionLabel)};\\n  const architecture = \${JSON.stringify(architecture)};\`,
   "browser version declaration",
 );
 app = replaceExactlyOnce(
   app,
-  /<dt>Browser<\\/dt>\\s*<dd>\\{version\\} \\(arm64\\)<\\/dd>/,
-  "<dt>Browser</dt>\\n                  <dd>{version} ({architecture})</dd>",
+  /<dt>Browser<\/dt>\s*<dd>\{version\} \(arm64\)<\/dd>/,
+  "<dt>Browser</dt>\n                  <dd>{version} ({architecture})</dd>",
   "browser metadata",
 );
 app = replaceExactlyOnce(
   app,
-  /(<dt>Hardware<\\/dt>\\s*<dd>)[^<]*(<\\/dd>)/,
-  `$1${hardware}$2`,
+  /(<dt>Hardware<\/dt>\s*<dd>)[^<]*(<\/dd>)/,
+  \`$1\${hardware}$2\`,
   "hardware metadata",
 );
 app = replaceExactlyOnce(
   app,
-  /(<dt>Operating system<\\/dt>\\s*<dd>)[^<]*(<\\/dd>)/,
-  `$1${operatingSystem}$2`,
+  /(<dt>Operating system<\/dt>\s*<dd>)[^<]*(<\/dd>)/,
+  \`$1\${operatingSystem}$2\`,
   "operating-system metadata",
 );
 app = replaceExactlyOnce(
   app,
-  /<p>Measured with the [^<]*benchmark driver[^<]*<\\/p>/,
-  `<p>Measured with the ${driver} benchmark driver.</p>`,
+  /<p>Measured with the [^<]*benchmark driver[^<]*<\/p>/,
+  \`<p>Measured with the \${driver} benchmark driver.</p>\`,
   "benchmark-driver description",
 );
 
 fs.writeFileSync(appPath, app);
 console.log("Updated benchmark HTML environment metadata:");
-console.log(`  Browser: ${versionLabel} (${architecture})`);
-console.log(`  Hardware: ${hardware}`);
-console.log(`  OS: ${operatingSystem}`);
-console.log(`  Driver: ${driver}`);
+console.log(\`  Browser: \${versionLabel} (\${architecture})\`);
+console.log(\`  Hardware: \${hardware}\`);
+console.log(\`  OS: \${operatingSystem}\`);
+console.log(\`  Driver: \${driver}\`);
