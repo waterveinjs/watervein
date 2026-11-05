@@ -39,12 +39,20 @@ Watervein-specific report generator:
 
 1. Install `webdriver-ts-results` dependencies with
    `npm run install-webdriver-ts-results`.
-2. After collecting benchmark JSON files, run `npm run results` from the
-   benchmark repository root.
-3. This invokes `webdriver-ts/src/createResultJS.ts` to aggregate the raw
-   measurements into `webdriver-ts/results.json` and
-   `webdriver-ts-results/src/results.ts`, then builds the standard results
-   web app.
+2. Before generating the report, run
+   `node scripts/benchmark-environment.mjs ../js-framework-benchmark`
+   from the Watervein repository root. The script reads the installed
+   Playwright Chromium version, operating system, CPU model, logical CPU count,
+   and memory from the actual machine, then updates only the temporary
+   benchmark checkout's results-app metadata. It also labels WSL2 when detected.
+   Local runs can use the same command with the benchmark checkout path.
+3. After collecting benchmark JSON files, run `npm run results` from the
+   benchmark repository root. This invokes
+   `webdriver-ts/src/createResultJS.ts` to aggregate the raw measurements into
+   `webdriver-ts/results.json` and `webdriver-ts-results/src/results.ts`,
+   then builds the standard results web app. The CI workflow checks that the
+   generated HTML no longer contains the upstream MacBook/OSX/Puppeteer
+   placeholders and identifies the Playwright driver.
 
 The generated static comparison site is uploaded from
 `webdriver-ts-results/dist/` together with the raw JSON files and server
