@@ -162,6 +162,12 @@ jobs:
           fi
           echo "CHROME_BINARY=$CHROME_BINARY" >> "$GITHUB_ENV"
 
+      - name: Capture actual benchmark environment metadata
+        working-directory: watervein
+        env:
+          BENCHMARK_DRIVER: Playwright
+        run: node scripts/benchmark-environment.mjs ../js-framework-benchmark
+
       - name: Configure Chromium for GitHub Actions sandbox restrictions
         working-directory: js-framework-benchmark
         shell: bash
@@ -313,7 +319,17 @@ jobs:
       - name: Generate standard js-framework-benchmark results table
         if: always()
         working-directory: js-framework-benchmark
-        run: npm run results
+        run: |
+          npm run results
+          REPORT="webdriver-ts-results/dist/index.html"
+          test -f "$REPORT"
+          for stale in "MacBook Pro 14 · M4" "OSX 26.6.2" "Puppeteer benchmark driver"; do
+            if grep -Fq "$stale" "$REPORT"; then
+              echo "Stale hard-coded benchmark metadata found: $stale" >&2
+              exit 1
+            fi
+          done
+          grep -Fq 'Measured with the Playwright benchmark driver.' "$REPORT"
 
       - name: Upload standard comparison table and raw results
         if: always()
