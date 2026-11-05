@@ -56,13 +56,13 @@ function replaceExactlyOnce(source, pattern, replacement, label) {
 app = replaceExactlyOnce(
   app,
   /const version = "[^"]*";/,
-  "const version = " + JSON.stringify(versionLabel) + ";\\n  const architecture = " + JSON.stringify(architecture) + ";",
+  "const version = " + JSON.stringify(versionLabel) + ";" + String.fromCharCode(10) + "  const architecture = " + JSON.stringify(architecture) + ";",
   "browser version declaration",
 );
 app = replaceExactlyOnce(
   app,
   /<dt>Browser<\/dt>\s*<dd>\{version\} \(arm64\)<\/dd>/,
-  "<dt>Browser</dt>\\n                  <dd>{version} ({architecture})</dd>",
+  "<dt>Browser</dt>" + String.fromCharCode(10) + "                  <dd>{version} ({architecture})</dd>",
   "browser metadata",
 );
 app = replaceExactlyOnce(
