@@ -8,7 +8,7 @@ separately, pinned to the reviewed commit
 ## Compared implementations
 
 The workflow builds and benchmarks these keyed implementations in one
-GitHub-hosted job, using the same Puppeteer runner and pinned Chromium executable:
+GitHub-hosted job, using the same Playwright runner and pinned Chromium executable:
 
 - Watervein (`keyed/watervein`)
 - Vanilla JS (`keyed/vanillajs`)
