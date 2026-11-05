@@ -17,11 +17,11 @@ const count = createState(0);
 
 // 2. Build the layout network using raw element expressions
 const app = div({}, [
-  button({ onclick: () => write(count, read(count) + 1) }, "Increment"),
-  span({}, () => `Current value: ${read(count)}`) // Atomic edge hook
+  button({ onclick: () => write(count, read(count) + 1) }, 'Increment'),
+  span({}, () => `Current value: ${read(count)}`), // Atomic edge hook
 ]);
 
-// There are no re-rendering component lifecycles. 
+// There are no re-rendering component lifecycles.
 // Clicking the button evaluates the DAG and updates ONLY the text inside the <span>.
 ```
 
@@ -63,8 +63,16 @@ import { mount, span, button } from '@watervein/dom';
 const count = createState(0);
 
 const app = span({}, [
-  button({ onclick: () => { write(count, read(count) + 1); UISystem.flush(); } }, "Click me"),
-  span({}, () => ` Count: ${read(count)}`)
+  button(
+    {
+      onclick: () => {
+        write(count, read(count) + 1);
+        UISystem.flush();
+      },
+    },
+    'Click me',
+  ),
+  span({}, () => ` Count: ${read(count)}`),
 ]);
 
 mount(document.getElementById('app')!, app);
@@ -90,20 +98,20 @@ No virtual trees to diff. No component functions to re-execute. Just targeted da
 
 ## Conceptual Comparison: React vs. Vue vs. Svelte vs. SolidJS vs. Watervein vs. Vanilla JS
 
-The table below describes each framework's *intended architecture*, not benchmarked outcomes. Complexity classes (e.g. "$O(N)$") describe the algorithmic design goal of Watervein's reconciliation loop, not a measured result.
+The table below describes each framework's _intended architecture_, not benchmarked outcomes. Complexity classes (e.g. "$O(N)$") describe the algorithmic design goal of Watervein's reconciliation loop, not a measured result.
 
-| Feature | React | Vue 3 | Svelte 5 | SolidJS | **Watervein** | Vanilla JS |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Primary Architecture** | Component Tree (VNode) | Component Tree + Reactive Proxies | Compiler-driven Runes | Component Scopes + Signals | **Decoupled Node Edge System (NES) / DAG** | Procedural / Imperative Execution |
-| **Component Execution** | Repeatedly (on every re-render) | Triggered via dependency proxy track | Run-once setup with dynamic updates | Exactly once (during setup) | **No component abstraction exists** | N/A (No component abstraction) |
-| **State Mutation Scope** | Component/Subtree abstraction | Block-tree inside component | Signal-like Runes closure scope | Signal closures | **Global topology network** | Manual mutation allocation |
-| **DOM Tracking Strategy** | Virtual DOM reconciliation | Hybrid VNode + Static Hoisting | Direct compiled DOM hydration/patch | Fine-grained reactive closures | **Granular text/attribute edge hooks** | Manual pinpoint DOM targeting |
-| **Component Wrapper** | Requires Fiber / Virtual Parent | VNode Fragment rendering | Template Fragment Anchors | Real DOM Fragment tracking | **`display: contents` sub-wrappers** | Native layout container blocks |
-| **Lifecycle Model** | Hook-driven (`useEffect` timeline) | Hook/Option driven (`onMounted`) | Rune effects / lifecycle helpers | Component-mount scopes (`onMount`) | **Entity-bound, not lifecycle-bound** | Manual event/handle registration |
-| **Cleanup Mechanism** | Hook return functions | Automated unmount tracking | `$effect` tracking collection | Explicit `onCleanup` registry | **Automatic via entity destruction** (`destroyEntity`/`destroyEntities`) | Manual memory reference disposal |
-| **Data Flow Direction** | Top-down unidirectional tree | Unidirectional props / events | Unidirectional signals model | Reactive proxy propagation | **Topological DAG downstream** | Custom/arbitrary manual pipelines |
-| **Batching Mechanics** | Schedule-driven concurrent queues | Microtask scheduler queue | Microtask scheduler loop | Microtask signal batch loops | **Synchronous topological `flush()`** | Synchronous mutation/immediate |
-| **Reordering Design Goal ($O$)** | $O(N)$ VNode diffing algorithm | $O(N)$ patch-flag keyed diffing | $O(N)$ block-list reconciliation | $O(N)$ dynamic fragment index tracking | **$O(N)$ backwards-sweep reconciliation (design target)** | Custom optimized procedural loops |
+| Feature                          | React                              | Vue 3                                | Svelte 5                            | SolidJS                                | **Watervein**                                                            | Vanilla JS                        |
+| :------------------------------- | :--------------------------------- | :----------------------------------- | :---------------------------------- | :------------------------------------- | :----------------------------------------------------------------------- | :-------------------------------- |
+| **Primary Architecture**         | Component Tree (VNode)             | Component Tree + Reactive Proxies    | Compiler-driven Runes               | Component Scopes + Signals             | **Decoupled Node Edge System (NES) / DAG**                               | Procedural / Imperative Execution |
+| **Component Execution**          | Repeatedly (on every re-render)    | Triggered via dependency proxy track | Run-once setup with dynamic updates | Exactly once (during setup)            | **No component abstraction exists**                                      | N/A (No component abstraction)    |
+| **State Mutation Scope**         | Component/Subtree abstraction      | Block-tree inside component          | Signal-like Runes closure scope     | Signal closures                        | **Global topology network**                                              | Manual mutation allocation        |
+| **DOM Tracking Strategy**        | Virtual DOM reconciliation         | Hybrid VNode + Static Hoisting       | Direct compiled DOM hydration/patch | Fine-grained reactive closures         | **Granular text/attribute edge hooks**                                   | Manual pinpoint DOM targeting     |
+| **Component Wrapper**            | Requires Fiber / Virtual Parent    | VNode Fragment rendering             | Template Fragment Anchors           | Real DOM Fragment tracking             | **`display: contents` sub-wrappers**                                     | Native layout container blocks    |
+| **Lifecycle Model**              | Hook-driven (`useEffect` timeline) | Hook/Option driven (`onMounted`)     | Rune effects / lifecycle helpers    | Component-mount scopes (`onMount`)     | **Entity-bound, not lifecycle-bound**                                    | Manual event/handle registration  |
+| **Cleanup Mechanism**            | Hook return functions              | Automated unmount tracking           | `$effect` tracking collection       | Explicit `onCleanup` registry          | **Automatic via entity destruction** (`destroyEntity`/`destroyEntities`) | Manual memory reference disposal  |
+| **Data Flow Direction**          | Top-down unidirectional tree       | Unidirectional props / events        | Unidirectional signals model        | Reactive proxy propagation             | **Topological DAG downstream**                                           | Custom/arbitrary manual pipelines |
+| **Batching Mechanics**           | Schedule-driven concurrent queues  | Microtask scheduler queue            | Microtask scheduler loop            | Microtask signal batch loops           | **Synchronous topological `flush()`**                                    | Synchronous mutation/immediate    |
+| **Reordering Design Goal ($O$)** | $O(N)$ VNode diffing algorithm     | $O(N)$ patch-flag keyed diffing      | $O(N)$ block-list reconciliation    | $O(N)$ dynamic fragment index tracking | **$O(N)$ backwards-sweep reconciliation (design target)**                | Custom optimized procedural loops |
 
 ## Componentization Patterns (UI Reuse Without Component Trees)
 
@@ -112,34 +120,42 @@ Since Watervein relies on flat entity structures instead of a hierarchy of state
 Instead of embedding runtime lifecycle magic into custom markup tags, you pass parameters and sub-graph configurations directly into functions that return raw elements:
 
 ```typescript
-import { createState, read, write, withEntity, createEntity } from '@watervein/core';
-import { button } from '@watervein/dom';
+import {
+  createState,
+  read,
+  write,
+  withEntity,
+  createEntity,
+} from '@watervein/core';
+import { button, div } from '@watervein/dom';
 
 // Pattern: Stateful Element Factory Function
 export function createCounterButton(initialCount: number = 0) {
-    const localEntityId = createEntity();
+  const localEntityId = createEntity();
 
-    // Lock internal reactive node state inside the allocated entity
-    return withEntity(localEntityId, () => {
-        const count = createState(initialCount);
+  // Lock internal reactive node state inside the allocated entity
+  return withEntity(localEntityId, () => {
+    const count = createState(initialCount);
 
-        return button({
-            class: "custom-btn",
-            onclick: () => write(count, read(count) + 1)
-        }, [
-            () => `Clicks: ${read(count)}`
-        ]);
-    });
+    return button(
+      {
+        class: 'custom-btn',
+        onclick: () => write(count, read(count) + 1),
+      },
+      [() => `Clicks: ${read(count)}`],
+    );
+  });
 }
 
 // Usage inside layout tree
-const layout = element("div", {}, [
-    createCounterButton(0),
-    createCounterButton(10) // Independently allocated entity/memory
+const layout = div({}, [
+  createCounterButton(0),
+  createCounterButton(10), // Independently allocated entity/memory
 ]);
 ```
 
 ### **The Golden Rules of Watervein Development:**
+
 1. **Functions, Not Custom Tags**: Anything that looks like a component is just a plain function returning an `HTMLElement`.
 2. **Encapsulate State via `withEntity`**: If your reusable UI element holds internal state, wrap its signal creation inside `withEntity(createEntity(), () => { ... })` so that destroying the entity cleans up all associated nodes.
 
@@ -149,40 +165,47 @@ Here's a look at how you define reactive states and mount a list using Watervein
 
 ```typescript
 import { createState, read, write, batch, UISystem } from '@watervein/core';
-import { For, mount, element } from '@watervein/dom';
+import { For, mount, tr, td } from '@watervein/dom';
 
 // 1. Define flat reactive states (NES / Data Layer)
-const rowMap   = createState(new Map());
+const rowMap = createState(new Map());
 const rowOrder = createState([]);
 const selected = createState(0);
 
 // 2. Build the UI structure using graphs, not components
 const list = For(
-    rowOrder,
-    (id) => id,
-    (getId) => element("tr", {
-        class: () => read(selected) === getId() ? "danger" : "",
-    }, [
-        element("td", { class: "col-md-1" }, () => `${getId()}`),
-        element("td", { class: "col-md-4" }, [
-            element("a", {
-                onclick: () => write(selected, getId()),
-            }, () => read(rowMap).get(getId())?.label ?? "")
-        ])
-    ])
+  rowOrder,
+  (id) => id,
+  (getId) =>
+    tr(
+      {
+        class: () => (read(selected) === getId() ? 'danger' : ''),
+      },
+      [
+        td({ class: 'col-md-1' }, () => `${getId()}`),
+        td({ class: 'col-md-4' }, [
+          a(
+            {
+              onclick: () => write(selected, getId()),
+            },
+            () => read(rowMap).get(getId())?.label ?? '',
+          ),
+        ]),
+      ],
+    ),
 );
 
 // 3. Mount directly to the DOM
-const tbody = document.querySelector("table.test-data")!;
+const tbody = document.querySelector('table.test-data')!;
 mount(tbody, list);
 
 // 4. Update state and flush the UI system
-document.getElementById("run")!.addEventListener("click", () => {
-    batch(() => {
-        write(rowMap, new Map([[1, { id: 1, label: "Pretty Red Table" }]]));
-        write(rowOrder, [1]);
-    });
-    UISystem.flush(); // Commit batched graph changes to the DOM
+document.getElementById('run')!.addEventListener('click', () => {
+  batch(() => {
+    write(rowMap, new Map([[1, { id: 1, label: 'Pretty Red Table' }]]));
+    write(rowOrder, [1]);
+  });
+  UISystem.flush(); // Commit batched graph changes to the DOM
 });
 ```
 
@@ -241,10 +264,11 @@ Traditional frameworks model your application as a **Tree of Components**, requi
 Watervein instead flattens UI logic into a decoupled **Data Layer (NES Engine)** and maps operations onto a **Rendering Layer** using DOM fragments.
 
 ### 1. Node Edge System (NES) & Graph Mechanics
+
 At the engine level (`@watervein/core`), state (`createState`), derivations (`createCompute`), and side effects (`createEffect`) exist as plain nodes in a unified global **Directed Acyclic Graph (DAG)**.
 
-* **Entity Isolation**: States and computations can be bound to flat entity IDs (`createEntity`). There are no lexical component scopes.
-* **Downstream-Only Propagation**: When a state changes via `write()`, the engine walks the graph edges downstream and marks dependent nodes as dirty. Only terminal nodes directly bound to a text block, property, or conditional block are scheduled for patching.
+- **Entity Isolation**: States and computations can be bound to flat entity IDs (`createEntity`). There are no lexical component scopes.
+- **Downstream-Only Propagation**: When a state changes via `write()`, the engine walks the graph edges downstream and marks dependent nodes as dirty. Only terminal nodes directly bound to a text block, property, or conditional block are scheduled for patching.
 
 ![ac_1](assets/readme/ac_1.png)
 
@@ -256,7 +280,7 @@ graph LR
     State["[State Node]"]
     Compute["[Compute Node]"]
     DOM["[DOM Effect Node]"]
-    
+
     State -- edge --> Compute
     Compute -- edge --> DOM
 
@@ -275,6 +299,7 @@ graph LR
 </details>
 
 ### 2. Flushing Pipeline
+
 Watervein decouples state changes from the browser's paint cycle. Multiple `write()` calls can be grouped inside `batch()`, which defers scheduling until the batch completes.
 
 ![ac_2](assets/readme/ac_2.png)
@@ -306,6 +331,7 @@ graph LR
 > **Current limitation**: `flush()` does not currently isolate exceptions between nodes. If a `compute` or `effect` node throws during a flush, the exception propagates out of `flush()` and any remaining dirty nodes in that pass are left unprocessed. There is no `errorBoundary` API yet — see [Roadmap](#future-roadmap--ecosystem-vision). If your app logic can throw, wrap the relevant `compute`/`effect` callback in your own `try/catch` for now.
 
 ### 3. Layered DOM Decoupling
+
 To keep the core engine free of DOM assumptions while still offering an ergonomic authoring experience, the repository splits the rendering pipeline into three packages:
 
 ![ac_3](assets/readme/ac_3.png)
@@ -316,9 +342,9 @@ To keep the core engine free of DOM assumptions while still offering an ergonomi
 ```mermaid
 graph TD
     DSL["<strong>@watervein/dom</strong> (High-Level Developer DSL)<br>• Ergonomic tag factories and prop shorthands<br>• Reactive class/style prop parsing"]
-    
+
     Core["<strong>@watervein/dom-core</strong> (Reactive Mutation Infrastructure)<br>• `display: contents` wrapper elements for `For` / `Show`<br>• Backwards-sweep DOM reconciliation for reordering"]
-    
+
     Engine["<strong>@watervein/core</strong> (Pure Reactive Engine)<br>• Headless dependency-graph tracking<br>• Entity allocation and bulk destruction"]
 
     DSL -- "Lowering Properties" --> Core
@@ -331,10 +357,10 @@ graph TD
 
 </details>
 
-* **`@watervein/dom`**: Provides declarative prop shorthands (e.g. `{ class: { active: someNode } }`) on top of standard tag functions.
-* **`@watervein/dom-core`**: Implements the low-level element binding logic (`element`, `Show`, `For`, `mount`) that `@watervein/dom` wraps.
+- **`@watervein/dom`**: Provides declarative prop shorthands (e.g. `{ class: { active: someNode } }`) on top of standard tag functions.
+- **`@watervein/dom-core`**: Implements the low-level element binding logic (`element`, `Show`, `For`, `mount`) that `@watervein/dom` wraps.
   > 💡 **Why `display: contents`?**: When rendering dynamic structures like lists (`For`) or conditionals (`Show`), Watervein wraps them in a real HTML element styled with `display: contents`. This tells the browser to ignore the wrapper for layout purposes, passing its children directly to the parent layout context, while still giving Watervein a stable DOM anchor to manage insertions and removals against.
-* **`@watervein/core`**: Contains no references to `HTMLElement` or `document`. It only computes dependency graphs, which is why it's designed to eventually support non-DOM rendering backends (e.g. Canvas).
+- **`@watervein/core`**: Contains no references to `HTMLElement` or `document`. It only computes dependency graphs, which is why it's designed to eventually support non-DOM rendering backends (e.g. Canvas).
 
 ## Advanced State Management (The ECS Pattern)
 
@@ -349,23 +375,28 @@ import { createState, createCompute, read } from '@watervein/core';
 export const globalCpuLoad = createState(0);
 
 export const isSystemCritical = createCompute(() => {
-    return read(globalCpuLoad) > 85;
+  return read(globalCpuLoad) > 85;
 });
 ```
+
 ```typescript
 // app.ts
-import { element } from '@watervein/dom';
+import { div, span } from '@watervein/dom';
 import { read } from '@watervein/core';
 import { isSystemCritical, globalCpuLoad } from './stores/serverStore.js';
 
-const sidebar = element("div", {
-    class: () => read(isSystemCritical) ? "bg-red" : "bg-gray"
-}, []);
+const sidebar = div(
+  {
+    class: () => (read(isSystemCritical) ? 'bg-red' : 'bg-gray'),
+  },
+  [],
+);
 
-const mainPanel = element("span", {}, () => `Load: ${read(globalCpuLoad)}%`);
+const mainPanel = span({}, () => `Load: ${read(globalCpuLoad)}%`);
 ```
 
 ### Memory Management Strategy
+
 - **Persistent state**: Define nodes at the module level for data that should live for the entire application session (user sessions, themes, etc.).
 - **Ephemeral state**: Use `createEntity()` and `withEntity()` inside factory functions for local UI state (modals, dropdowns, list rows) so that destroying the entity (`DestructionSystem.destroyEntity` / `destroyEntities`) also prunes its associated graph nodes and edges.
 
@@ -376,21 +407,26 @@ Watervein is written in strict TypeScript. Because it doesn't rely on a JSX comp
 ```typescript
 import { button } from '@watervein/dom';
 
-const safeButton = button({
-    id: "submit-action",
-    className: "btn-primary",
+const safeButton = button(
+  {
+    id: 'submit-action',
+    className: 'btn-primary',
 
     // Type error: 'onclick' expects a function, not a string
-    onclick: "alert('clicked')" // ❌ TS Error
-}, ["Submit"]);
+    onclick: "alert('clicked')", // ❌ TS Error
+  },
+  ['Submit'],
+);
 ```
 
 ## Reactive Prop Polymorphism
+
 Most properties accept either a static value or a reactive hook (a function or a `Node`):
+
 ```typescript
 const reactiveInput = input({
-    value: () => read(usernameState),
-    disabled: isFormSubmitting // static boolean, or a Node<boolean>
+  value: () => read(usernameState),
+  disabled: isFormSubmitting, // static boolean, or a Node<boolean>
 });
 ```
 
@@ -399,27 +435,37 @@ const reactiveInput = input({
 Because Watervein separates the pure reactive engine (`@watervein/core`) from the DOM environment, you can test application logic without a browser runtime, then layer DOM-level tests on top.
 
 ### 1. Headless Graph Testing (Zero-DOM)
+
 Verify state mutations, batching, and side effects against the raw engine:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { createState, createCompute, createEffect, read, write, UISystem } from '@watervein/core';
+import {
+  createState,
+  createCompute,
+  createEffect,
+  read,
+  write,
+  UISystem,
+} from '@watervein/core';
 
 describe('Counter Graph Logic', () => {
-    it('propagates state changes through computed nodes', () => {
-        const count = createState(0);
-        const doubled = createCompute(() => read(count) * 2);
+  it('propagates state changes through computed nodes', () => {
+    const count = createState(0);
+    const doubled = createCompute(() => read(count) * 2);
 
-        write(count, 5);
-        UISystem.flush();
+    write(count, 5);
+    UISystem.flush();
 
-        expect(read(doubled)).toBe(10);
-    });
+    expect(read(doubled)).toBe(10);
+  });
 });
 ```
 
 ### 2. Granular Patch Testing (DOM Layer)
+
 To test actual browser interactions, use `happy-dom` or `jsdom` to verify pinpoint text/attribute updates:
+
 ```typescript
 // @vitest-environment happy-dom
 import { describe, it, expect } from 'vitest';
@@ -427,18 +473,18 @@ import { mount } from '@watervein/dom';
 import { createCounterButton } from './counter.js';
 
 describe('Counter DOM Mutations', () => {
-    it('should patch individual text nodes seamlessly', () => {
-        const container = document.createElement('div');
-        const btn = createCounterButton(5);
-        mount(container, btn);
+  it('should patch individual text nodes seamlessly', () => {
+    const container = document.createElement('div');
+    const btn = createCounterButton(5);
+    mount(container, btn);
 
-        const targetButton = container.querySelector('button')!;
-        expect(targetButton.textContent).toBe('Clicks: 5');
+    const targetButton = container.querySelector('button')!;
+    expect(targetButton.textContent).toBe('Clicks: 5');
 
-        targetButton.dispatchEvent(new MouseEvent('click'));
+    targetButton.dispatchEvent(new MouseEvent('click'));
 
-        expect(targetButton.textContent).toBe('Clicks: 6');
-    });
+    expect(targetButton.textContent).toBe('Clicks: 6');
+  });
 });
 ```
 
@@ -448,6 +494,7 @@ describe('Counter DOM Mutations', () => {
 We're looking for developers to help push this architecture forward. Whether it's optimizing DAG propagation, implementing new custom node types, or fixing bugs, contributions are welcome.
 
 ### Local Development Setup
+
 1. **Fork and clone** the repository.
 2. Install dependencies and build the packages:
 
@@ -466,8 +513,8 @@ pnpm test
 
 This project is licensed under either of:
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 
