@@ -296,8 +296,8 @@ jobs:
         run: |
           set -euo pipefail
           read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
-          npm run bench -- --runner puppeteer --headless true --chromeBinary "$CHROME_BINARY" --smoketest true "${FRAMEWORKS[@]}"
-          npm --prefix webdriver-ts run isKeyed -- --runner puppeteer --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
+          npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" --smoketest true "${FRAMEWORKS[@]}"
+          npm --prefix webdriver-ts run isKeyed -- --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
           npm run checkCSP -- --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
 
       - name: Run framework comparison benchmarks
@@ -308,7 +308,7 @@ jobs:
           rm -rf webdriver-ts/results
           mkdir -p webdriver-ts/results
           read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
-          npm run bench -- --runner puppeteer --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
+          npm run bench -- --runner playwright --headless true --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
 
       - name: Generate standard js-framework-benchmark results table
         if: always()
