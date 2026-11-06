@@ -188,9 +188,9 @@ export function For<T>(
     const scratch = getScratch(callDepth++);
 
     try {
-      const list = read(listNode);
       const parent = marker.parentNode;
       if (!isInitial && !parent) return;
+      const list = read(listNode);
 
       const newLen = list.length;
       const newCache = isA ? cacheB : cacheA;
