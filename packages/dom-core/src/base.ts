@@ -289,7 +289,7 @@ export function For<T>(
         while (
           start <= oldEnd &&
           start <= newEnd &&
-          oldKeys[oldEnd] === newKeys[oldEnd]
+          oldKeys[oldEnd] === newKeys[newEnd]
         ) {
           oldEnd--;
           newEnd--;
