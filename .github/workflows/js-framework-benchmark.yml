@@ -146,20 +146,36 @@ jobs:
           cat "$RUNNER_TEMP/js-framework-benchmark-server.log"
           exit 1
 
-      - name: Install Playwright Chromium
+      - name: Install browser system dependencies
         working-directory: js-framework-benchmark/webdriver-ts
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install-deps chromium
 
-      - name: Resolve Playwright Chromium executable
+      - name: Install Google Chrome for Testing 150.0.7871.46
         shell: bash
         run: |
           set -euo pipefail
-          CHROME_BINARY="$(find "$HOME/.cache/ms-playwright" -type f -name chrome -perm -u+x -print -quit)"
-          if [[ -z "$CHROME_BINARY" ]]; then
-            echo "Playwright Chromium executable was not found" >&2
-            find "$HOME/.cache/ms-playwright" -maxdepth 4 -type f | head -100
+          CHROME_VERSION="150.0.7871.46"
+          CHROME_DIR="$RUNNER_TEMP/chrome-for-testing-$CHROME_VERSION"
+          CHROME_ARCHIVE="$RUNNER_TEMP/chrome-for-testing-$CHROME_VERSION-linux64.zip"
+          CHROME_URL="https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip"
+
+          mkdir -p "$CHROME_DIR"
+          curl --fail --location --silent --show-error "$CHROME_URL" --output "$CHROME_ARCHIVE"
+          unzip -q "$CHROME_ARCHIVE" -d "$CHROME_DIR"
+
+          CHROME_BINARY="$CHROME_DIR/chrome-linux64/chrome"
+          if [[ ! -x "$CHROME_BINARY" ]]; then
+            echo "Chrome for Testing executable was not found: $CHROME_BINARY" >&2
             exit 1
           fi
+
+          CHROME_ACTUAL_VERSION="$("$CHROME_BINARY" --version)"
+          echo "$CHROME_ACTUAL_VERSION"
+          if [[ "$CHROME_ACTUAL_VERSION" != *"$CHROME_VERSION"* ]]; then
+            echo "Expected Chrome $CHROME_VERSION, got: $CHROME_ACTUAL_VERSION" >&2
+            exit 1
+          fi
+
           echo "CHROME_BINARY=$CHROME_BINARY" >> "$GITHUB_ENV"
 
       - name: Configure Chromium for GitHub Actions sandbox restrictions
