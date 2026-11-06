@@ -316,6 +316,82 @@ jobs:
           xvfb-run -a -s "-screen 0 1920x1080x24" npm --prefix webdriver-ts run isKeyed -- --headless false --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
           xvfb-run -a -s "-screen 0 1920x1080x24" npm run checkCSP -- --headless false --chromeBinary "$CHROME_BINARY" "${FRAMEWORKS[@]}"
 
+      - name: Diagnose benchmark runner and rendering environment
+        working-directory: js-framework-benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIAG_DIR="$RUNNER_TEMP/benchmark-diagnostics"
+          mkdir -p "$DIAG_DIR"
+
+          {
+            echo "=== Runner identity ==="
+            uname -a
+            lsb_release -a || true
+            echo "=== CPU topology ==="
+            lscpu
+            echo "=== CPU quota ==="
+            cat /sys/fs/cgroup/cpu.max 2>/dev/null || true
+            cat /sys/fs/cgroup/cpu.stat 2>/dev/null || true
+            cat /sys/fs/cgroup/cpuset.cpus.effective 2>/dev/null || true
+            echo "=== Memory ==="
+            free -h
+          } | tee "$DIAG_DIR/runner-environment.txt"
+
+          echo "=== Chrome GPU diagnostics ==="
+          xvfb-run -a -s "-screen 0 1920x1080x24" node --input-type=module <<'NODE' | tee "$DIAG_DIR/chrome-gpu.txt"
+          import { chromium } from "playwright";
+
+          const browser = await chromium.launch({
+            headless: false,
+            executablePath: process.env.CHROME_BINARY,
+            args: ["--no-sandbox", "--window-size=1000,800", "--js-flags=--expose-gc", "--enable-benchmarking"],
+          });
+          try {
+            const page = await browser.newPage();
+            await page.goto("chrome://gpu", { waitUntil: "domcontentloaded" });
+            console.log(await page.locator("body").innerText());
+            await page.close();
+          } finally {
+            await browser.close();
+          }
+          NODE
+
+          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
+          DIAG_FRAMEWORKS=(keyed/vanillajs keyed/watervein)
+          for round in 1 2 3; do
+            if (( round % 2 == 1 )); then
+              RUNNERS=(playwright puppeteer)
+            else
+              RUNNERS=(puppeteer playwright)
+            fi
+
+            for runner in "${RUNNERS[@]}"; do
+              echo "=== A/B round $round: $runner ==="
+              {
+                date --iso-8601=seconds
+                cat /sys/fs/cgroup/cpu.stat 2>/dev/null || true
+              } | tee "$DIAG_DIR/$runner-round-$round-cpu-before.txt"
+
+              rm -rf webdriver-ts/results webdriver-ts/traces
+              mkdir -p webdriver-ts/results webdriver-ts/traces
+              xvfb-run -a -s "-screen 0 1920x1080x24" npm run bench -- \
+                --runner "$runner" \
+                --headless false \
+                --chromeBinary "$CHROME_BINARY" \
+                --count 5 \
+                --benchmark 01_run1k \
+                "${DIAG_FRAMEWORKS[@]}" \
+                2>&1 | tee "$DIAG_DIR/$runner-round-$round.log"
+
+              cp -a webdriver-ts/results "$DIAG_DIR/$runner-round-$round-results"
+              {
+                date --iso-8601=seconds
+                cat /sys/fs/cgroup/cpu.stat 2>/dev/null || true
+              } | tee "$DIAG_DIR/$runner-round-$round-cpu-after.txt"
+            done
+          done
+
       - name: Run framework comparison benchmarks
         working-directory: js-framework-benchmark
         shell: bash
