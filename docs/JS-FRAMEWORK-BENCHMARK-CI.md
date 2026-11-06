@@ -8,7 +8,8 @@ separately, pinned to the reviewed commit
 ## Compared implementations
 
 The workflow builds and benchmarks these keyed implementations in one
-GitHub-hosted job, using the same Playwright runner and pinned Chromium executable:
+GitHub-hosted job, using the same Playwright runner and Google Chrome for Testing
+150.0.7871.46 executable (Linux x86-64):
 
 - Watervein (`keyed/watervein`)
 - Vanilla JS (`keyed/vanillajs`)
@@ -65,7 +66,13 @@ upstream revision declares an ESLint 10 / `eslint-plugin-react` peer range
 conflict. This is isolated to benchmark tooling; it does not change Watervein
 dependencies.
 
-GitHub-hosted Linux runners require Chromium's `--no-sandbox` option. The
+The workflow installs the system libraries required by Playwright, then downloads
+Google Chrome for Testing 150.0.7871.46 directly from Google's official
+Chrome for Testing distribution endpoint. It verifies the executable's reported
+version before using it; the browser binary is kept in the runner's temporary
+directory and is not committed to the repository or uploaded as an artifact.
+
+GitHub-hosted Linux runners require Chrome's `--no-sandbox` option. The
 workflow applies that change only to the temporary benchmark checkout. It also
 patches the keyed and CSP checkers' catch handlers so unexpected checker errors
 set a failing process exit code instead of merely being logged.
