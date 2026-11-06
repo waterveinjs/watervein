@@ -418,5 +418,6 @@ jobs:
             js-framework-benchmark/webdriver-ts/results.json
             js-framework-benchmark/webdriver-ts/results/
             ${{ runner.temp }}/js-framework-benchmark-server.log
+            ${{ runner.temp }}/benchmark-diagnostics/
           if-no-files-found: warn
           retention-days: 30
