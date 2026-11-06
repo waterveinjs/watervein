@@ -309,8 +309,10 @@ export function For<T>(
           for (let i = start; i <= newEnd; i++) keyIdxMap.set(newKeys[i], i);
           for (let i = start; i <= oldEnd; i++) {
             const oldKey = oldKeys[i];
-            if (keyIdxMap.has(oldKey)) {
-              scratch.srcBuf[keyIdxMap.get(oldKey)! - start] = i;
+            const newIndex = keyIdxMap.get(oldKey);
+
+            if (newIndex !== undefined) {
+              scratch.srcBuf[newIndex - start] = i;
             }
           }
           if (LIS_OUT.length < count) {
