@@ -196,7 +196,7 @@ export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
 
   if (typeof classVal === 'function' || isWvNode(classVal)) {
     createEffect(() => {
-      const res = unwrap(classVal);
+      const res: string = unwrap(classVal);
       el.className = res ? String(res) : '';
     });
     return;
@@ -211,7 +211,7 @@ export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
       if (typeof item === 'function' || isWvNode(item)) {
         let prevClasses: string[] = [];
         createEffect(() => {
-          const res = unwrap(item);
+          const res: string = unwrap(item);
           const newStr = res ? String(res).trim() : '';
           const newClasses = newStr ? newStr.split(/\s+/) : [];
 
@@ -247,7 +247,7 @@ export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
 
       if (typeof condition === 'function' || isWvNode(condition)) {
         createEffect(() => {
-          const isTrue = unwrap(condition);
+          const isTrue: boolean = unwrap(condition);
           el.classList.toggle(className, !!isTrue);
         });
       } else {
