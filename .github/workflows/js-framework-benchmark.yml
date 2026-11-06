@@ -339,7 +339,7 @@ jobs:
           } | tee "$DIAG_DIR/runner-environment.txt"
 
           echo "=== Chrome GPU diagnostics ==="
-          xvfb-run -a -s "-screen 0 1920x1080x24" node --input-type=module <<'NODE' | tee "$DIAG_DIR/chrome-gpu.txt"
+          (cd webdriver-ts && xvfb-run -a -s "-screen 0 1920x1080x24" node --input-type=module <<'NODE') | tee "$DIAG_DIR/chrome-gpu.txt"
           import { chromium } from "playwright";
 
           const browser = await chromium.launch({
@@ -357,7 +357,6 @@ jobs:
           }
           NODE
 
-          read -r -a FRAMEWORKS <<< "$BENCHMARK_FRAMEWORKS"
           DIAG_FRAMEWORKS=(keyed/vanillajs keyed/watervein)
           for round in 1 2 3; do
             if (( round % 2 == 1 )); then
@@ -376,12 +375,12 @@ jobs:
               rm -rf webdriver-ts/results webdriver-ts/traces
               mkdir -p webdriver-ts/results webdriver-ts/traces
               xvfb-run -a -s "-screen 0 1920x1080x24" npm run bench -- \
+                "${DIAG_FRAMEWORKS[@]}" \
                 --runner "$runner" \
                 --headless false \
                 --chromeBinary "$CHROME_BINARY" \
                 --count 5 \
                 --benchmark 01_run1k \
-                "${DIAG_FRAMEWORKS[@]}" \
                 2>&1 | tee "$DIAG_DIR/$runner-round-$round.log"
 
               cp -a webdriver-ts/results "$DIAG_DIR/$runner-round-$round-results"
