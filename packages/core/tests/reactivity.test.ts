@@ -14,6 +14,7 @@ import {
   untrack,
   mapEntity,
   matchEntity,
+  onCleanup,
   getDependencyIds,
   getDependencyCount,
   NULL_EDGE,
@@ -310,6 +311,42 @@ describe('Watervein Core - Radical NES Engine', () => {
     UISystem.flush();
 
     spies.forEach((s) => expect(s).not.toHaveBeenCalled());
+  });
+
+  it('should safely reuse depth buckets across deep, shallow, and empty entity batches', () => {
+    let deepCleanupCount = 0;
+    let shallowCleanupCount = 0;
+
+    const createEntityAtDepth = (depth: number, onDestroy: () => void) => {
+      const entityId = createEntity();
+      withEntity(entityId, () => {
+        let value = createState(0);
+        for (let i = 0; i < depth; i++) {
+          const previous = value;
+          value = createCompute(() => read(previous) + 1);
+        }
+        createEffect(() => {
+          read(value);
+          onCleanup(onDestroy);
+        });
+      });
+      return entityId;
+    };
+
+    const deepEntity = createEntityAtDepth(32, () => deepCleanupCount++);
+    DestructionSystem.destroyEntities([deepEntity]);
+    expect(deepCleanupCount).toBe(1);
+
+    const shallowEntity = createEntityAtDepth(1, () => shallowCleanupCount++);
+    DestructionSystem.destroyEntities([shallowEntity]);
+    expect(shallowCleanupCount).toBe(1);
+
+    const emptyEntity = createEntity();
+    expect(() => DestructionSystem.destroyEntities([emptyEntity])).not.toThrow();
+
+    const secondDeepEntity = createEntityAtDepth(32, () => deepCleanupCount++);
+    DestructionSystem.destroyEntities([secondDeepEntity]);
+    expect(deepCleanupCount).toBe(2);
   });
 });
 

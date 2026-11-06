@@ -908,6 +908,7 @@ export const DestructionSystem = {
       allCollectedNodes,
       depthBuckets,
     } = getDestroyBuffers(depth);
+    let maxDepth = -1;
 
     try {
       allTargetEntityIds.clear();
@@ -929,7 +930,6 @@ export const DestructionSystem = {
           }
         }
       }
-      let maxDepth = 0;
       for (const eId of allTargetEntityIds) {
         const nodes = entityRegistry[eId];
         if (nodes) {
@@ -946,11 +946,9 @@ export const DestructionSystem = {
       }
       const totalNodes = allCollectedNodes.length;
       if (totalNodes > 0) {
+        if (maxDepth < 0) maxDepth = 0;
         while (depthBuckets.length <= maxDepth) {
           depthBuckets.push([]);
-        }
-        for (let d = 0; d <= maxDepth; d++) {
-          depthBuckets[d].length = 0;
         }
         for (let i = 0; i < totalNodes; i++) {
           const node = allCollectedNodes[i];
@@ -1003,7 +1001,7 @@ export const DestructionSystem = {
     } finally {
       destroyCallDepth--;
       allCollectedNodes.length = 0;
-      for (let d = 0; d < depthBuckets.length; d++) {
+      for (let d = 0; d <= maxDepth; d++) {
         if (depthBuckets[d] !== undefined) depthBuckets[d].length = 0;
       }
     }
