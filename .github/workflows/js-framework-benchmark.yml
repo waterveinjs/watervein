@@ -339,7 +339,8 @@ jobs:
           } | tee "$DIAG_DIR/runner-environment.txt"
 
           echo "=== Chrome GPU diagnostics ==="
-          (cd webdriver-ts && xvfb-run -a -s "-screen 0 1920x1080x24" node --input-type=module <<'NODE') | tee "$DIAG_DIR/chrome-gpu.txt"
+          pushd webdriver-ts >/dev/null
+          xvfb-run -a -s "-screen 0 1920x1080x24" node --input-type=module <<'NODE' | tee "$DIAG_DIR/chrome-gpu.txt"
           import { chromium } from "playwright";
 
           const browser = await chromium.launch({
@@ -356,6 +357,7 @@ jobs:
             await browser.close();
           }
           NODE
+          popd >/dev/null
 
           DIAG_FRAMEWORKS=(keyed/vanillajs keyed/watervein)
           for round in 1 2 3; do
