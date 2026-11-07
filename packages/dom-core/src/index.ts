@@ -140,7 +140,36 @@ function appendChild(parent: HTMLElement, child: Child) {
       textNode.nodeValue = String(value);
     });
   } else if (child instanceof Node) {
-    parent.appendChild(child);
+    if (
+      child.nodeType === Node.TEXT_NODE ||
+      child.nodeType === Node.DOCUMENT_FRAGMENT_NODE
+    ) {
+      parent.appendChild(child);
+      return;
+    }
+
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      const el = child as HTMLElement;
+      const tag = el.tagName.toLowerCase();
+      const blockedTags = new Set([
+        'script',
+        'iframe',
+        'object',
+        'embed',
+        'link',
+        'style',
+      ]);
+
+      if (el.ownerDocument === document && !blockedTags.has(tag)) {
+        parent.appendChild(child);
+        return;
+      }
+
+      parent.appendChild(document.createTextNode(el.textContent ?? ''));
+      return;
+    }
+
+    parent.appendChild(document.createTextNode(child.textContent ?? ''));
   } else if (child !== null && child !== undefined) {
     parent.appendChild(document.createTextNode(String(child)));
   }
