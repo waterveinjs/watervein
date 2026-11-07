@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync, copyFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -8,13 +8,8 @@ import { setTimeout as delay } from "node:timers/promises";
 const ROOT = process.cwd();
 const OWNER_REPO = "waterveinjs/watervein";
 const PAGES_REPO = "waterveinjs/benchmark";
-const REPORT_SOURCE = path.join(
-  ROOT,
-  "js-framework-benchmark",
-  "webdriver-ts-results",
-  "dist",
-  "index.html",
-);
+const REPORT_DIR = path.join(ROOT, "js-framework-benchmark", "webdriver-ts-results", "dist");
+const REPORT_HTML = path.join(REPORT_DIR, "index.html");
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -88,12 +83,15 @@ function assertTagDoesNotExist(tag) {
 }
 
 function assertReportExists() {
-  if (!existsSync(REPORT_SOURCE) || !statSync(REPORT_SOURCE).isFile() || statSync(REPORT_SOURCE).size < 1024) {
-    throw new Error("The benchmark HTML report is missing or unexpectedly small: " + REPORT_SOURCE);
+  if (!existsSync(REPORT_HTML) || !statSync(REPORT_HTML).isFile() || statSync(REPORT_HTML).size < 1024) {
+    throw new Error("The benchmark HTML report is missing or unexpectedly small: " + REPORT_HTML);
   }
-  const html = readFileSync(REPORT_SOURCE, "utf8");
+  const html = readFileSync(REPORT_HTML, "utf8");
   if (!/<html[\s>]/i.test(html) || !/<\/html>/i.test(html)) {
     throw new Error("The generated benchmark report does not look like a complete HTML document.");
+  }
+  if (!existsSync(path.join(REPORT_DIR, "overview.html"))) {
+    throw new Error("The generated benchmark overview page is missing.");
   }
 }
 
@@ -138,37 +136,34 @@ async function main() {
 
   const commit = output("git", ["rev-parse", "HEAD"]);
   console.log("\nBenchmark report validated for " + tag + " at commit " + commit + ".");
-  console.log("Creating and pushing the release tag...");
-  run("git", ["tag", "-a", tag, "-m", "Release " + tag]);
-  run("git", ["push", "origin", tag]);
-
-  await waitForRelease(tag);
-
-  const assetPath = path.join(ROOT, "watervein-benchmark-" + tag + ".html");
-  copyFileSync(REPORT_SOURCE, assetPath);
+  const archive = path.join(ROOT, "watervein-benchmark-" + tag + ".tar.gz");
   try {
-    run("gh", ["release", "upload", tag, assetPath, "--repo", OWNER_REPO, "--clobber"]);
+    run("tar", ["-czf", archive, "-C", REPORT_DIR, "."]);
+    console.log("Creating and pushing the release tag...");
+    run("git", ["tag", "-a", tag, "-m", "Release " + tag]);
+    run("git", ["push", "origin", tag]);
+
+    await waitForRelease(tag);
+    run("gh", ["release", "upload", tag, archive, "--repo", OWNER_REPO, "--clobber"]);
+
+    console.log("\nDispatching the GitHub Pages deployment...");
+    run("gh", [
+      "workflow",
+      "run",
+      "publish.yml",
+      "--repo",
+      PAGES_REPO,
+      "--ref",
+      "main",
+      "--field",
+      "tag=" + tag,
+    ]);
   } finally {
-    // Keep the original generated report in the benchmark checkout; remove only
-    // the temporary release-asset copy.
-    try { (await import("node:fs/promises")).unlink(assetPath); } catch {}
+    if (existsSync(archive)) unlinkSync(archive);
   }
 
-  console.log("\nDispatching the GitHub Pages deployment...");
-  run("gh", [
-    "workflow",
-    "run",
-    "publish.yml",
-    "--repo",
-    PAGES_REPO,
-    "--ref",
-    "main",
-    "--field",
-    "tag=" + tag,
-  ]);
-
-  console.log("\nRelease " + tag + " has been tagged, its local benchmark report uploaded, and Pages deployment queued.");
-  console.log("The public report will be available at https://waterveinjs.github.io/benchmark/versions/" + tag + ".html");
+  console.log("\nRelease " + tag + " has been tagged, its local benchmark report archive uploaded, and Pages deployment queued.");
+  console.log("The report will be published under https://waterveinjs.github.io/benchmark/versions/" + tag + "/");
 }
 
 main().catch((error) => {
