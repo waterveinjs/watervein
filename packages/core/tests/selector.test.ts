@@ -129,7 +129,7 @@ describe('Watervein Core - Selector System', () => {
     UISystem.flush();
     expect(effect).toHaveBeenCalledTimes(2);
 
-    write(selectedId, 1);
+    write(selectedId, 3);
     UISystem.flush();
     expect(effect).toHaveBeenCalledTimes(2);
 
