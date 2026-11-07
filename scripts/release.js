@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -74,12 +74,49 @@ function getReleaseVersion() {
   return versions[0];
 }
 
-function assertTagDoesNotExist(tag) {
-  if (output("git", ["tag", "--list", tag]).length > 0) {
-    throw new Error("Tag already exists locally: " + tag);
+function ensureReleaseTag(tag) {
+  const head = output("git", ["rev-parse", "HEAD"]);
+  const localTagExists = output("git", ["tag", "--list", tag]).length > 0;
+  const remoteLines = output("git", [
+    "ls-remote",
+    "--tags",
+    "origin",
+    "refs/tags/" + tag,
+    "refs/tags/" + tag + "^{}",
+  ]).split("\\n").filter(Boolean);
+  const peeled = remoteLines.find((line) => line.endsWith("refs/tags/" + tag + "^{}"));
+  const exact = remoteLines.find((line) => line.endsWith("refs/tags/" + tag));
+  const remoteCommit = (peeled || exact)?.split(/\\s+/)[0];
+
+  if (localTagExists || remoteCommit) {
+    if (!localTagExists && remoteCommit) {
+      run("git", ["fetch", "origin", "refs/tags/" + tag + ":refs/tags/" + tag]);
+    }
+    const localCommit = output("git", ["rev-parse", tag + "^{commit}"]);
+    if (localCommit !== head || (remoteCommit && remoteCommit !== head)) {
+      throw new Error("Tag " + tag + " already exists but does not point to the current release commit.");
+    }
+    if (!remoteCommit) run("git", ["push", "origin", tag]);
+    console.log("Reusing the existing release tag " + tag + " for the current commit.");
+    return;
   }
-  const remoteTags = output("git", ["ls-remote", "--tags", "origin", "refs/tags/" + tag]);
-  if (remoteTags.length > 0) throw new Error("Tag already exists on origin: " + tag);
+
+  run("git", ["tag", "-a", tag, "-m", "Release " + tag]);
+  run("git", ["push", "origin", tag]);
+}
+
+function annotateReport(tag, commit) {
+  for (const file of ["index.html", "overview.html"]) {
+    const reportPath = path.join(REPORT_DIR, file);
+    const html = readFileSync(reportPath, "utf8");
+    if (!/<head(?:\\s[^>]*)?>/i.test(html)) {
+      throw new Error("Cannot add release metadata: " + reportPath + " has no head element.");
+    }
+    const metadata =
+      '<meta name="watervein-release-tag" content="' + tag + '">\\n' +
+      '<meta name="watervein-source-commit" content="' + commit + '">\\n';
+    writeFileSync(reportPath, html.replace(/(<head(?:\\s[^>]*)?>)/i, "$1\\n" + metadata));
+  }
 }
 
 function assertReportExists() {
@@ -124,7 +161,7 @@ async function main() {
 
   const version = getReleaseVersion();
   const tag = "v" + version;
-  assertTagDoesNotExist(tag);
+
 
   console.log("\nRunning the release build and test suite...");
   run("pnpm", ["build"]);
@@ -139,9 +176,8 @@ async function main() {
   const archive = path.join(ROOT, "watervein-benchmark-" + tag + ".tar.gz");
   try {
     run("tar", ["-czf", archive, "-C", REPORT_DIR, "."]);
-    console.log("Creating and pushing the release tag...");
-    run("git", ["tag", "-a", tag, "-m", "Release " + tag]);
-    run("git", ["push", "origin", tag]);
+    console.log("Creating or verifying the release tag...");
+    ensureReleaseTag(tag);
 
     await waitForRelease(tag);
     run("gh", ["release", "upload", tag, archive, "--repo", OWNER_REPO, "--clobber"]);
@@ -159,7 +195,9 @@ async function main() {
       "tag=" + tag,
     ]);
   } finally {
-    if (existsSync(archive)) unlinkSync(archive);
+    // Keep the archive after a failed upload/dispatch so the release can be
+    // recovered without losing the locally generated benchmark artifact.
+    if (existsSync(archive) && process.exitCode === 0) unlinkSync(archive);
   }
 
   console.log("\nRelease " + tag + " has been tagged, its local benchmark report archive uploaded, and Pages deployment queued.");
