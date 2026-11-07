@@ -33,7 +33,7 @@
     "dowse:map": "cd dowsing/map && runghc Spec.hs",
     "dowse:map:loop": "node -e \"const n = process.argv[1] || 3; for(let i=0; i<n; i++) require('child_process').execSync('cd dowsing/map && runghc Spec.hs', {stdio: 'inherit'})\" --",
     "lint": "pnpm eslint .",
-    "jsfb": "node ../js-framework-benchmark/scripts/run-watervein.js"
+    "jsfb": "node scripts/setup-jsfb.js && node js-framework-benchmark/scripts/run-watervein.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
