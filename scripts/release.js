@@ -44,17 +44,21 @@ function assertCleanAndSynced() {
     throw new Error("The working tree must be clean before releasing. Commit or stash all changes first.");
   }
 
-  const upstream = output("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
-  const [behind, ahead] = output("git", ["rev-list", "--left-right", "--count", upstream + "...HEAD"])
-    .split(/\s+/)
-    .map(Number);
-  if (behind !== 0 || ahead !== 0) {
-    throw new Error("The current branch must be fully synchronized with " + upstream + ".");
+  const branch = output("git", ["branch", "--show-current"]);
+  if (branch !== "main") {
+    throw new Error("Releases must be created from the main branch. Switch to main and pull the latest changes first.");
   }
 
   const remote = output("git", ["remote", "get-url", "origin"]);
-  if (!/github\.com[:/]waterveinjs\/watervein(?:\.git)?$/i.test(remote)) {
+  if (!/github\\.com[:/]waterveinjs\\/watervein(?:\\.git)?$/i.test(remote)) {
     throw new Error("origin must point to https://github.com/waterveinjs/watervein.");
+  }
+
+  run("git", ["fetch", "origin", "main"]);
+  const head = output("git", ["rev-parse", "HEAD"]);
+  const remoteHead = output("git", ["rev-parse", "refs/remotes/origin/main"]);
+  if (head !== remoteHead) {
+    throw new Error("The local main branch must exactly match origin/main. Pull the latest changes before releasing.");
   }
 }
 
