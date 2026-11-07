@@ -77,8 +77,8 @@ write(selectedId, 2);
 When the selected ID changes, `createSelector` schedules subscribers for the previous
 and next IDs. Rows subscribed to other IDs are not scheduled by that selection change.
 Subscriptions are associated with the tracking effect and are removed when that effect is
-disposed. Use non-negative numeric IDs; the current implementation ignores negative and
-nullish notification keys.
+disposed. Use non-negative numeric IDs; the current implementation ignores negative
+notification keys. Nullish values are outside the declared API.
 
 This narrows notification work to the affected keys, but it is not constant-time for every
 operation: subscribers for an affected key are traversed, and subscription registration
