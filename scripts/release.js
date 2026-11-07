@@ -50,7 +50,7 @@ function assertCleanAndSynced() {
   }
 
   const remote = output("git", ["remote", "get-url", "origin"]);
-  if (!/github\\.com[:/]waterveinjs\\/watervein(?:\\.git)?$/i.test(remote)) {
+  if (!/github\.com[:/]waterveinjs\/watervein(?:\.git)?$/i.test(remote)) {
     throw new Error("origin must point to https://github.com/waterveinjs/watervein.");
   }
 
