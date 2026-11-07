@@ -595,11 +595,12 @@ function selectorSelection(count: number): Sample {
     `createSelector: effect runs ${selectorRuns - selectorBase} !== ${expectedSelectorRuns}`,
   );
 
+  note(
+    `effect runs: direct=${directRuns - directBase}, createSelector=${selectorRuns - selectorBase}`,
+  );
   return {
     direct: directEnd - directStart,
     selector: selectorEnd - selectorStart,
-    directEffects: directRuns - directBase,
-    selectorEffects: selectorRuns - selectorBase,
   };
 }
 
