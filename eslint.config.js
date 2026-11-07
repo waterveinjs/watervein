@@ -5,11 +5,22 @@ import { defineConfig } from 'eslint/config';
 
 export default defineConfig(
   {
-    ignores: ['**/dist/', '**/node_modules/', '**/build/', 'eslint.config.js'],
+    ignores: ['**/dist/', '**/node_modules/', '**/build/', 'eslint.config.js', 'js-framework-benchmark/'],
   },
 
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        __dirname: 'readonly',
+        process: 'readonly',
+      },
+    },
+  },
 
   {
     files: ['**/*.ts'],
