@@ -6,6 +6,7 @@ import {
   read,
   write,
   UISystem,
+  onCleanup,
 } from '@watervein/core';
 import type { ForHandle } from '../src/base.js';
 import { Show, For } from '../src/base.js';
@@ -1057,5 +1058,44 @@ describe('Watervein DOM - For', () => {
     );
     expect(childTags[0]).toBe('P#marker1');
     expect(childTags[childTags.length - 1]).toBe('P#marker2');
+  });
+
+  it('disposes item effects and stops reconciling after For.unmount()', () => {
+    const list = makeList([
+      { id: 1, label: 'A' },
+      { id: 2, label: 'B' },
+    ]);
+    const trigger = createState(0);
+    const cleanup = vi.fn();
+    let renderCount = 0;
+    const handle = For(
+      list,
+      (item) => item.id,
+      () => {
+        renderCount++;
+        const row = document.createElement('div');
+        createEffect(() => {
+          read(trigger);
+          onCleanup(cleanup);
+        });
+        return row;
+      },
+    );
+    const parent = mountFor(handle);
+
+    expect(renderCount).toBe(2);
+    expect(parent.querySelectorAll('div').length).toBe(2);
+
+    handle.unmount();
+
+    expect(parent.querySelectorAll('div').length).toBe(0);
+    expect(cleanup).toHaveBeenCalledTimes(2);
+
+    write(trigger, 1);
+    write(list, [{ id: 3, label: 'C' }]);
+    UISystem.flush();
+
+    expect(renderCount).toBe(2);
+    expect(cleanup).toHaveBeenCalledTimes(2);
   });
 });

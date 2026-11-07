@@ -44,6 +44,51 @@ describe('Watervein DOM - High Level DSL (element/Show/For)', () => {
     container.remove();
   });
 
+  it('delegates bubbled events from nested elements to registered ancestors', () => {
+    const events: string[] = [];
+    const container = document.createElement('div');
+    const app = div(
+      { onclick: () => events.push('parent') },
+      button(
+        { onclick: () => events.push('button') },
+        span({}, 'target'),
+      ),
+    );
+    document.body.appendChild(container);
+    mount(container, app);
+
+    container.querySelector('span')!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+
+    expect(events).toEqual(['button', 'parent']);
+    container.remove();
+  });
+
+  it('stops delegated ancestor handlers when a handler stops propagation', () => {
+    const events: string[] = [];
+    const container = document.createElement('div');
+    const app = div(
+      { onclick: () => events.push('parent') },
+      button(
+        {
+          onclick: (event: Event) => {
+            events.push('button');
+            event.stopPropagation();
+          },
+        },
+        'target',
+      ),
+    );
+    document.body.appendChild(container);
+    mount(container, app);
+
+    container.querySelector('button')!.click();
+
+    expect(events).toEqual(['button']);
+    container.remove();
+  });
+
   it('binds a plain attribute reactively when passed a WvNode directly (non-style/class key)', () => {
     const isDisabled = createState(false);
     const container = document.createElement('div');

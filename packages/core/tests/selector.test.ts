@@ -5,6 +5,9 @@ import {
   createSelector,
   write,
   UISystem,
+  createEntity,
+  withEntity,
+  DestructionSystem,
 } from '../src/index.js';
 
 describe('Watervein Core - Selector System', () => {
@@ -93,5 +96,25 @@ describe('Watervein Core - Selector System', () => {
 
     expect(effectRow).toHaveBeenCalledWith(false);
     expect(effectSidebar).toHaveBeenCalledWith(false);
+  });
+
+  it('should remove selector subscriptions when the owning entity is destroyed', () => {
+    const selectedId = createState<number>(1);
+    const isSelected = createSelector(selectedId);
+    const entityId = createEntity();
+    const effect = vi.fn();
+
+    withEntity(entityId, () => {
+      createEffect(() => effect(isSelected(1)));
+    });
+
+    expect(effect).toHaveBeenCalledTimes(1);
+    DestructionSystem.destroyEntity(entityId);
+    effect.mockClear();
+
+    write(selectedId, 2);
+    UISystem.flush();
+
+    expect(effect).not.toHaveBeenCalled();
   });
 });
