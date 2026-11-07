@@ -22,6 +22,7 @@ import {
   createState,
   createCompute,
   createEffect,
+  createSelector,
   read,
   write,
   createEntity,
@@ -541,6 +542,67 @@ function dynamicDependency(iterations: number): Sample {
   return { total: t1 - t0 };
 }
 
+function selectorSelection(count: number): Sample {
+  const directEntity = ownEntity();
+  let directSelected!: WvNode<number>;
+  let directRuns = 0;
+  withEntity(directEntity, () => {
+    directSelected = createState(0);
+    for (let i = 0; i < count; i++) {
+      createEffect(() => {
+        blackhole(read<number>(directSelected) === i ? 1 : 0);
+        directRuns++;
+      });
+    }
+  });
+  UISystem.flush();
+  const directBase = directRuns;
+
+  const directStart = now();
+  write(directSelected, 1);
+  UISystem.flush();
+  const directEnd = now();
+
+  expect(
+    directRuns - directBase === count,
+    `selector baseline: effect runs ${directRuns - directBase} !== ${count}`,
+  );
+
+  const selectorEntity = ownEntity();
+  let selectorSelected!: WvNode<number>;
+  let selectorRuns = 0;
+  withEntity(selectorEntity, () => {
+    selectorSelected = createState(0);
+    const isSelected = createSelector(selectorSelected);
+    for (let i = 0; i < count; i++) {
+      createEffect(() => {
+        blackhole(isSelected(i) ? 1 : 0);
+        selectorRuns++;
+      });
+    }
+  });
+  UISystem.flush();
+  const selectorBase = selectorRuns;
+
+  const selectorStart = now();
+  write(selectorSelected, 1);
+  UISystem.flush();
+  const selectorEnd = now();
+
+  const expectedSelectorRuns = Math.min(count, 2);
+  expect(
+    selectorRuns - selectorBase === expectedSelectorRuns,
+    `createSelector: effect runs ${selectorRuns - selectorBase} !== ${expectedSelectorRuns}`,
+  );
+
+  return {
+    direct: directEnd - directStart,
+    selector: selectorEnd - selectorStart,
+    directEffects: directRuns - directBase,
+    selectorEffects: selectorRuns - selectorBase,
+  };
+}
+
 function fanOut(count: number): Sample {
   const entity = ownEntity();
   let s!: WvNode<number>;
@@ -957,6 +1019,13 @@ const C = {
     ops: n * rounds,
     run: () => forAllItemsUpdate(n, rounds),
   }),
+  selection: (n: number): Case => ({
+    id: 'selector-selection',
+    title: 'Selection update (direct comparison vs createSelector)',
+    params: `rows=${fmtN(n)}`,
+    ops: { direct: n, selector: Math.min(n, 2) },
+    run: () => selectorSelection(n),
+  }),
   dynDep: (iters: number): Case => ({
     id: 'dyn-dep',
     title: 'Dynamic dependency (flush per frame)',
@@ -1057,6 +1126,9 @@ const mainCases = (): Case[] => [
   C.dslMount(1_000),
   C.reverse(1_000),
   C.replace(1_000),
+  C.selection(100),
+  C.selection(1_000),
+  C.selection(10_000),
   C.dynDep(5_000),
   C.fanOut(10_000),
   C.fanIn(10_000),
@@ -1096,6 +1168,7 @@ const scaleCases = (n: number): Case[] => {
     C.reset(Math.min(n, 5_000)),
     C.allItems(Math.min(n, 5_000), 20),
     C.create(Math.min(n, 50_000)),
+    C.selection(Math.min(n, 10_000)),
   ];
 };
 
