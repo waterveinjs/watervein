@@ -27,7 +27,9 @@ export const NULL_EDGE = -1;
 let edgeFreeListHead = NULL_EDGE;
 let nextUnallocatedEdgeId = 0;
 
-export function initCapacity(options: { edgeCapacity?: number }): void {
+export function initCapacity(options: {
+  readonly edgeCapacity?: number;
+}): void {
   if (edgePoolInitialized) {
     throw new Error(
       '[watervein] initCapacity() must be called before any node or edge is created, and can only be called once.',
@@ -896,7 +898,7 @@ export const DestructionSystem = {
     this.destroyEntities([entityId]);
   },
 
-  destroyEntities(entityIds: number[]) {
+  destroyEntities(entityIds: readonly number[]) {
     entityIds = entityIds.filter((id) => entityRegistry[id] !== undefined);
     const len = entityIds.length;
     if (len === 0) return;
