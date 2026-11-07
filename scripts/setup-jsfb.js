@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, renameSync, rmSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,7 +22,7 @@ function runGitClone(destination) {
 if (existsSync(BENCHMARK_DIR)) {
   console.log("js-framework-benchmark already exists; skipping clone.");
 } else {
-  const temporaryParent = mkdtempSync(path.join(os.tmpdir(), "watervein-jsfb-"));
+  const temporaryParent = mkdtempSync(path.join(WATERVEIN_DIR, ".js-framework-benchmark-clone-"));
   const temporaryClone = path.join(temporaryParent, "js-framework-benchmark");
 
   try {
