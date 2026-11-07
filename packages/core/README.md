@@ -53,6 +53,43 @@ createEffect(() => {
   console.log(`Current Total: ${read(total)}`);
 });
 ```
+### Keyed selection with `createSelector`
+
+`createSelector(sourceNode: Node<number>): (id: number) => boolean` is useful when many
+reactive rows display whether their own numeric ID is selected. Instead of making every
+row subscribe directly to the selected ID, each row can subscribe to its own key:
+
+```typescript
+import { createEffect, createSelector, createState, write } from '@watervein/core';
+
+const selectedId = createState(1);
+const isSelected = createSelector(selectedId);
+
+for (const row of rows) {
+  createEffect(() => {
+    row.element.classList.toggle('selected', isSelected(row.id));
+  });
+}
+
+write(selectedId, 2);
+```
+
+When the selected ID changes, `createSelector` schedules subscribers for the previous
+and next IDs. Rows subscribed to other IDs are not scheduled by that selection change.
+Subscriptions are associated with the tracking effect and are removed when that effect is
+disposed. Use non-negative numeric IDs; the current implementation ignores negative and
+nullish notification keys.
+
+This narrows notification work to the affected keys, but it is not constant-time for every
+operation: subscribers for an affected key are traversed, and subscription registration
+and cleanup use array lookups. Whether it is faster overall depends on row count and
+update frequency. The browser benchmark includes a direct-comparison baseline and reports
+both elapsed update time and effect-run counts:
+
+```typescript
+await runWaterveinBenchmark({ only: 'selector-selection' });
+```
+
 `batch(fn: () => void)`
 Groups multiple state modifications into a single transaction to prevent unnecessary intermediate evaluations.
 ```typescript
