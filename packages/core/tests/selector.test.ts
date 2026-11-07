@@ -3,6 +3,7 @@ import {
   createState,
   createEffect,
   createSelector,
+  read,
   write,
   UISystem,
   createEntity,
@@ -96,6 +97,45 @@ describe('Watervein Core - Selector System', () => {
 
     expect(effectRow).toHaveBeenCalledWith(false);
     expect(effectSidebar).toHaveBeenCalledWith(false);
+  });
+
+  it('should not duplicate a subscription when an effect reads the same key repeatedly', () => {
+    const selectedId = createState<number>(1);
+    const isSelected = createSelector(selectedId);
+    const effect = vi.fn(() => {
+      isSelected(1);
+      isSelected(1);
+    });
+
+    createEffect(effect);
+    expect(effect).toHaveBeenCalledTimes(1);
+
+    write(selectedId, 2);
+    UISystem.flush();
+
+    expect(effect).toHaveBeenCalledTimes(2);
+  });
+
+  it('should move a dynamic subscription to the newly observed key', () => {
+    const selectedId = createState<number>(1);
+    const observedId = createState<number>(1);
+    const isSelected = createSelector(selectedId);
+    const effect = vi.fn(() => isSelected(read(observedId)));
+
+    createEffect(effect);
+    expect(effect).toHaveBeenCalledTimes(1);
+
+    write(observedId, 2);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(2);
+
+    write(selectedId, 1);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(2);
+
+    write(selectedId, 2);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(3);
   });
 
   it('should remove selector subscriptions when the owning entity is destroyed', () => {
