@@ -1,5 +1,9 @@
 FROM haskell:9.6 AS haskell-build
 
+# Keep Cabal's package store in a predictable location so the runtime stage
+# can copy it together with the package environment.
+ENV CABAL_DIR=/root/.cabal
+
 RUN cabal update && \
     cabal install --lib aeson QuickCheck process containers bytestring --package-env /root/.ghc/x86_64-linux-9.6.7/environments/default
 
