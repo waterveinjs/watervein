@@ -529,7 +529,7 @@ function forceCleanupBuckets() {
   minDirtyDepth = Infinity;
   maxDirtyDepth = -1;
   for (let i = 0; i < buckets.length; i++) {
-    if (buckets[i]) {
+    if (buckets[i] !== undefined) {
       while (buckets[i].length > 0) {
         const n = buckets[i].pop();
         if (n) {
@@ -580,7 +580,7 @@ export function flush() {
       const d = minDirtyDepth;
       const bucket = buckets[d];
 
-      if (!bucket || bucket.length === 0) {
+      if (bucket === undefined || bucket.length === 0) {
         minDirtyDepth++;
         continue;
       }
@@ -843,7 +843,7 @@ const DEPTH_BUCKETS_BUFFERS: Node[][][] = [];
 let destroyCallDepth = 0;
 
 function getDestroyBuffers(depth: number) {
-  if (!DESTROY_TARGET_SETS[depth]) {
+  if (DESTROY_TARGET_SETS[depth] === undefined) {
     DESTROY_TARGET_SETS[depth] = new Set<number>();
     DESTROYING_NODE_SETS[depth] = new Set<number>();
     COLLECTED_NODES_BUFFERS[depth] = [];
@@ -874,7 +874,7 @@ export const DestructionSystem = {
     const children = entityChildrenMap.get(entityId);
     if (!children || children.size === 0) {
       const nodes = entityRegistry[entityId];
-      if (nodes) {
+      if (nodes !== undefined) {
         for (let i = 0; i < nodes.length; i++) {
           this._cleanupNode(nodes[i]);
         }
@@ -908,6 +908,7 @@ export const DestructionSystem = {
       allCollectedNodes,
       depthBuckets,
     } = getDestroyBuffers(depth);
+    let maxDepth = -1;
 
     try {
       allTargetEntityIds.clear();
@@ -929,7 +930,6 @@ export const DestructionSystem = {
           }
         }
       }
-      let maxDepth = 0;
       for (const eId of allTargetEntityIds) {
         const nodes = entityRegistry[eId];
         if (nodes) {
@@ -946,11 +946,9 @@ export const DestructionSystem = {
       }
       const totalNodes = allCollectedNodes.length;
       if (totalNodes > 0) {
+        if (maxDepth < 0) maxDepth = 0;
         while (depthBuckets.length <= maxDepth) {
           depthBuckets.push([]);
-        }
-        for (let d = 0; d <= maxDepth; d++) {
-          depthBuckets[d].length = 0;
         }
         for (let i = 0; i < totalNodes; i++) {
           const node = allCollectedNodes[i];
@@ -985,7 +983,7 @@ export const DestructionSystem = {
       }
       let hasRemainingDirty = false;
       for (let d = minDirtyDepth; d <= maxDirtyDepth; d++) {
-        if (buckets[d] && buckets[d].length > 0) {
+        if (buckets[d] !== undefined && buckets[d].length > 0) {
           hasRemainingDirty = true;
           break;
         }
@@ -1003,8 +1001,8 @@ export const DestructionSystem = {
     } finally {
       destroyCallDepth--;
       allCollectedNodes.length = 0;
-      for (let d = 0; d < depthBuckets.length; d++) {
-        if (depthBuckets[d]) depthBuckets[d].length = 0;
+      for (let d = 0; d <= maxDepth; d++) {
+        if (depthBuckets[d] !== undefined) depthBuckets[d].length = 0;
       }
     }
   },
@@ -1059,10 +1057,10 @@ export const DestructionSystem = {
     if (node.bucketIdx !== -1) {
       const bucket = buckets[node.scheduledDepth];
       const idx = node.bucketIdx;
-      if (bucket && idx < bucket.length) {
+      if (bucket !== undefined && idx < bucket.length) {
         const last = bucket[bucket.length - 1];
         bucket[idx] = last;
-        if (last) last.bucketIdx = idx;
+        if (last !== undefined) last.bucketIdx = idx;
         bucket.pop();
       }
       node.bucketIdx = -1;
@@ -1178,14 +1176,14 @@ export function mapEntity<T>(
 
           let cache = TEMP_MAP.get(newKey);
 
-          if (cache) {
+          if (cache !== undefined) {
             TEMP_MAP.delete(newKey);
             updateNode(cache.itemNode, item);
             updateNode(cache.indexNode, i);
             entityCache.set(newKey, cache);
           } else {
             cache = entityCache.get(newKey);
-            if (cache) {
+            if (cache !== undefined) {
               updateNode(cache.itemNode, item);
               updateNode(cache.indexNode, i);
             } else {
@@ -1321,7 +1319,7 @@ export function handleDelegatedEvent(e: Event) {
     const handlers = target[WV_HANDLERS];
     if (handlers) {
       const handler = handlers[e.type];
-      if (handler) {
+      if (handler !== undefined) {
         handler(e);
         if (e.cancelBubble) return;
       }

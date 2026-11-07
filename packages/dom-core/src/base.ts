@@ -188,9 +188,9 @@ export function For<T>(
     const scratch = getScratch(callDepth++);
 
     try {
-      const list = read(listNode);
       const parent = marker.parentNode;
       if (!isInitial && !parent) return;
+      const list = read(listNode);
 
       const newLen = list.length;
       const newCache = isA ? cacheB : cacheA;
@@ -289,7 +289,7 @@ export function For<T>(
         while (
           start <= oldEnd &&
           start <= newEnd &&
-          oldKeys[oldEnd] === newKeys[oldEnd]
+          oldKeys[oldEnd] === newKeys[newEnd]
         ) {
           oldEnd--;
           newEnd--;
@@ -309,8 +309,10 @@ export function For<T>(
           for (let i = start; i <= newEnd; i++) keyIdxMap.set(newKeys[i], i);
           for (let i = start; i <= oldEnd; i++) {
             const oldKey = oldKeys[i];
-            if (keyIdxMap.has(oldKey)) {
-              scratch.srcBuf[keyIdxMap.get(oldKey)! - start] = i;
+            const newIndex = keyIdxMap.get(oldKey);
+
+            if (newIndex !== undefined) {
+              scratch.srcBuf[newIndex - start] = i;
             }
           }
           if (LIS_OUT.length < count) {
