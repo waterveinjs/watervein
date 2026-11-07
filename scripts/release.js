@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -178,7 +179,7 @@ async function main() {
   const commit = output("git", ["rev-parse", "HEAD"]);
   annotateReport(tag, commit);
   console.log("\nBenchmark report validated for " + tag + " at commit " + commit + ".");
-  const archive = path.join(ROOT, "watervein-benchmark-" + tag + ".tar.gz");
+  const archive = path.join(os.tmpdir(), "watervein-benchmark-" + tag + ".tar.gz");
   let completed = false;
   try {
     run("tar", ["-czf", archive, "-C", REPORT_DIR, "."]);
@@ -204,7 +205,11 @@ async function main() {
   } finally {
     // Keep the archive after a failed upload/dispatch so the release can be
     // recovered without losing the locally generated benchmark artifact.
-    if (completed && existsSync(archive)) unlinkSync(archive);
+    if (completed && existsSync(archive)) {
+      unlinkSync(archive);
+    } else if (existsSync(archive)) {
+      console.error("Benchmark archive retained for recovery: " + archive);
+    }
   }
 
   console.log("\nRelease " + tag + " has been tagged, its local benchmark report archive uploaded, and Pages deployment queued.");
