@@ -83,10 +83,10 @@ function ensureReleaseTag(tag) {
     "origin",
     "refs/tags/" + tag,
     "refs/tags/" + tag + "^{}",
-  ]).split("\\n").filter(Boolean);
+  ]).split(/\r?\n/).filter(Boolean);
   const peeled = remoteLines.find((line) => line.endsWith("refs/tags/" + tag + "^{}"));
   const exact = remoteLines.find((line) => line.endsWith("refs/tags/" + tag));
-  const remoteCommit = (peeled || exact)?.split(/\\s+/)[0];
+  const remoteCommit = (peeled || exact)?.split(/\s+/)[0];
 
   if (localTagExists || remoteCommit) {
     if (!localTagExists && remoteCommit) {
@@ -109,13 +109,14 @@ function annotateReport(tag, commit) {
   for (const file of ["index.html", "overview.html"]) {
     const reportPath = path.join(REPORT_DIR, file);
     const html = readFileSync(reportPath, "utf8");
-    if (!/<head(?:\\s[^>]*)?>/i.test(html)) {
+    if (!/<head(?:\s[^>]*)?>/i.test(html)) {
       throw new Error("Cannot add release metadata: " + reportPath + " has no head element.");
     }
+    const cleanHtml = html.replace(/<meta name="watervein-(?:release-tag|source-commit)"[^>]*>\s*/gi, "");
     const metadata =
-      '<meta name="watervein-release-tag" content="' + tag + '">\\n' +
-      '<meta name="watervein-source-commit" content="' + commit + '">\\n';
-    writeFileSync(reportPath, html.replace(/(<head(?:\\s[^>]*)?>)/i, "$1\\n" + metadata));
+      '<meta name="watervein-release-tag" content="' + tag + '">' + "\n" +
+      '<meta name="watervein-source-commit" content="' + commit + '">' + "\n";
+    writeFileSync(reportPath, cleanHtml.replace(/(<head(?:\s[^>]*)?>)/i, "$1\n" + metadata));
   }
 }
 
@@ -162,7 +163,6 @@ async function main() {
   const version = getReleaseVersion();
   const tag = "v" + version;
 
-
   console.log("\nRunning the release build and test suite...");
   run("pnpm", ["build"]);
   run("pnpm", ["test"]);
@@ -172,8 +172,10 @@ async function main() {
   assertReportExists();
 
   const commit = output("git", ["rev-parse", "HEAD"]);
+  annotateReport(tag, commit);
   console.log("\nBenchmark report validated for " + tag + " at commit " + commit + ".");
   const archive = path.join(ROOT, "watervein-benchmark-" + tag + ".tar.gz");
+  let completed = false;
   try {
     run("tar", ["-czf", archive, "-C", REPORT_DIR, "."]);
     console.log("Creating or verifying the release tag...");
@@ -194,10 +196,11 @@ async function main() {
       "--field",
       "tag=" + tag,
     ]);
+    completed = true;
   } finally {
     // Keep the archive after a failed upload/dispatch so the release can be
     // recovered without losing the locally generated benchmark artifact.
-    if (existsSync(archive) && process.exitCode === 0) unlinkSync(archive);
+    if (completed && existsSync(archive)) unlinkSync(archive);
   }
 
   console.log("\nRelease " + tag + " has been tagged, its local benchmark report archive uploaded, and Pages deployment queued.");
