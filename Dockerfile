@@ -1,16 +1,18 @@
-FROM haskell:9.6 AS haskell-base
+FROM haskell:9.6 AS haskell-build
+
+RUN cabal update && \
+    cabal install --lib aeson QuickCheck process containers bytestring --package-env /root/.ghc/x86_64-linux-9.6.7/environments/default
+
 FROM node:lts
 
-COPY --from=haskell-base /opt/ghc /opt/ghc
-COPY --from=haskell-base /usr/local/bin/cabal /usr/local/bin/cabal
+# Carry over GHC and its installed package database/store from the Haskell image,
+# where Cabal dependencies were built with the matching compiler toolchain.
+COPY --from=haskell-build /opt/ghc /opt/ghc
+COPY --from=haskell-build /usr/local/bin/cabal /usr/local/bin/cabal
+COPY --from=haskell-build /root/.ghc /root/.ghc
+COPY --from=haskell-build /root/.cabal /root/.cabal
 
 ENV PATH=/opt/ghc/9.6.7/bin:$PATH
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends binutils && \
-    rm -rf /var/lib/apt/lists/* && \
-    cabal update && \
-    cabal install --lib aeson QuickCheck process containers bytestring --package-env /root/.ghc/x86_64-linux-9.6.7/environments/default
 
 RUN npm install -g pnpm
 
