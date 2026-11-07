@@ -6,7 +6,10 @@ COPY --from=haskell-base /usr/local/bin/cabal /usr/local/bin/cabal
 
 ENV PATH=/opt/ghc/9.6.7/bin:$PATH
 
-RUN cabal update && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends binutils && \
+    rm -rf /var/lib/apt/lists/* && \
+    cabal update && \
     cabal install --lib aeson QuickCheck process containers bytestring --package-env /root/.ghc/x86_64-linux-9.6.7/environments/default
 
 RUN npm install -g pnpm
