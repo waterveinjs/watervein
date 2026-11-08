@@ -207,41 +207,39 @@ let currentTrackingNode: Node | null = null;
 // created lazily, so nodes that never call createSelector() pay no object or
 // collection allocation cost.
 const SELECTOR_ENTRY_INITIAL_CAPACITY = 128;
-let selectorEntryCapacity = SELECTOR_ENTRY_INITIAL_CAPACITY;
-let selectorEntryNode = new Int32Array(selectorEntryCapacity);
-let selectorEntrySelector = new Int32Array(selectorEntryCapacity);
-let selectorEntryPrevKey = new Int32Array(selectorEntryCapacity);
-let selectorEntryNextKey = new Int32Array(selectorEntryCapacity);
-let selectorEntryNodeIndex = new Int32Array(selectorEntryCapacity);
-let selectorEntrySeenVersion = new Int32Array(selectorEntryCapacity);
-let selectorEntryLinked = new Uint8Array(selectorEntryCapacity);
-const selectorEntryKey: number[] = new Array(selectorEntryCapacity);
+const UNLINKED_SELECTOR_ENTRY = -2;
+let selectorEntryCapacity = 0;
+let selectorEntryNode = new Int32Array(0);
+let selectorEntryPrevKey = new Int32Array(0);
+let selectorEntryNextKey = new Int32Array(0);
+let selectorEntryNodeIndex = new Int32Array(0);
+let selectorEntrySeenVersion = new Int32Array(0);
+const selectorEntryKey: number[] = [];
 let selectorEntryFreeHead = NULL_EDGE;
 let selectorEntryNextUnallocated = 0;
 let activeSelectorEntryCount = 0;
 
 type SelectorState = { keyHeads: Map<number, number> };
-let nextSelectorId = 0;
 const selectorEntryState: (SelectorState | undefined)[] = [];
 
 function ensureSelectorEntryCapacity(minCapacity: number) {
   if (minCapacity < selectorEntryCapacity) return;
-  let newCapacity = selectorEntryCapacity + (selectorEntryCapacity >> 1) + 1;
+  let newCapacity = selectorEntryCapacity === 0
+    ? SELECTOR_ENTRY_INITIAL_CAPACITY
+    : selectorEntryCapacity + (selectorEntryCapacity >> 1) + 1;
   while (newCapacity <= minCapacity) {
     newCapacity += (newCapacity >> 1) + 1;
   }
-  const grow = <T extends Int32Array | Uint8Array>(old: T): T => {
-    const next = new (old.constructor as any)(newCapacity) as T;
+  const grow = (old: Int32Array): Int32Array => {
+    const next = new Int32Array(newCapacity);
     next.set(old);
     return next;
   };
   selectorEntryNode = grow(selectorEntryNode);
-  selectorEntrySelector = grow(selectorEntrySelector);
   selectorEntryPrevKey = grow(selectorEntryPrevKey);
   selectorEntryNextKey = grow(selectorEntryNextKey);
   selectorEntryNodeIndex = grow(selectorEntryNodeIndex);
   selectorEntrySeenVersion = grow(selectorEntrySeenVersion);
-  selectorEntryLinked = grow(selectorEntryLinked);
   selectorEntryKey.length = newCapacity;
   selectorEntryCapacity = newCapacity;
 }
@@ -258,21 +256,19 @@ function allocSelectorEntry(): number {
     }
   }
   activeSelectorEntryCount++;
-  selectorEntryPrevKey[entryId] = NULL_EDGE;
+  selectorEntryPrevKey[entryId] = UNLINKED_SELECTOR_ENTRY;
   selectorEntryNextKey[entryId] = NULL_EDGE;
   selectorEntryNodeIndex[entryId] = -1;
   selectorEntrySeenVersion[entryId] = 0;
-  selectorEntryLinked[entryId] = 0;
   return entryId;
 }
 
 function freeSelectorEntry(entryId: number) {
   activeSelectorEntryCount--;
   selectorEntryNode[entryId] = -1;
-  selectorEntrySelector[entryId] = -1;
   selectorEntryKey[entryId] = 0;
   selectorEntryState[entryId] = undefined;
-  selectorEntryLinked[entryId] = 0;
+  selectorEntryPrevKey[entryId] = UNLINKED_SELECTOR_ENTRY;
   selectorEntryNextKey[entryId] = selectorEntryFreeHead;
   selectorEntryFreeHead = entryId;
 }
@@ -287,14 +283,13 @@ function linkSelectorEntry(entryId: number) {
     selectorEntryPrevKey[oldHead] = entryId;
   }
   heads.set(key, entryId);
-  selectorEntryLinked[entryId] = 1;
 }
 
 function unlinkSelectorEntry(entryId: number) {
-  if (selectorEntryLinked[entryId] === 0) return;
+  const prev = selectorEntryPrevKey[entryId];
+  if (prev === UNLINKED_SELECTOR_ENTRY) return;
   const key = selectorEntryKey[entryId];
   const heads = selectorEntryState[entryId]!.keyHeads;
-  const prev = selectorEntryPrevKey[entryId];
   const next = selectorEntryNextKey[entryId];
   if (prev !== NULL_EDGE) {
     selectorEntryNextKey[prev] = next;
@@ -306,8 +301,7 @@ function unlinkSelectorEntry(entryId: number) {
   if (next !== NULL_EDGE) {
     selectorEntryPrevKey[next] = prev;
   }
-  selectorEntryLinked[entryId] = 0;
-  selectorEntryPrevKey[entryId] = NULL_EDGE;
+  selectorEntryPrevKey[entryId] = UNLINKED_SELECTOR_ENTRY;
   selectorEntryNextKey[entryId] = NULL_EDGE;
 }
 
@@ -315,12 +309,12 @@ function removeSelectorEntryFromNode(
   tracking: SelectorTracking,
   entryId: number,
 ) {
-  const selectorId = selectorEntrySelector[entryId];
+  const selectorState = selectorEntryState[entryId]!;
   const key = selectorEntryKey[entryId];
-  const selectorLookup = tracking.lookup.get(selectorId);
+  const selectorLookup = tracking.lookup.get(selectorState);
   if (selectorLookup) {
     selectorLookup.delete(key);
-    if (selectorLookup.size === 0) tracking.lookup.delete(selectorId);
+    if (selectorLookup.size === 0) tracking.lookup.delete(selectorState);
   }
 
   const entries = tracking.entries;
@@ -355,7 +349,7 @@ function commitSelectorTracking(node: Node) {
   while (index < entries.length) {
     const entryId = entries[index];
     if (selectorEntrySeenVersion[entryId] === tracking.version) {
-      if (selectorEntryLinked[entryId] === 0) {
+      if (selectorEntryPrevKey[entryId] === UNLINKED_SELECTOR_ENTRY) {
         linkSelectorEntry(entryId);
       }
       index++;
@@ -392,18 +386,15 @@ function compactSelectorEntryPoolIfNeeded(nodesEmpty: boolean) {
 
   selectorEntryCapacity = SELECTOR_ENTRY_INITIAL_CAPACITY;
   selectorEntryNode = new Int32Array(selectorEntryCapacity);
-  selectorEntrySelector = new Int32Array(selectorEntryCapacity);
   selectorEntryPrevKey = new Int32Array(selectorEntryCapacity);
   selectorEntryNextKey = new Int32Array(selectorEntryCapacity);
   selectorEntryNodeIndex = new Int32Array(selectorEntryCapacity);
   selectorEntrySeenVersion = new Int32Array(selectorEntryCapacity);
-  selectorEntryLinked = new Uint8Array(selectorEntryCapacity);
   selectorEntryKey.length = selectorEntryCapacity;
   selectorEntryState.length = selectorEntryCapacity;
   selectorEntryFreeHead = NULL_EDGE;
   selectorEntryNextUnallocated = 0;
 }
-
 const trackingStack: (Node | null)[] = [];
 
 const buckets: Node[][] = [];
@@ -922,7 +913,6 @@ export function createResource<S, T>(
 export function createSelector(
   sourceNode: Node<number>,
 ): (id: number) => boolean {
-  const selectorId = nextSelectorId++;
   const selectorState: SelectorState = { keyHeads: new Map<number, number>() };
   let prevId = untrack(() => read(sourceNode));
 
@@ -963,17 +953,16 @@ export function createSelector(
         trk.selectorTracking = tracking;
       }
 
-      let selectorLookup = tracking.lookup.get(selectorId);
+      let selectorLookup = tracking.lookup.get(selectorState);
       if (!selectorLookup) {
         selectorLookup = new Map<number, number>();
-        tracking.lookup.set(selectorId, selectorLookup);
+        tracking.lookup.set(selectorState, selectorLookup);
       }
 
       let entryId = selectorLookup.get(id);
       if (entryId === undefined) {
         entryId = allocSelectorEntry();
         selectorEntryNode[entryId] = trk.id;
-        selectorEntrySelector[entryId] = selectorId;
         selectorEntryKey[entryId] = id;
         selectorEntryState[entryId] = selectorState;
         selectorEntrySeenVersion[entryId] = tracking.version;
