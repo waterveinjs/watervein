@@ -221,7 +221,8 @@ let selectorEntryNextUnallocated = 0;
 let activeSelectorEntryCount = 0;
 
 type SelectorState = { keyHeads: Map<number, number> };
-const selectorStates: SelectorState[] = [];
+let nextSelectorId = 0;
+const selectorEntryState: (SelectorState | undefined)[] = [];
 
 function ensureSelectorEntryCapacity(minCapacity: number) {
   if (minCapacity < selectorEntryCapacity) return;
@@ -270,6 +271,7 @@ function freeSelectorEntry(entryId: number) {
   selectorEntryNode[entryId] = -1;
   selectorEntrySelector[entryId] = -1;
   selectorEntryKey[entryId] = 0;
+  selectorEntryState[entryId] = undefined;
   selectorEntryLinked[entryId] = 0;
   selectorEntryNextKey[entryId] = selectorEntryFreeHead;
   selectorEntryFreeHead = entryId;
@@ -278,7 +280,7 @@ function freeSelectorEntry(entryId: number) {
 function linkSelectorEntry(entryId: number) {
   const selectorId = selectorEntrySelector[entryId];
   const key = selectorEntryKey[entryId];
-  const heads = selectorStates[selectorId].keyHeads;
+  const heads = selectorEntryState[entryId]!.keyHeads;
   const oldHead = heads.get(key);
   selectorEntryPrevKey[entryId] = NULL_EDGE;
   selectorEntryNextKey[entryId] = oldHead ?? NULL_EDGE;
@@ -293,7 +295,7 @@ function unlinkSelectorEntry(entryId: number) {
   if (selectorEntryLinked[entryId] === 0) return;
   const selectorId = selectorEntrySelector[entryId];
   const key = selectorEntryKey[entryId];
-  const heads = selectorStates[selectorId].keyHeads;
+  const heads = selectorEntryState[entryId]!.keyHeads;
   const prev = selectorEntryPrevKey[entryId];
   const next = selectorEntryNextKey[entryId];
   if (prev !== NULL_EDGE) {
@@ -899,9 +901,8 @@ export function createResource<S, T>(
 export function createSelector(
   sourceNode: Node<number>,
 ): (id: number) => boolean {
-  const selectorId = selectorStates.length;
+  const selectorId = nextSelectorId++;
   const selectorState: SelectorState = { keyHeads: new Map<number, number>() };
-  selectorStates.push(selectorState);
   let prevId = untrack(() => read(sourceNode));
 
   createEffect(() => {
@@ -953,6 +954,7 @@ export function createSelector(
         selectorEntryNode[entryId] = trk.id;
         selectorEntrySelector[entryId] = selectorId;
         selectorEntryKey[entryId] = id;
+        selectorEntryState[entryId] = selectorState;
         selectorEntrySeenVersion[entryId] = tracking.version;
         selectorEntryNodeIndex[entryId] = tracking.entries.length;
         tracking.entries.push(entryId);
