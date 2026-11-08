@@ -27,7 +27,15 @@ const app = div({}, [
 
 ## Benchmark
 
-Watervein is currently being integrated into the [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark) suite. No published numbers exist yet — treat any performance claims in this README as architectural intent, not measured results, until benchmark data is published here.
+**Published benchmark results:**
+
+- **[Latest benchmark report](https://waterveinjs.github.io/benchmark/)**
+
+The versioned report is generated from a benchmark run performed locally as part of the Watervein release process. It includes the tested browser and machine environment so results can be interpreted in context.
+
+- [Benchmark history and publishing workflow](https://github.com/waterveinjs/benchmark)
+- [Benchmark implementation and runner](https://github.com/waterveinjs/js-framework-benchmark)
+- [Upstream js-framework-benchmark project](https://github.com/krausest/js-framework-benchmark)
 
 ## Packages
 

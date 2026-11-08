@@ -16,5 +16,5 @@ export function scope<T extends (...args: any[]) => HTMLElement>(f: T): T {
     }
 
     return el;
-  }) as unknown as T;
+  }) as T;
 }

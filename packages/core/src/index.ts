@@ -838,7 +838,6 @@ export const DataSystem = {
 };
 
 const DESTROY_TARGET_SETS: Set<number>[] = [];
-const DESTROYING_NODE_SETS: Set<number>[] = [];
 const COLLECTED_NODES_BUFFERS: Node[][] = [];
 const DEPTH_BUCKETS_BUFFERS: Node[][][] = [];
 
@@ -847,13 +846,11 @@ let destroyCallDepth = 0;
 function getDestroyBuffers(depth: number) {
   if (DESTROY_TARGET_SETS[depth] === undefined) {
     DESTROY_TARGET_SETS[depth] = new Set<number>();
-    DESTROYING_NODE_SETS[depth] = new Set<number>();
     COLLECTED_NODES_BUFFERS[depth] = [];
     DEPTH_BUCKETS_BUFFERS[depth] = [];
   }
   return {
     allTargetEntityIds: DESTROY_TARGET_SETS[depth],
-    destroyingNodeIds: DESTROYING_NODE_SETS[depth],
     allCollectedNodes: COLLECTED_NODES_BUFFERS[depth],
     depthBuckets: DEPTH_BUCKETS_BUFFERS[depth],
   };
@@ -899,25 +896,23 @@ export const DestructionSystem = {
   },
 
   destroyEntities(entityIds: readonly number[]) {
-    entityIds = entityIds.filter((id) => entityRegistry[id] !== undefined);
     const len = entityIds.length;
     if (len === 0) return;
 
     const depth = destroyCallDepth++;
-    const {
-      allTargetEntityIds,
-      destroyingNodeIds: destroying,
-      allCollectedNodes,
-      depthBuckets,
-    } = getDestroyBuffers(depth);
+    const { allTargetEntityIds, allCollectedNodes, depthBuckets } =
+      getDestroyBuffers(depth);
     let maxDepth = -1;
 
     try {
       allTargetEntityIds.clear();
-      destroying.clear();
       allCollectedNodes.length = 0;
       for (let i = 0; i < len; i++) {
-        collectRecursively(entityIds[i], allTargetEntityIds);
+        const entityId = entityIds[i];
+
+        if (entityRegistry[entityId] === undefined) continue;
+
+        collectRecursively(entityId, allTargetEntityIds);
       }
       for (const eId of allTargetEntityIds) {
         const parentId = entityParentMap.get(eId);
@@ -938,7 +933,6 @@ export const DestructionSystem = {
           const nLen = nodes.length;
           for (let i = 0; i < nLen; i++) {
             const node = nodes[i];
-            destroying.add(node.id);
             allCollectedNodes.push(node);
             if (node.depth > maxDepth) {
               maxDepth = node.depth;

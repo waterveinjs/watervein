@@ -1,0 +1,450 @@
+[
+  {
+    "name": "a",
+    "tag": "a"
+  },
+  {
+    "name": "abbr",
+    "tag": "abbr"
+  },
+  {
+    "name": "address",
+    "tag": "address"
+  },
+  {
+    "name": "area",
+    "tag": "area"
+  },
+  {
+    "name": "article",
+    "tag": "article"
+  },
+  {
+    "name": "aside",
+    "tag": "aside"
+  },
+  {
+    "name": "audio",
+    "tag": "audio"
+  },
+  {
+    "name": "b",
+    "tag": "b"
+  },
+  {
+    "name": "base",
+    "tag": "base"
+  },
+  {
+    "name": "bdi",
+    "tag": "bdi"
+  },
+  {
+    "name": "bdo",
+    "tag": "bdo"
+  },
+  {
+    "name": "blockquote",
+    "tag": "blockquote"
+  },
+  {
+    "name": "body",
+    "tag": "body"
+  },
+  {
+    "name": "br",
+    "tag": "br"
+  },
+  {
+    "name": "button",
+    "tag": "button"
+  },
+  {
+    "name": "canvas",
+    "tag": "canvas"
+  },
+  {
+    "name": "caption",
+    "tag": "caption"
+  },
+  {
+    "name": "cite",
+    "tag": "cite"
+  },
+  {
+    "name": "code",
+    "tag": "code"
+  },
+  {
+    "name": "col",
+    "tag": "col"
+  },
+  {
+    "name": "colgroup",
+    "tag": "colgroup"
+  },
+  {
+    "name": "data",
+    "tag": "data"
+  },
+  {
+    "name": "datalist",
+    "tag": "datalist"
+  },
+  {
+    "name": "dd",
+    "tag": "dd"
+  },
+  {
+    "name": "del",
+    "tag": "del"
+  },
+  {
+    "name": "details",
+    "tag": "details"
+  },
+  {
+    "name": "dfn",
+    "tag": "dfn"
+  },
+  {
+    "name": "dialog",
+    "tag": "dialog"
+  },
+  {
+    "name": "div",
+    "tag": "div"
+  },
+  {
+    "name": "dl",
+    "tag": "dl"
+  },
+  {
+    "name": "dt",
+    "tag": "dt"
+  },
+  {
+    "name": "em",
+    "tag": "em"
+  },
+  {
+    "name": "embed",
+    "tag": "embed"
+  },
+  {
+    "name": "fieldset",
+    "tag": "fieldset"
+  },
+  {
+    "name": "figcaption",
+    "tag": "figcaption"
+  },
+  {
+    "name": "figure",
+    "tag": "figure"
+  },
+  {
+    "name": "footer",
+    "tag": "footer"
+  },
+  {
+    "name": "form",
+    "tag": "form"
+  },
+  {
+    "name": "h1",
+    "tag": "h1"
+  },
+  {
+    "name": "h2",
+    "tag": "h2"
+  },
+  {
+    "name": "h3",
+    "tag": "h3"
+  },
+  {
+    "name": "h4",
+    "tag": "h4"
+  },
+  {
+    "name": "h5",
+    "tag": "h5"
+  },
+  {
+    "name": "h6",
+    "tag": "h6"
+  },
+  {
+    "name": "head",
+    "tag": "head"
+  },
+  {
+    "name": "header",
+    "tag": "header"
+  },
+  {
+    "name": "hgroup",
+    "tag": "hgroup"
+  },
+  {
+    "name": "hr",
+    "tag": "hr"
+  },
+  {
+    "name": "html",
+    "tag": "html"
+  },
+  {
+    "name": "i",
+    "tag": "i"
+  },
+  {
+    "name": "iframe",
+    "tag": "iframe"
+  },
+  {
+    "name": "img",
+    "tag": "img"
+  },
+  {
+    "name": "input",
+    "tag": "input"
+  },
+  {
+    "name": "ins",
+    "tag": "ins"
+  },
+  {
+    "name": "kbd",
+    "tag": "kbd"
+  },
+  {
+    "name": "label",
+    "tag": "label"
+  },
+  {
+    "name": "legend",
+    "tag": "legend"
+  },
+  {
+    "name": "li",
+    "tag": "li"
+  },
+  {
+    "name": "link",
+    "tag": "link"
+  },
+  {
+    "name": "main",
+    "tag": "main"
+  },
+  {
+    "name": "map",
+    "tag": "map"
+  },
+  {
+    "name": "mark",
+    "tag": "mark"
+  },
+  {
+    "name": "menu",
+    "tag": "menu"
+  },
+  {
+    "name": "meta",
+    "tag": "meta"
+  },
+  {
+    "name": "meter",
+    "tag": "meter"
+  },
+  {
+    "name": "nav",
+    "tag": "nav"
+  },
+  {
+    "name": "noscript",
+    "tag": "noscript"
+  },
+  {
+    "name": "object",
+    "tag": "object"
+  },
+  {
+    "name": "ol",
+    "tag": "ol"
+  },
+  {
+    "name": "optgroup",
+    "tag": "optgroup"
+  },
+  {
+    "name": "option",
+    "tag": "option"
+  },
+  {
+    "name": "output",
+    "tag": "output"
+  },
+  {
+    "name": "p",
+    "tag": "p"
+  },
+  {
+    "name": "picture",
+    "tag": "picture"
+  },
+  {
+    "name": "pre",
+    "tag": "pre"
+  },
+  {
+    "name": "progress",
+    "tag": "progress"
+  },
+  {
+    "name": "q",
+    "tag": "q"
+  },
+  {
+    "name": "rp",
+    "tag": "rp"
+  },
+  {
+    "name": "rt",
+    "tag": "rt"
+  },
+  {
+    "name": "ruby",
+    "tag": "ruby"
+  },
+  {
+    "name": "s",
+    "tag": "s"
+  },
+  {
+    "name": "samp",
+    "tag": "samp"
+  },
+  {
+    "name": "script",
+    "tag": "script"
+  },
+  {
+    "name": "search",
+    "tag": "search"
+  },
+  {
+    "name": "section",
+    "tag": "section"
+  },
+  {
+    "name": "select",
+    "tag": "select"
+  },
+  {
+    "name": "slot",
+    "tag": "slot"
+  },
+  {
+    "name": "small",
+    "tag": "small"
+  },
+  {
+    "name": "source",
+    "tag": "source"
+  },
+  {
+    "name": "span",
+    "tag": "span"
+  },
+  {
+    "name": "strong",
+    "tag": "strong"
+  },
+  {
+    "name": "style",
+    "tag": "style"
+  },
+  {
+    "name": "sub",
+    "tag": "sub"
+  },
+  {
+    "name": "summary",
+    "tag": "summary"
+  },
+  {
+    "name": "sup",
+    "tag": "sup"
+  },
+  {
+    "name": "table",
+    "tag": "table"
+  },
+  {
+    "name": "tbody",
+    "tag": "tbody"
+  },
+  {
+    "name": "td",
+    "tag": "td"
+  },
+  {
+    "name": "template",
+    "tag": "template"
+  },
+  {
+    "name": "textarea",
+    "tag": "textarea"
+  },
+  {
+    "name": "tfoot",
+    "tag": "tfoot"
+  },
+  {
+    "name": "th",
+    "tag": "th"
+  },
+  {
+    "name": "thead",
+    "tag": "thead"
+  },
+  {
+    "name": "time",
+    "tag": "time"
+  },
+  {
+    "name": "title",
+    "tag": "title"
+  },
+  {
+    "name": "tr",
+    "tag": "tr"
+  },
+  {
+    "name": "track",
+    "tag": "track"
+  },
+  {
+    "name": "u",
+    "tag": "u"
+  },
+  {
+    "name": "ul",
+    "tag": "ul"
+  },
+  {
+    "name": "variable",
+    "tag": "var"
+  },
+  {
+    "name": "video",
+    "tag": "video"
+  },
+  {
+    "name": "wbr",
+    "tag": "wbr"
+  }
+]
