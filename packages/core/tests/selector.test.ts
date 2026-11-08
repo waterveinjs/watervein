@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   createState,
+  createCompute,
   createEffect,
   createSelector,
   read,
@@ -134,6 +135,59 @@ describe('Watervein Core - Selector System', () => {
     expect(effect).toHaveBeenCalledTimes(2);
 
     write(selectedId, 2);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(3);
+  });
+
+  it('should move a dynamic subscription when a compute reruns', () => {
+    const selectedId = createState<number>(1);
+    const observedId = createState<number>(1);
+    const isSelected = createSelector(selectedId);
+    const compute = vi.fn(() => isSelected(read(observedId)));
+
+    createCompute(compute);
+    expect(compute).toHaveBeenCalledTimes(1);
+
+    write(observedId, 2);
+    UISystem.flush();
+    expect(compute).toHaveBeenCalledTimes(2);
+
+    write(selectedId, 3);
+    UISystem.flush();
+    expect(compute).toHaveBeenCalledTimes(2);
+
+    write(selectedId, 2);
+    UISystem.flush();
+    expect(compute).toHaveBeenCalledTimes(3);
+  });
+
+  it('should track multiple selectors independently on one effect', () => {
+    const firstSelected = createState<number>(1);
+    const secondSelected = createState<number>(10);
+    const observedFirst = createState<number>(1);
+    const observedSecond = createState<number>(10);
+    const isFirstSelected = createSelector(firstSelected);
+    const isSecondSelected = createSelector(secondSelected);
+    const effect = vi.fn(() => {
+      isFirstSelected(read(observedFirst));
+      isSecondSelected(read(observedSecond));
+    });
+
+    createEffect(effect);
+    expect(effect).toHaveBeenCalledTimes(1);
+
+    write(observedFirst, 2);
+    write(observedSecond, 20);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(2);
+
+    write(firstSelected, 3);
+    write(secondSelected, 30);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(2);
+
+    write(firstSelected, 2);
+    write(secondSelected, 20);
     UISystem.flush();
     expect(effect).toHaveBeenCalledTimes(3);
   });
