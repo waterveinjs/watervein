@@ -30,15 +30,12 @@ const app = div({}, [
 **Published benchmark results:**
 
 - **[Latest benchmark report](https://waterveinjs.github.io/benchmark/)**
-- **[Watervein v0.1.55 results](https://waterveinjs.github.io/benchmark/versions/v0.1.55/overview.html)**
 
 The versioned report is generated from a benchmark run performed locally as part of the Watervein release process. It includes the tested browser and machine environment so results can be interpreted in context.
 
 - [Benchmark history and publishing workflow](https://github.com/waterveinjs/benchmark)
 - [Benchmark implementation and runner](https://github.com/waterveinjs/js-framework-benchmark)
 - [Upstream js-framework-benchmark project](https://github.com/krausest/js-framework-benchmark)
-
-**How to interpret the results:** benchmark numbers are measurements, not architectural guarantees. The currently published v0.1.55 report identifies itself as a development snapshot and warns that results may mix browser versions or run counts. Treat the figures as preliminary comparative data rather than definitive performance claims. Compare reports only when their browser, machine, run-count, and benchmark configuration are sufficiently consistent. The report also provides memory, transfer-size, and first-paint measurements alongside operation timings.
 
 ## Packages
 
