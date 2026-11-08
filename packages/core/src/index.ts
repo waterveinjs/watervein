@@ -947,7 +947,7 @@ export function createSelector(
       if (!tracking) {
         tracking = {
           entries: [],
-          lookup: new Map<number, Map<number, number>>(),
+          lookup: new Map<SelectorState, Map<number, number>>(),
           version: 1,
         };
         trk.selectorTracking = tracking;
