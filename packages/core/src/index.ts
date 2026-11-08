@@ -278,7 +278,6 @@ function freeSelectorEntry(entryId: number) {
 }
 
 function linkSelectorEntry(entryId: number) {
-  const selectorId = selectorEntrySelector[entryId];
   const key = selectorEntryKey[entryId];
   const heads = selectorEntryState[entryId]!.keyHeads;
   const oldHead = heads.get(key);
@@ -293,7 +292,6 @@ function linkSelectorEntry(entryId: number) {
 
 function unlinkSelectorEntry(entryId: number) {
   if (selectorEntryLinked[entryId] === 0) return;
-  const selectorId = selectorEntrySelector[entryId];
   const key = selectorEntryKey[entryId];
   const heads = selectorEntryState[entryId]!.keyHeads;
   const prev = selectorEntryPrevKey[entryId];
