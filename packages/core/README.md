@@ -76,15 +76,20 @@ write(selectedId, 2);
 
 When the selected ID changes, `createSelector` schedules subscribers for the previous
 and next IDs. Rows subscribed to other IDs are not scheduled by that selection change.
-Subscriptions are associated with the tracking effect and are removed when that effect is
-disposed. Use non-negative numeric IDs; the current implementation ignores negative
-notification keys. Nullish values are outside the declared API.
+Subscriptions follow the keys observed by each successful effect or compute execution.
+When a tracking node reruns and observes a different key, its old key subscription is
+removed and its new key subscription is committed. Subscriptions are also removed when
+the owning node is disposed. Use non-negative numeric IDs; negative notification keys
+are ignored. Nullish values are outside the declared API.
 
-This narrows notification work to the affected keys, but it is not constant-time for every
-operation: subscribers for an affected key are traversed, and subscription registration
-and cleanup use array lookups. Whether it is faster overall depends on row count and
-update frequency. The browser benchmark includes a direct-comparison baseline and reports
-both elapsed update time and effect-run counts:
+Selector bookkeeping is created lazily only for nodes that call the selector while being
+tracked. Subscription entries use a reusable internal pool, and repeated executions do not
+allocate a fresh cleanup callback or subscription entry for an already-observed key.
+Reconciliation scans the node's current selector entries, so its cost depends on the number
+of keys that node observes; notification traverses subscribers for the affected keys.
+Whether this is faster overall depends on row count and update frequency. The browser
+benchmark includes a direct-comparison baseline and reports both elapsed update time and
+effect-run counts:
 
 ```typescript
 await runWaterveinBenchmark({ only: 'selector-selection' });
