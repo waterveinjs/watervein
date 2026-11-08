@@ -159,7 +159,7 @@ export const TYPE_SHIFT = 8;
 
 type SelectorTracking = {
   entries: number[];
-  lookup: Map<number, Map<number, number>>;
+  lookup: Map<SelectorState, Map<number, number>>;
   version: number;
 };
 
