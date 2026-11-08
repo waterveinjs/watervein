@@ -690,7 +690,7 @@ if (isDev) evaluationStack = new Set<number>();
 
 let activeCompute: Node | null = null;
 function executeCompute(node: Node) {
-  beginSelectorTracking(node);
+  if (node.selectorTracking !== undefined) beginSelectorTracking(node);
   trackingVersion++;
   node.pendingDepsLen = 0;
   const prevActive = activeCompute;
@@ -698,7 +698,7 @@ function executeCompute(node: Node) {
   try {
     const oldValue = node.value;
     const newValue = node.compute!();
-    commitSelectorTracking(node);
+    if (node.selectorTracking !== undefined) commitSelectorTracking(node);
     commitEdges(node);
 
     if (oldValue !== newValue) {
@@ -717,13 +717,13 @@ function executeCompute(node: Node) {
 }
 
 function executeEffect(node: Node) {
-  beginSelectorTracking(node);
+  if (node.selectorTracking !== undefined) beginSelectorTracking(node);
   trackingVersion++;
   node.pendingDepsLen = 0;
   pushTrackingNode(node);
   try {
     node.compute!();
-    commitSelectorTracking(node);
+    if (node.selectorTracking !== undefined) commitSelectorTracking(node);
     commitEdges(node);
   } finally {
     popTrackingNode();
