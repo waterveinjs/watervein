@@ -23,14 +23,14 @@ for (const entry of elements) {
     !/^[A-Za-z_$][\w$]*$/.test(entry.name) ||
     !/^[a-z][a-z0-9-]*$/.test(entry.tag)
   ) {
-    throw new Error(\`Invalid element entry: \${JSON.stringify(entry)}\`);
+    throw new Error(`Invalid element entry: ${JSON.stringify(entry)}`);
   }
 
   if (names.has(entry.name)) {
-    throw new Error(\`Duplicate export name: \${entry.name}\`);
+    throw new Error(`Duplicate export name: ${entry.name}`);
   }
   if (tags.has(entry.tag)) {
-    throw new Error(\`Duplicate HTML tag: \${entry.tag}\`);
+    throw new Error(`Duplicate HTML tag: ${entry.tag}`);
   }
 
   names.add(entry.name);
@@ -44,7 +44,7 @@ const generated = [
   '',
   ...elements.map(
     ({ name, tag }) =>
-      \`export const \${name} = (props?: any, children?: any) => element("\${tag}", props, children);\`,
+      `export const ${name} = (props?: any, children?: any) => element("${tag}", props, children);`,
   ),
   '',
 ].join('\n');
