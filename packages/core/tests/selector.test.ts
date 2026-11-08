@@ -192,6 +192,30 @@ describe('Watervein Core - Selector System', () => {
     expect(effect).toHaveBeenCalledTimes(3);
   });
 
+  it('should reconcile subscriptions after promoting a high-cardinality lookup', () => {
+    const selectedId = createState<number>(0);
+    const observedIds = createState<number[]>([0, 1, 2, 3, 4]);
+    const isSelected = createSelector(selectedId);
+    const effect = vi.fn(() => {
+      for (const id of read(observedIds)) isSelected(id);
+    });
+
+    createEffect(effect);
+    expect(effect).toHaveBeenCalledTimes(1);
+
+    write(observedIds, [1, 2, 3, 4, 5]);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(2);
+
+    write(selectedId, 6);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(2);
+
+    write(selectedId, 5);
+    UISystem.flush();
+    expect(effect).toHaveBeenCalledTimes(3);
+  });
+
   it('should remove selector subscriptions when the owning entity is destroyed', () => {
     const selectedId = createState<number>(1);
     const isSelected = createSelector(selectedId);
