@@ -949,7 +949,7 @@ export function createSelector(
         const candidateKey = selectorEntryKey[candidate];
         if (
           selectorEntryState[candidate] === selectorState &&
-          (candidateKey === id || (candidateKey !== candidateKey && id !== id))
+          (candidateKey === id || (Number.isNaN(candidateKey) && Number.isNaN(id)))
         ) {
           entryId = candidate;
           break;
