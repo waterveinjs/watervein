@@ -381,6 +381,29 @@ function cleanupSelectorTracking(node: Node) {
   node.selectorTracking = undefined;
 }
 
+function compactSelectorEntryPoolIfNeeded(nodesEmpty: boolean) {
+  if (isDev && nodesEmpty && activeSelectorEntryCount !== 0) {
+    console.error(
+      `[watervein] Invariant violation: all nodes destroyed but activeSelectorEntryCount=${activeSelectorEntryCount}. This indicates a leaked selector subscription.`,
+    );
+  }
+  if (activeSelectorEntryCount !== 0) return;
+  if (selectorEntryCapacity <= SELECTOR_ENTRY_INITIAL_CAPACITY) return;
+
+  selectorEntryCapacity = SELECTOR_ENTRY_INITIAL_CAPACITY;
+  selectorEntryNode = new Int32Array(selectorEntryCapacity);
+  selectorEntrySelector = new Int32Array(selectorEntryCapacity);
+  selectorEntryPrevKey = new Int32Array(selectorEntryCapacity);
+  selectorEntryNextKey = new Int32Array(selectorEntryCapacity);
+  selectorEntryNodeIndex = new Int32Array(selectorEntryCapacity);
+  selectorEntrySeenVersion = new Int32Array(selectorEntryCapacity);
+  selectorEntryLinked = new Uint8Array(selectorEntryCapacity);
+  selectorEntryKey.length = selectorEntryCapacity;
+  selectorEntryState.length = selectorEntryCapacity;
+  selectorEntryFreeHead = NULL_EDGE;
+  selectorEntryNextUnallocated = 0;
+}
+
 const trackingStack: (Node | null)[] = [];
 
 const buckets: Node[][] = [];
@@ -1201,6 +1224,7 @@ export const DestructionSystem = {
       if (freeNodeIds.length > 1000) {
         const nodesEmpty = trimSparseArrays();
         compactEdgePoolIfNeeded(nodesEmpty);
+        compactSelectorEntryPoolIfNeeded(nodesEmpty);
       }
     } finally {
       destroyCallDepth--;
