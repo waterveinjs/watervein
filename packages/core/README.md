@@ -85,8 +85,10 @@ are ignored. Nullish values are outside the declared API.
 Selector bookkeeping is created lazily only for nodes that call the selector while being
 tracked. Subscription entries use a reusable internal pool, and repeated executions do not
 allocate a fresh cleanup callback or subscription entry for an already-observed key.
-Reconciliation scans the node's current selector entries, so its cost depends on the number
-of keys that node observes; notification traverses subscribers for the affected keys.
+Finding an existing entry and reconciling after a successful rerun each scan that node's
+selector entries (O(K), where K is the number of keys it currently tracks). Removing an
+entry from the node and selector lists is O(1); notification traverses subscribers for the
+affected keys.
 Whether this is faster overall depends on row count and update frequency. The browser
 benchmark includes a direct-comparison baseline and reports both elapsed update time and
 effect-run counts:
