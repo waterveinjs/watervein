@@ -157,6 +157,12 @@ export const FLAG_DIRTY = 1 << 0;
 export const FLAG_DISPOSED = 1 << 1;
 export const TYPE_SHIFT = 8;
 
+type SelectorTracking = {
+  entries: number[];
+  lookup: Map<number, Map<number, number>>;
+  version: number;
+};
+
 export type Node<T = any> = {
   readonly __wv: typeof WV_NODE_TAG;
   ft: number;
@@ -173,6 +179,7 @@ export type Node<T = any> = {
   depsHead: number;
   pendingDeps: (Node<any> | null)[] | null;
   cleanups: (() => void)[] | null;
+  selectorTracking?: SelectorTracking;
 };
 
 export type ResourceResult<T> = {
@@ -195,6 +202,185 @@ export function N(id: number): Node {
 
 let trackingVersion = 0;
 let currentTrackingNode: Node | null = null;
+
+// Selector subscriptions use a reusable index pool. Per-node tracking is
+// created lazily, so nodes that never call createSelector() pay no object or
+// collection allocation cost.
+const SELECTOR_ENTRY_INITIAL_CAPACITY = 128;
+let selectorEntryCapacity = SELECTOR_ENTRY_INITIAL_CAPACITY;
+let selectorEntryNode = new Int32Array(selectorEntryCapacity);
+let selectorEntrySelector = new Int32Array(selectorEntryCapacity);
+let selectorEntryPrevKey = new Int32Array(selectorEntryCapacity);
+let selectorEntryNextKey = new Int32Array(selectorEntryCapacity);
+let selectorEntryNodeIndex = new Int32Array(selectorEntryCapacity);
+let selectorEntrySeenVersion = new Int32Array(selectorEntryCapacity);
+let selectorEntryLinked = new Uint8Array(selectorEntryCapacity);
+const selectorEntryKey: number[] = new Array(selectorEntryCapacity);
+let selectorEntryFreeHead = NULL_EDGE;
+let selectorEntryNextUnallocated = 0;
+let activeSelectorEntryCount = 0;
+
+type SelectorState = { keyHeads: Map<number, number> };
+const selectorStates: SelectorState[] = [];
+
+function ensureSelectorEntryCapacity(minCapacity: number) {
+  if (minCapacity < selectorEntryCapacity) return;
+  let newCapacity = selectorEntryCapacity + (selectorEntryCapacity >> 1) + 1;
+  while (newCapacity <= minCapacity) {
+    newCapacity += (newCapacity >> 1) + 1;
+  }
+  const grow = <T extends Int32Array | Uint8Array>(old: T): T => {
+    const next = new (old.constructor as any)(newCapacity) as T;
+    next.set(old);
+    return next;
+  };
+  selectorEntryNode = grow(selectorEntryNode);
+  selectorEntrySelector = grow(selectorEntrySelector);
+  selectorEntryPrevKey = grow(selectorEntryPrevKey);
+  selectorEntryNextKey = grow(selectorEntryNextKey);
+  selectorEntryNodeIndex = grow(selectorEntryNodeIndex);
+  selectorEntrySeenVersion = grow(selectorEntrySeenVersion);
+  selectorEntryLinked = grow(selectorEntryLinked);
+  selectorEntryKey.length = newCapacity;
+  selectorEntryCapacity = newCapacity;
+}
+
+function allocSelectorEntry(): number {
+  let entryId: number;
+  if (selectorEntryFreeHead !== NULL_EDGE) {
+    entryId = selectorEntryFreeHead;
+    selectorEntryFreeHead = selectorEntryNextKey[entryId];
+  } else {
+    entryId = selectorEntryNextUnallocated++;
+    if (entryId >= selectorEntryCapacity) {
+      ensureSelectorEntryCapacity(entryId + 1);
+    }
+  }
+  activeSelectorEntryCount++;
+  selectorEntryPrevKey[entryId] = NULL_EDGE;
+  selectorEntryNextKey[entryId] = NULL_EDGE;
+  selectorEntryNodeIndex[entryId] = -1;
+  selectorEntrySeenVersion[entryId] = 0;
+  selectorEntryLinked[entryId] = 0;
+  return entryId;
+}
+
+function freeSelectorEntry(entryId: number) {
+  activeSelectorEntryCount--;
+  selectorEntryNode[entryId] = -1;
+  selectorEntrySelector[entryId] = -1;
+  selectorEntryKey[entryId] = 0;
+  selectorEntryLinked[entryId] = 0;
+  selectorEntryNextKey[entryId] = selectorEntryFreeHead;
+  selectorEntryFreeHead = entryId;
+}
+
+function linkSelectorEntry(entryId: number) {
+  const selectorId = selectorEntrySelector[entryId];
+  const key = selectorEntryKey[entryId];
+  const heads = selectorStates[selectorId].keyHeads;
+  const oldHead = heads.get(key);
+  selectorEntryPrevKey[entryId] = NULL_EDGE;
+  selectorEntryNextKey[entryId] = oldHead ?? NULL_EDGE;
+  if (oldHead !== undefined) {
+    selectorEntryPrevKey[oldHead] = entryId;
+  }
+  heads.set(key, entryId);
+  selectorEntryLinked[entryId] = 1;
+}
+
+function unlinkSelectorEntry(entryId: number) {
+  if (selectorEntryLinked[entryId] === 0) return;
+  const selectorId = selectorEntrySelector[entryId];
+  const key = selectorEntryKey[entryId];
+  const heads = selectorStates[selectorId].keyHeads;
+  const prev = selectorEntryPrevKey[entryId];
+  const next = selectorEntryNextKey[entryId];
+  if (prev !== NULL_EDGE) {
+    selectorEntryNextKey[prev] = next;
+  } else if (next !== NULL_EDGE) {
+    heads.set(key, next);
+  } else {
+    heads.delete(key);
+  }
+  if (next !== NULL_EDGE) {
+    selectorEntryPrevKey[next] = prev;
+  }
+  selectorEntryLinked[entryId] = 0;
+  selectorEntryPrevKey[entryId] = NULL_EDGE;
+  selectorEntryNextKey[entryId] = NULL_EDGE;
+}
+
+function removeSelectorEntryFromNode(
+  tracking: SelectorTracking,
+  entryId: number,
+) {
+  const selectorId = selectorEntrySelector[entryId];
+  const key = selectorEntryKey[entryId];
+  const selectorLookup = tracking.lookup.get(selectorId);
+  if (selectorLookup) {
+    selectorLookup.delete(key);
+    if (selectorLookup.size === 0) tracking.lookup.delete(selectorId);
+  }
+
+  const entries = tracking.entries;
+  const index = selectorEntryNodeIndex[entryId];
+  const lastIndex = entries.length - 1;
+  if (index !== lastIndex) {
+    const movedEntry = entries[lastIndex];
+    entries[index] = movedEntry;
+    selectorEntryNodeIndex[movedEntry] = index;
+  }
+  entries.pop();
+}
+
+function beginSelectorTracking(node: Node) {
+  const tracking = node.selectorTracking;
+  if (!tracking) return;
+  if (tracking.version >= 0x7ffffffe) {
+    for (let i = 0; i < tracking.entries.length; i++) {
+      selectorEntrySeenVersion[tracking.entries[i]] = 0;
+    }
+    tracking.version = 1;
+  } else {
+    tracking.version++;
+  }
+}
+
+function commitSelectorTracking(node: Node) {
+  const tracking = node.selectorTracking;
+  if (!tracking) return;
+  const entries = tracking.entries;
+  let index = 0;
+  while (index < entries.length) {
+    const entryId = entries[index];
+    if (selectorEntrySeenVersion[entryId] === tracking.version) {
+      if (selectorEntryLinked[entryId] === 0) {
+        linkSelectorEntry(entryId);
+      }
+      index++;
+    } else {
+      unlinkSelectorEntry(entryId);
+      removeSelectorEntryFromNode(tracking, entryId);
+      freeSelectorEntry(entryId);
+    }
+  }
+}
+
+function cleanupSelectorTracking(node: Node) {
+  const tracking = node.selectorTracking;
+  if (!tracking) return;
+  const entries = tracking.entries;
+  for (let i = 0; i < entries.length; i++) {
+    const entryId = entries[i];
+    unlinkSelectorEntry(entryId);
+    freeSelectorEntry(entryId);
+  }
+  tracking.entries.length = 0;
+  tracking.lookup.clear();
+  node.selectorTracking = undefined;
+}
+
 const trackingStack: (Node | null)[] = [];
 
 const buckets: Node[][] = [];
@@ -490,6 +676,7 @@ if (isDev) evaluationStack = new Set<number>();
 
 let activeCompute: Node | null = null;
 function executeCompute(node: Node) {
+  beginSelectorTracking(node);
   trackingVersion++;
   node.pendingDepsLen = 0;
   const prevActive = activeCompute;
@@ -497,6 +684,7 @@ function executeCompute(node: Node) {
   try {
     const oldValue = node.value;
     const newValue = node.compute!();
+    commitSelectorTracking(node);
     commitEdges(node);
 
     if (oldValue !== newValue) {
@@ -515,11 +703,13 @@ function executeCompute(node: Node) {
 }
 
 function executeEffect(node: Node) {
+  beginSelectorTracking(node);
   trackingVersion++;
   node.pendingDepsLen = 0;
   pushTrackingNode(node);
   try {
     node.compute!();
+    commitSelectorTracking(node);
     commitEdges(node);
   } finally {
     popTrackingNode();
@@ -709,54 +899,66 @@ export function createResource<S, T>(
 export function createSelector(
   sourceNode: Node<number>,
 ): (id: number) => boolean {
-  const keyToSubs = new Map<number, number[]>();
+  const selectorId = selectorStates.length;
+  const selectorState: SelectorState = { keyHeads: new Map<number, number>() };
+  selectorStates.push(selectorState);
   let prevId = untrack(() => read(sourceNode));
 
   createEffect(() => {
     const nextId = read(sourceNode);
     if (prevId === nextId) return;
 
-    const p = prevId;
-    const n = nextId;
+    const previousId = prevId;
     prevId = nextId;
 
     const notify = (id: number | null) => {
       if (id === null || id < 0) return;
-      const subs = keyToSubs.get(id);
-      if (subs) {
-        let writeIdx = 0;
-        for (let i = 0; i < subs.length; i++) {
-          const subId = subs[i];
-          const node = allNodes[subId];
-          if (node && (node.ft & FLAG_DISPOSED) === 0) {
-            scheduleNode(node);
-            subs[writeIdx++] = subId;
-          }
+      let entryId = selectorState.keyHeads.get(id);
+      while (entryId !== undefined) {
+        const node = allNodes[selectorEntryNode[entryId]];
+        if (node && (node.ft & FLAG_DISPOSED) === 0) {
+          scheduleNode(node);
         }
-        if (writeIdx === 0) keyToSubs.delete(id);
-        else subs.length = writeIdx;
+        const next = selectorEntryNextKey[entryId];
+        entryId = next === NULL_EDGE ? undefined : next;
       }
     };
 
-    notify(p);
-    notify(n);
+    notify(previousId);
+    notify(nextId);
   });
 
   return (id: number): boolean => {
     const trk = currentTrackingNode;
     if (trk !== null) {
-      let subs = keyToSubs.get(id);
-      if (!subs) keyToSubs.set(id, (subs = []));
-      if (!subs.includes(trk.id)) {
-        subs.push(trk.id);
-        onCleanup(() => {
-          const s = keyToSubs.get(id);
-          if (s) {
-            const idx = s.indexOf(trk.id);
-            if (idx !== -1) s.splice(idx, 1);
-            if (s.length === 0) keyToSubs.delete(id);
-          }
-        });
+      let tracking = trk.selectorTracking;
+      if (!tracking) {
+        tracking = {
+          entries: [],
+          lookup: new Map<number, Map<number, number>>(),
+          version: 1,
+        };
+        trk.selectorTracking = tracking;
+      }
+
+      let selectorLookup = tracking.lookup.get(selectorId);
+      if (!selectorLookup) {
+        selectorLookup = new Map<number, number>();
+        tracking.lookup.set(selectorId, selectorLookup);
+      }
+
+      let entryId = selectorLookup.get(id);
+      if (entryId === undefined) {
+        entryId = allocSelectorEntry();
+        selectorEntryNode[entryId] = trk.id;
+        selectorEntrySelector[entryId] = selectorId;
+        selectorEntryKey[entryId] = id;
+        selectorEntrySeenVersion[entryId] = tracking.version;
+        selectorEntryNodeIndex[entryId] = tracking.entries.length;
+        tracking.entries.push(entryId);
+        selectorLookup.set(id, entryId);
+      } else {
+        selectorEntrySeenVersion[entryId] = tracking.version;
       }
     }
     return untrack(() => read(sourceNode)) === id;
@@ -1037,6 +1239,8 @@ export const DestructionSystem = {
         }
       }
     }
+
+    cleanupSelectorTracking(node);
 
     node.value = null;
 
