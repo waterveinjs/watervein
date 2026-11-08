@@ -140,11 +140,13 @@ function appendChild(parent: HTMLElement, child: Child) {
       textNode.nodeValue = String(value);
     });
   } else if (child instanceof Node) {
-    if (
-      child.nodeType === Node.TEXT_NODE ||
-      child.nodeType === Node.DOCUMENT_FRAGMENT_NODE
-    ) {
+    if (child.nodeType === Node.TEXT_NODE) {
       parent.appendChild(child);
+      return;
+    }
+
+    if (child.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+      parent.appendChild(document.createTextNode(child.textContent ?? ''));
       return;
     }
 
