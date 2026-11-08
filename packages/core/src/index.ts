@@ -896,7 +896,6 @@ export const DestructionSystem = {
   },
 
   destroyEntities(entityIds: readonly number[]) {
-    entityIds = entityIds.filter((id) => entityRegistry[id] !== undefined);
     const len = entityIds.length;
     if (len === 0) return;
 
@@ -909,7 +908,11 @@ export const DestructionSystem = {
       allTargetEntityIds.clear();
       allCollectedNodes.length = 0;
       for (let i = 0; i < len; i++) {
-        collectRecursively(entityIds[i], allTargetEntityIds);
+        const entityId = entityIds[i];
+
+        if (entityRegistry[entityId] === undefined) continue;
+
+        collectRecursively(entityId, allTargetEntityIds);
       }
       for (const eId of allTargetEntityIds) {
         const parentId = entityParentMap.get(eId);
