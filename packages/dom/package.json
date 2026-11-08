@@ -25,7 +25,9 @@
     "build:js-dev": "esbuild src/index.ts --bundle --outfile=dist/index.dev.js --format=esm --platform=browser --external:@watervein/* --define:__DEV__=true --target=es2022",
     "build:js-prod": "esbuild src/index.ts --bundle --outfile=dist/index.prod.js --format=esm --platform=browser --external:@watervein/* --define:__DEV__=false --minify-whitespace --minify-identifiers --legal-comments=none --drop:debugger --target=es2022",
     "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm build",
+    "generate": "node scripts/generate-elements.js",
+    "generate:check": "node scripts/generate-elements.js --check"
   },
   "peerDependencies": {
     "@watervein/core": "workspace:*",

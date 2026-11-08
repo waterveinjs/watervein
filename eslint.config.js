@@ -12,7 +12,7 @@ export default defineConfig(
   ...tseslint.configs.recommended,
 
   {
-    files: ['scripts/**/*.js'],
+    files: ['scripts/**/*.js', 'packages/*/scripts/**/*.js'],
     languageOptions: {
       globals: {
         console: 'readonly',
