@@ -1,7 +1,7 @@
 # @watervein/dom
 
 [![npm version](https://badge.fury.io/js/%40watervein%2Fdom.svg)](https://www.npmjs.com/package/@watervein/dom)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT or Apache2.0](https://img.shields.io/badge/license-MIT_or_Apache2.0-blue.svg)](https://github.com/waterveinjs/watervein#license)
 
 The high-level developer-facing DSL layer for Watervein. It exports hyper-optimized, functional element builders (`div`, `span`, `button`, etc.) and intuitive DSL type-guards, allowing you to write clean, declarative markup in pure TypeScript with zero build-time JSX transformations.
 
@@ -23,53 +23,63 @@ pnpm add @watervein/core @watervein/dom
 ```
 
 ## Usage Guide
+
 Instead of compiling complex HTML templates or virtual nodes, write pure functional component layouts:
+
 ```typescript
 import { createState, read, write, UISystem } from '@watervein/core';
 import { div, h1, button, p, span, mount } from '@watervein/dom';
 
 const clicks = createState(0);
 
-const counterApp = div({ class: "container" }, [
-  h1({}, "Watervein App"),
-  p({ style: { color: "gray" } }, "A modern NES-driven template framework."),
-  
-  button({
-    class: { "btn-active": () => read(clicks) > 0 },
-    onclick: () => {
-      write(clicks, read(clicks) + 1);
-      UISystem.flush();
-    }
-  }, [
-    span({}, "Increment Counter: "),
-    span({}, () => read(clicks))
-  ])
+const counterApp = div({ class: 'container' }, [
+  h1({}, 'Watervein App'),
+  p({ style: { color: 'gray' } }, 'A modern NES-driven template framework.'),
+
+  button(
+    {
+      class: { 'btn-active': () => read(clicks) > 0 },
+      onclick: () => {
+        write(clicks, read(clicks) + 1);
+        UISystem.flush();
+      },
+    },
+    [span({}, 'Increment Counter: '), span({}, () => read(clicks))],
+  ),
 ]);
 
-mount(document.getElementById("root")!, counterApp);
+mount(document.getElementById('root')!, counterApp);
 ```
 
 ## API References
+
 ### **Flexible Reactive Binding Specifications**
+
 Every element attribute or layout child accepts standard primitives, raw graph nodes, or lazy evaluation functions seamlessly.
+
 ```typescript
 type ReactiveProp<T> = T | WvNode<T> | (() => T);
 ```
 
 ### 1. Polymorphic Class Mapping (`Dsl1Class`)
+
 Supports strings, state wrappers, computed anonymous arrow closures, array chains, or conditional boolean dictionaries out of the box.
+
 ```typescript
-div({ class: "static-class" })
-div({ class: () => isUrgent() ? "danger" : "normal" })
-div({ class: { active: isActiveNode, hidden: () => isHidden() } })
-div({ class: ["class-a", dynamicClassNode] })
+div({ class: 'static-class' });
+div({ class: () => (isUrgent() ? 'danger' : 'normal') });
+div({ class: { active: isActiveNode, hidden: () => isHidden() } });
+div({ class: ['class-a', dynamicClassNode] });
 ```
 
 ### 2. Fully Covered Elements Layer (`@watervein/dom/elements`)
+
 Every method perfectly enforces argument packing options (`[props?, children?]`) mapping type definitions across structural browser nodes:
+
 - `a()`, `button()`, `canvas()`, `div()`, `form()`, `input()`, `label()`, `ol()`, `p()`, `section()`, `span()`, `table()`, `tbody()`, `td()`, `tr()`, `ul()`, and 90+ more.
 
 ## Architectural Workflow (How the DSL structures layers)
+
 ```mermaid
 graph TD
     Input["div({ class: { active: node } }, [...])"]
@@ -99,7 +109,7 @@ By adding a dedicated DSL layer, Watervein protects runtime performance while of
 
 This project is licensed under either of:
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
