@@ -159,7 +159,6 @@ export const TYPE_SHIFT = 8;
 
 type SelectorTracking = {
   entries: number[];
-  lookup: Map<SelectorState, Map<number, number>>;
   version: number;
 };
 
@@ -309,14 +308,6 @@ function removeSelectorEntryFromNode(
   tracking: SelectorTracking,
   entryId: number,
 ) {
-  const selectorState = selectorEntryState[entryId]!;
-  const key = selectorEntryKey[entryId];
-  const selectorLookup = tracking.lookup.get(selectorState);
-  if (selectorLookup) {
-    selectorLookup.delete(key);
-    if (selectorLookup.size === 0) tracking.lookup.delete(selectorState);
-  }
-
   const entries = tracking.entries;
   const index = selectorEntryNodeIndex[entryId];
   const lastIndex = entries.length - 1;
@@ -371,7 +362,6 @@ function cleanupSelectorTracking(node: Node) {
     freeSelectorEntry(entryId);
   }
   tracking.entries.length = 0;
-  tracking.lookup.clear();
   node.selectorTracking = undefined;
 }
 
@@ -947,31 +937,34 @@ export function createSelector(
       if (!tracking) {
         tracking = {
           entries: [],
-          lookup: new Map<SelectorState, Map<number, number>>(),
           version: 1,
         };
         trk.selectorTracking = tracking;
       }
 
-      let selectorLookup = tracking.lookup.get(selectorState);
-      if (!selectorLookup) {
-        selectorLookup = new Map<number, number>();
-        tracking.lookup.set(selectorState, selectorLookup);
+      const entries = tracking.entries;
+      let entryId = NULL_EDGE;
+      for (let i = 0; i < entries.length; i++) {
+        const candidate = entries[i];
+        const candidateKey = selectorEntryKey[candidate];
+        if (
+          selectorEntryState[candidate] === selectorState &&
+          (candidateKey === id || (candidateKey !== candidateKey && id !== id))
+        ) {
+          entryId = candidate;
+          break;
+        }
       }
 
-      let entryId = selectorLookup.get(id);
-      if (entryId === undefined) {
+      if (entryId === NULL_EDGE) {
         entryId = allocSelectorEntry();
         selectorEntryNode[entryId] = trk.id;
         selectorEntryKey[entryId] = id;
         selectorEntryState[entryId] = selectorState;
-        selectorEntrySeenVersion[entryId] = tracking.version;
-        selectorEntryNodeIndex[entryId] = tracking.entries.length;
-        tracking.entries.push(entryId);
-        selectorLookup.set(id, entryId);
-      } else {
-        selectorEntrySeenVersion[entryId] = tracking.version;
+        selectorEntryNodeIndex[entryId] = entries.length;
+        entries.push(entryId);
       }
+      selectorEntrySeenVersion[entryId] = tracking.version;
     }
     return untrack(() => read(sourceNode)) === id;
   };
