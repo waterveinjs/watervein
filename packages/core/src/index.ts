@@ -159,6 +159,7 @@ export const TYPE_SHIFT = 8;
 
 type SelectorTracking = {
   entries: number[];
+  lookup?: Map<SelectorState, Map<number, number>>;
   version: number;
 };
 
@@ -308,6 +309,16 @@ function removeSelectorEntryFromNode(
   tracking: SelectorTracking,
   entryId: number,
 ) {
+  const lookup = tracking.lookup;
+  if (lookup) {
+    const selectorState = selectorEntryState[entryId]!;
+    const selectorLookup = lookup.get(selectorState);
+    if (selectorLookup) {
+      selectorLookup.delete(selectorEntryKey[entryId]);
+      if (selectorLookup.size === 0) lookup.delete(selectorState);
+    }
+  }
+
   const entries = tracking.entries;
   const index = selectorEntryNodeIndex[entryId];
   const lastIndex = entries.length - 1;
@@ -362,6 +373,7 @@ function cleanupSelectorTracking(node: Node) {
     freeSelectorEntry(entryId);
   }
   tracking.entries.length = 0;
+  tracking.lookup?.clear();
   node.selectorTracking = undefined;
 }
 
@@ -943,16 +955,46 @@ export function createSelector(
       }
 
       const entries = tracking.entries;
+      let lookup = tracking.lookup;
+
+      // Keep the common one-or-few-key case allocation-light. Promote only
+      // nodes with many distinct selector keys to a Map-backed lookup.
+      if (!lookup && entries.length >= 4) {
+        lookup = new Map<SelectorState, Map<number, number>>();
+        for (let i = 0; i < entries.length; i++) {
+          const existingEntry = entries[i];
+          const existingState = selectorEntryState[existingEntry]!;
+          let existingLookup = lookup.get(existingState);
+          if (!existingLookup) {
+            existingLookup = new Map<number, number>();
+            lookup.set(existingState, existingLookup);
+          }
+          existingLookup.set(selectorEntryKey[existingEntry], existingEntry);
+        }
+        tracking.lookup = lookup;
+      }
+
       let entryId = NULL_EDGE;
-      for (let i = 0; i < entries.length; i++) {
-        const candidate = entries[i];
-        const candidateKey = selectorEntryKey[candidate];
-        if (
-          selectorEntryState[candidate] === selectorState &&
-          (candidateKey === id || (Number.isNaN(candidateKey) && Number.isNaN(id)))
-        ) {
-          entryId = candidate;
-          break;
+      if (lookup) {
+        let selectorLookup = lookup.get(selectorState);
+        if (!selectorLookup) {
+          selectorLookup = new Map<number, number>();
+          lookup.set(selectorState, selectorLookup);
+        }
+        const existingEntry = selectorLookup.get(id);
+        if (existingEntry !== undefined) entryId = existingEntry;
+      } else {
+        for (let i = 0; i < entries.length; i++) {
+          const candidate = entries[i];
+          const candidateKey = selectorEntryKey[candidate];
+          if (
+            selectorEntryState[candidate] === selectorState &&
+            (candidateKey === id ||
+              (Number.isNaN(candidateKey) && Number.isNaN(id)))
+          ) {
+            entryId = candidate;
+            break;
+          }
         }
       }
 
@@ -963,6 +1005,9 @@ export function createSelector(
         selectorEntryState[entryId] = selectorState;
         selectorEntryNodeIndex[entryId] = entries.length;
         entries.push(entryId);
+        if (lookup) {
+          lookup.get(selectorState)!.set(id, entryId);
+        }
       }
       selectorEntrySeenVersion[entryId] = tracking.version;
     }
