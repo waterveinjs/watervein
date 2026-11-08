@@ -150,21 +150,6 @@ function appendChild(parent: HTMLElement, child: Child) {
 
     if (child.nodeType === Node.ELEMENT_NODE) {
       const el = child as HTMLElement;
-      const tag = el.tagName.toLowerCase();
-      const blockedTags = new Set([
-        'script',
-        'iframe',
-        'object',
-        'embed',
-        'link',
-        'style',
-      ]);
-
-      if (el.ownerDocument === document && !blockedTags.has(tag)) {
-        parent.appendChild(child);
-        return;
-      }
-
       parent.appendChild(document.createTextNode(el.textContent ?? ''));
       return;
     }
