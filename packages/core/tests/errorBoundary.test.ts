@@ -118,4 +118,32 @@ describe('Watervein Core - Error Boundary System', () => {
     unregisterErrorBoundary(parentEntityId);
     unregisterErrorBoundary(childEntityId);
   });
+
+  it('should bubble errors from a child Entity to its nearest ancestor boundary', () => {
+    const parentEntityId = createEntity();
+    const childEntityId = withEntity(parentEntityId, () => createEntity());
+    const parentHandler = vi.fn();
+    const triggerState = createState(false);
+
+    registerErrorBoundary(parentEntityId, parentHandler);
+
+    withEntity(childEntityId, () => {
+      createCompute(() => {
+        if (read(triggerState)) {
+          throw new Error('Child Entity Failure');
+        }
+        return 'safe';
+      });
+    });
+
+    write(triggerState, true);
+    expect(() => UISystem.flush()).not.toThrow();
+
+    expect(parentHandler).toHaveBeenCalledTimes(1);
+    expect(parentHandler).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Child Entity Failure' }),
+    );
+
+    unregisterErrorBoundary(parentEntityId);
+  });
 });
