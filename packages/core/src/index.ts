@@ -206,7 +206,7 @@ const entityRegistry: (Node[] | undefined)[] = [];
 let currentEntityId: number | null = null;
 
 let entityChildrenMap = new Map<number, Set<number>>();
-let entityParentMap = new Map<number, number | null>();
+let entityParentMap = new Map<number, number>();
 
 const freeEntityIds: number[] = [];
 
@@ -216,8 +216,8 @@ let raFID: NextTickId | null = null;
 export function createEntity(): number {
   const id = freeEntityIds.length > 0 ? freeEntityIds.pop()! : ENTITY_COUNT++;
   entityRegistry[id] = [];
-  entityParentMap.set(id, currentEntityId);
   if (currentEntityId !== null) {
+    entityParentMap.set(id, currentEntityId);
     let children = entityChildrenMap.get(currentEntityId);
     if (!children) {
       children = new Set();
@@ -880,7 +880,7 @@ export const DestructionSystem = {
       }
       entityRegistry[entityId] = undefined;
       const parentId = entityParentMap.get(entityId);
-      if (parentId !== undefined && parentId !== null) {
+      if (parentId !== undefined) {
         const parentChildren = entityChildrenMap.get(parentId);
         if (parentChildren) {
           parentChildren.delete(entityId);
@@ -918,7 +918,6 @@ export const DestructionSystem = {
         const parentId = entityParentMap.get(eId);
         if (
           parentId !== undefined &&
-          parentId !== null &&
           !allTargetEntityIds.has(parentId)
         ) {
           const parentChildren = entityChildrenMap.get(parentId);
