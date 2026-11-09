@@ -141,7 +141,7 @@ function appendChild(parent: HTMLElement, child: Child) {
     });
   } else if (child instanceof Node) {
     if (child.nodeType === Node.TEXT_NODE) {
-      parent.appendChild(child);
+      parent.appendChild(document.createTextNode(child.textContent ?? ''));
       return;
     }
 
