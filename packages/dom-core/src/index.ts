@@ -206,7 +206,7 @@ export function applyReactiveClass(el: HTMLElement, classVal: ReactiveClass) {
     const len = classVal.length;
     for (let i = 0; i < len; i++) {
       const item = classVal[i];
-      if (!item) continue;
+      if (item === undefined) continue;
 
       if (typeof item === 'function' || isWvNode(item)) {
         let prevClasses: string[] = [];
