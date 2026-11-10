@@ -4,7 +4,6 @@ export const isDev: boolean = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
 export const NODE_TYPE_STATE = 0;
 export const NODE_TYPE_COMPUTE = 1;
 export const NODE_TYPE_EFFECT = 2;
-let nextAvailableNodeType = 3;
 
 const WV_NODE_TAG = 0x57564e44;
 
@@ -12,7 +11,6 @@ let NODE_ID_COUNTER = 0;
 
 const DEFAULT_EDGE_CAPACITY = 256;
 let edgeCapacity = DEFAULT_EDGE_CAPACITY;
-let edgePoolInitialized = false;
 
 let edgeDep = new Int32Array(edgeCapacity);
 let edgeSub = new Int32Array(edgeCapacity);
@@ -27,36 +25,6 @@ export const NULL_EDGE = -1;
 let edgeFreeListHead = NULL_EDGE;
 let nextUnallocatedEdgeId = 0;
 
-export function initCapacity(options: {
-  readonly edgeCapacity?: number;
-}): void {
-  if (edgePoolInitialized) {
-    throw new Error(
-      '[watervein] initCapacity() must be called before any node or edge is created, and can only be called once.',
-    );
-  }
-  if (nextUnallocatedEdgeId !== 0 || NODE_ID_COUNTER !== 0) {
-    throw new Error(
-      '[watervein] initCapacity() must be called before any node or edge is created.',
-    );
-  }
-
-  const requestedEdgeCapacity = options.edgeCapacity ?? DEFAULT_EDGE_CAPACITY;
-  if (requestedEdgeCapacity < 1) {
-    throw new Error('[watervein] edgeCapacity must be a positive integer.');
-  }
-
-  edgeCapacity = requestedEdgeCapacity;
-  edgeDep = new Int32Array(edgeCapacity);
-  edgeSub = new Int32Array(edgeCapacity);
-  edgeNextSub = new Int32Array(edgeCapacity);
-  edgePrevSub = new Int32Array(edgeCapacity);
-  edgeNextDep = new Int32Array(edgeCapacity);
-  edgePrevDep = new Int32Array(edgeCapacity);
-
-  edgePoolInitialized = true;
-}
-
 function expandInt32<T extends ArrayBufferLike>(
   old: Int32Array<T>,
   newCap: number,
@@ -67,7 +35,6 @@ function expandInt32<T extends ArrayBufferLike>(
 }
 
 function ensureEdgeCapacity(minCapacity: number) {
-  edgePoolInitialized = true;
   if (minCapacity < edgeCapacity) return;
   let newCap = edgeCapacity + (edgeCapacity >> 1) + 1;
   while (newCap <= minCapacity) newCap += (newCap >> 1) + 1;
@@ -84,7 +51,6 @@ function ensureEdgeCapacity(minCapacity: number) {
 
 function allocEdge(depId: number, subId: number): number {
   activeEdgeCount++;
-  edgePoolInitialized = true;
   let edgeId: number;
   if (edgeFreeListHead !== NULL_EDGE) {
     edgeId = edgeFreeListHead;
@@ -246,10 +212,6 @@ export function withEntity<T>(entityId: number, fn: () => T): T {
   } finally {
     currentEntityId = prev;
   }
-}
-
-export function registerCustomNodeType(): number {
-  return nextAvailableNodeType++;
 }
 
 const freeNodeIds: number[] = [];
