@@ -101,7 +101,6 @@ No virtual trees to diff. No component functions to re-execute. Just targeted da
 
 - **Node Edge System (NES) & DAGs**: Watervein abandons the traditional concepts of UI components and tree structures, replacing them with a model inspired by ECS (Entity Component System) and Directed Acyclic Graphs (DAGs).
 - **Modern Developer Experience**: While the underlying architecture is unconventional, it keeps a coding style familiar to users of React, SolidJS, and similar frameworks.
-- **Extensible Architecture**: You can register custom node types to extend the core's scheduling behavior.
 - **Headless Core**: On its own, `core` isn't even aware of the DOM. Only by adding packages like `dom-core` or `dom` can you actually render to a page. Because `core` has no DOM dependency, it's designed to eventually support other rendering backends, such as Canvas.
 
 ## Conceptual Comparison: React vs. Vue vs. Svelte vs. SolidJS vs. Watervein vs. Vanilla JS
