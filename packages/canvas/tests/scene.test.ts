@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createState, UISystem, write } from '@watervein/core';
+import { createState, read, UISystem, write } from '@watervein/core';
 import {
   createCircle,
   createRect,
@@ -94,18 +94,23 @@ describe('@watervein/canvas', () => {
   it('releases reactive effects when a node is removed', () => {
     const target = scene();
     const x = createState(10);
-    const { canvas, calls } = createCanvasMock();
-    const renderer = createRenderer({ canvas, scene: target });
-    const id = createCircle(target, { x, y: 20, radius: 5 });
+    let getterCalls = 0;
+    const id = createCircle(target, {
+      x: () => {
+        getterCalls++;
+        return read(x);
+      },
+      y: 20,
+      radius: 5,
+    });
+
+    expect(getterCalls).toBe(1);
 
     removeNode(target, id);
-    calls.length = 0;
     write(x, 90);
     UISystem.flush();
-    renderer.render();
 
-    expect(calls).not.toContainEqual(['arc', 90, 20, 5, 0, Math.PI * 2]);
-    renderer.destroy();
+    expect(getterCalls).toBe(1);
   });
 
   it('does not let a stale handle remove a reused slot', () => {
