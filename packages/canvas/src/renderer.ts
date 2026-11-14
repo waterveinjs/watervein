@@ -131,9 +131,13 @@ export function createRenderer({ canvas, scene }: RendererOptions): Renderer {
     if (data.onInvalidate === scheduleRender) {
       data.onInvalidate = null;
     }
+    if (data.onDestroy === destroy) {
+      data.onDestroy = null;
+    }
   };
 
   data.onInvalidate = scheduleRender;
+  data.onDestroy = destroy;
   scheduleRender();
 
   return { render, resize, destroy };
