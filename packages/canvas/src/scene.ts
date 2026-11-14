@@ -176,7 +176,9 @@ function allocateNode(data: SceneData, type: number): number {
   return slot;
 }
 
-function isReactive<T>(value: ReactiveProp<T> | undefined): boolean {
+function isReactive<T>(
+  value: ReactiveProp<T> | undefined,
+): value is WvNode<T> | (() => T) {
   return value !== undefined && (isNode(value) || typeof value === 'function');
 }
 
