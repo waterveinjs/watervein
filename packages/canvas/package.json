@@ -1,0 +1,58 @@
+{
+  "name": "@watervein/canvas",
+  "version": "0.1.55",
+  "description": "Watervein Canvas rendering package",
+  "author": "KoHaRxnP",
+  "license": "(MIT OR Apache-2.0)",
+  "type": "module",
+  "main": "./dist/index.prod.js",
+  "module": "./dist/index.prod.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./dist/index.dev.js",
+      "production": "./dist/index.prod.js",
+      "default": "./dist/index.prod.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "pnpm build:js-dev && pnpm build:js-prod && pnpm build:types",
+    "build:js-dev": "esbuild src/index.ts --bundle --outfile=dist/index.dev.js --format=esm --platform=browser --external:@watervein/* --define:__DEV__=true --target=es2022",
+    "build:js-prod": "esbuild src/index.ts --bundle --outfile=dist/index.prod.js --format=esm --platform=browser --external:@watervein/* --define:__DEV__=false --minify-whitespace --minify-identifiers --legal-comments=none --drop:debugger --target=es2022",
+    "build:types": "dts-bundle-generator -o dist/index.d.ts src/index.ts --external-imports @watervein/* --no-check",
+    "prepublishOnly": "pnpm build"
+  },
+  "peerDependencies": {
+    "@watervein/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@watervein/core": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "keywords": [
+    "canvas",
+    "2d",
+    "rendering",
+    "watervein",
+    "waterveinjs",
+    "typescript",
+    "javascript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waterveinjs/watervein.git"
+  },
+  "bugs": {
+    "url": "https://github.com/waterveinjs/watervein/issues"
+  },
+  "homepage": "https://github.com/waterveinjs/watervein#readme",
+  "packageManager": "pnpm@11.21.0"
+}
