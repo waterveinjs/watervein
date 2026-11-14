@@ -46,6 +46,7 @@ describe('@watervein/canvas', () => {
   afterEach(() => {
     for (const value of scenes.splice(0)) value.destroy();
     UISystem.flush();
+    vi.unstubAllGlobals();
   });
 
   it('stores and renders static shapes', () => {
@@ -136,14 +137,14 @@ describe('@watervein/canvas', () => {
     vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrameMock);
 
     const target = scene();
-    const { canvas } = createCanvasMock();
+    const { canvas, calls } = createCanvasMock();
     const renderer = createRenderer({ canvas, scene: target });
 
     target.destroy();
     renderer.render();
 
     expect(cancelAnimationFrameMock).toHaveBeenCalledWith(42);
-    vi.unstubAllGlobals();
+    expect(calls).toEqual([]);
   });
 
   it('rejects adding nodes after scene destruction', () => {
