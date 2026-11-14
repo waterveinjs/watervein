@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createState, DestructionSystem, UISystem, write } from '@watervein/core';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createState, UISystem, write } from '@watervein/core';
 import {
   createCircle,
   createRect,

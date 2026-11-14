@@ -6,6 +6,7 @@ import {
   read,
   withEntity,
 } from '@watervein/core';
+import type { Node as WvNode } from '@watervein/core';
 import type {
   CircleOptions,
   NodeId,
@@ -180,7 +181,7 @@ function isReactive<T>(value: ReactiveProp<T> | undefined): boolean {
 }
 
 function resolve<T>(value: ReactiveProp<T>): T {
-  if (isNode(value)) return read(value as Parameters<typeof read<T>>[0]);
+  if (isNode(value)) return read(value as WvNode<T>);
   if (typeof value === 'function') return (value as () => T)();
   return value;
 }
@@ -212,6 +213,7 @@ function attachEffect(
   } catch (error) {
     data.effectEntity[slot] = -1;
     DestructionSystem.destroyEntity(entityId);
+    removeSlot(data, slot);
     throw error;
   }
 }

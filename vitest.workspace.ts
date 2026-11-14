@@ -12,6 +12,13 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'canvas',
+          include: ['packages/canvas/tests/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        test: {
           name: 'dom-core',
           include: ['packages/dom-core/tests/**/*.test.ts'],
           environment: 'happy-dom',

@@ -29,6 +29,11 @@ export function createRenderer({ canvas, scene }: RendererOptions): Renderer {
   function render(): void {
     if (destroyed) return;
 
+    if (frameId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(frameId);
+      frameId = null;
+    }
+
     context.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let slot = 0; slot < data.nextSlot; slot++) {
@@ -107,6 +112,7 @@ export function createRenderer({ canvas, scene }: RendererOptions): Renderer {
   }
 
   data.onInvalidate = scheduleRender;
+  scheduleRender();
 
   return { render, resize, destroy };
 }
