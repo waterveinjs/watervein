@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createState, read, UISystem, write } from '@watervein/core';
 import {
   createCircle,
@@ -128,6 +128,22 @@ describe('@watervein/canvas', () => {
     expect(calls).toContainEqual(['fillRect', 4, 5, 6, 7]);
     removeNode(target, second);
     renderer.destroy();
+  });
+
+  it('destroys its renderer and cancels a pending frame with the scene', () => {
+    const cancelAnimationFrameMock = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', () => 42);
+    vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrameMock);
+
+    const target = scene();
+    const { canvas } = createCanvasMock();
+    const renderer = createRenderer({ canvas, scene: target });
+
+    target.destroy();
+    renderer.render();
+
+    expect(cancelAnimationFrameMock).toHaveBeenCalledWith(42);
+    vi.unstubAllGlobals();
   });
 
   it('rejects adding nodes after scene destruction', () => {
