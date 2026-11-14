@@ -75,6 +75,19 @@ describe('@watervein/canvas', () => {
     renderer.destroy();
   });
 
+  it('preserves JavaScript number precision in stored coordinates', () => {
+    const target = scene();
+    const { canvas, calls } = createCanvasMock();
+    const renderer = createRenderer({ canvas, scene: target });
+    const x = 16_777_217;
+
+    createCircle(target, { x, y: 0, radius: 1 });
+    renderer.render();
+
+    expect(calls).toContainEqual(['arc', x, 0, 1, 0, Math.PI * 2]);
+    renderer.destroy();
+  });
+
   it('updates reactive properties through Core effects', () => {
     const target = scene();
     const x = createState(10);
