@@ -33,12 +33,12 @@ type SceneData = {
   type: Uint8Array;
   generation: Uint32Array;
   effectEntity: Int32Array;
-  x: Float32Array;
-  y: Float32Array;
-  width: Float32Array;
-  height: Float32Array;
-  radius: Float32Array;
-  lineWidth: Float32Array;
+  x: Float64Array;
+  y: Float64Array;
+  width: Float64Array;
+  height: Float64Array;
+  radius: Float64Array;
+  lineWidth: Float64Array;
   fill: string[];
   stroke: string[];
   text: string[];
@@ -46,6 +46,7 @@ type SceneData = {
   destroyed: boolean;
   dirty: boolean;
   onInvalidate: (() => void) | null;
+  onDestroy: (() => void) | null;
 };
 
 const scenes = new WeakMap<Scene, SceneData>();
@@ -60,12 +61,12 @@ function createSceneData(entityId: number): SceneData {
     type: new Uint8Array(INITIAL_CAPACITY),
     generation: new Uint32Array(INITIAL_CAPACITY),
     effectEntity: new Int32Array(INITIAL_CAPACITY),
-    x: new Float32Array(INITIAL_CAPACITY),
-    y: new Float32Array(INITIAL_CAPACITY),
-    width: new Float32Array(INITIAL_CAPACITY),
-    height: new Float32Array(INITIAL_CAPACITY),
-    radius: new Float32Array(INITIAL_CAPACITY),
-    lineWidth: new Float32Array(INITIAL_CAPACITY),
+    x: new Float64Array(INITIAL_CAPACITY),
+    y: new Float64Array(INITIAL_CAPACITY),
+    width: new Float64Array(INITIAL_CAPACITY),
+    height: new Float64Array(INITIAL_CAPACITY),
+    radius: new Float64Array(INITIAL_CAPACITY),
+    lineWidth: new Float64Array(INITIAL_CAPACITY),
     fill: new Array<string>(INITIAL_CAPACITY),
     stroke: new Array<string>(INITIAL_CAPACITY),
     text: new Array<string>(INITIAL_CAPACITY),
@@ -73,13 +74,14 @@ function createSceneData(entityId: number): SceneData {
     destroyed: false,
     dirty: true,
     onInvalidate: null,
+    onDestroy: null,
   };
   data.effectEntity.fill(-1);
   return data;
 }
 
-function growFloat32(source: Float32Array, capacity: number): Float32Array {
-  const target = new Float32Array(capacity);
+function growFloat64(source: Float64Array, capacity: number): Float64Array {
+  const target = new Float64Array(capacity);
   target.set(source);
   return target;
 }
@@ -115,12 +117,12 @@ function ensureCapacity(data: SceneData, minCapacity: number): void {
   data.generation = growUint32(data.generation, capacity);
   data.effectEntity = growInt32(data.effectEntity, capacity);
   data.effectEntity.fill(-1, data.capacity);
-  data.x = growFloat32(data.x, capacity);
-  data.y = growFloat32(data.y, capacity);
-  data.width = growFloat32(data.width, capacity);
-  data.height = growFloat32(data.height, capacity);
-  data.radius = growFloat32(data.radius, capacity);
-  data.lineWidth = growFloat32(data.lineWidth, capacity);
+  data.x = growFloat64(data.x, capacity);
+  data.y = growFloat64(data.y, capacity);
+  data.width = growFloat64(data.width, capacity);
+  data.height = growFloat64(data.height, capacity);
+  data.radius = growFloat64(data.radius, capacity);
+  data.lineWidth = growFloat64(data.lineWidth, capacity);
   data.fill.length = capacity;
   data.stroke.length = capacity;
   data.text.length = capacity;
@@ -264,6 +266,8 @@ function destroyScene(scene: Scene): void {
   const data = scenes.get(scene);
   if (!data || data.destroyed) return;
 
+  data.onDestroy?.();
+  data.onDestroy = null;
   clearScene(scene);
   data.destroyed = true;
   data.onInvalidate = null;
