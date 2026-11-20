@@ -27,7 +27,15 @@ const app = div({}, [
 
 ## Benchmark
 
-Watervein is currently being integrated into the [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark) suite. No published numbers exist yet — treat any performance claims in this README as architectural intent, not measured results, until benchmark data is published here.
+**Published benchmark results:**
+
+- **[Latest benchmark report](https://waterveinjs.github.io/benchmark/)**
+
+The versioned report is generated from a benchmark run performed locally as part of the Watervein release process. It includes the tested browser and machine environment so results can be interpreted in context.
+
+- [Benchmark history and publishing workflow](https://github.com/waterveinjs/benchmark)
+- [Benchmark implementation and runner](https://github.com/waterveinjs/js-framework-benchmark)
+- [Upstream js-framework-benchmark project](https://github.com/krausest/js-framework-benchmark)
 
 ## Packages
 
@@ -93,7 +101,6 @@ No virtual trees to diff. No component functions to re-execute. Just targeted da
 
 - **Node Edge System (NES) & DAGs**: Watervein abandons the traditional concepts of UI components and tree structures, replacing them with a model inspired by ECS (Entity Component System) and Directed Acyclic Graphs (DAGs).
 - **Modern Developer Experience**: While the underlying architecture is unconventional, it keeps a coding style familiar to users of React, SolidJS, and similar frameworks.
-- **Extensible Architecture**: You can register custom node types to extend the core's scheduling behavior.
 - **Headless Core**: On its own, `core` isn't even aware of the DOM. Only by adding packages like `dom-core` or `dom` can you actually render to a page. Because `core` has no DOM dependency, it's designed to eventually support other rendering backends, such as Canvas.
 
 ## Conceptual Comparison: React vs. Vue vs. Svelte vs. SolidJS vs. Watervein vs. Vanilla JS

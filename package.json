@@ -16,7 +16,7 @@
     "example:counter:less": "pnpm --filter @watervein/example-counter run dev:less",
     "example:helloworld:less": "pnpm --filter @watervein/example-helloworld run dev:less",
     "example:todo:less": "pnpm --filter @watervein/example-todo run dev:less",
-    "test": "NODE_OPTIONS=--expose-gc vitest run && node --test packages/benchmark/tests/setup-jsfb.node.mjs",
+    "test": "node --check scripts/release.js && NODE_OPTIONS=--expose-gc vitest run && node --test packages/benchmark/tests/setup-jsfb.node.mjs",
     "test:pnpm": "pnpm --filter \"./packages/*\" test",
     "test:watch": "NODE_OPTIONS=--expose-gc vitest",
     "bump": "node scripts/bump.js",
@@ -33,13 +33,14 @@
     "dowse:map": "cd dowsing/map && runghc Spec.hs",
     "dowse:map:loop": "node -e \"const n = process.argv[1] || 3; for(let i=0; i<n; i++) require('child_process').execSync('cd dowsing/map && runghc Spec.hs', {stdio: 'inherit'})\" --",
     "lint": "pnpm eslint .",
-    "jsfb": "node scripts/setup-jsfb.js && node js-framework-benchmark/scripts/run-watervein.js"
+    "jsfb": "node scripts/setup-jsfb.js && node js-framework-benchmark/scripts/run-watervein.js",
+    "release": "node scripts/release.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
     "@typescript-eslint/eslint-plugin": "^8.71.2",
-    "@typescript-eslint/parser": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.2",
     "cross-env": "^10.1.0",
     "dts-bundle-generator": "^9.5.1",
     "esbuild": "^0.28.2",
@@ -49,8 +50,8 @@
     "prettier": "^3.9.10",
     "rimraf": "^6.1.4",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1",
-    "vite": "^8.3.5",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
     "vitest": "^5.0.5"
   }
 }

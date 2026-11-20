@@ -1,7 +1,7 @@
 # @watervein/core
 
 [![npm version](https://badge.fury.io/js/%40watervein%2Fcore.svg)](https://www.npmjs.com/package/@watervein/core)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT or Apache2.0](https://img.shields.io/badge/license-MIT_or_Apache2.0-blue.svg)](https://github.com/waterveinjs/watervein#license)
 
 The core reactive engine powered by **NES (Node Edge System)** and **DAGs (Directed Acyclic Graphs)**. No Virtual DOM components, no traditional hierarchical trees. Just data nodes, edges, and flat graph propagation.
 
@@ -28,6 +28,7 @@ pnpm add @watervein/core
 
 `createState<T>(initial: T): Node<T>`
 Creates a raw source state node.
+
 ```typescript
 import { createState, write } from '@watervein/core';
 
@@ -37,6 +38,7 @@ write(price, 120); // Schedules dependents for the next system flush
 
 `createCompute<T>(fn: () => T): Node<T>`
 Creates a memoized derivative node that dynamically tracks any other nodes accessed within `fn`.
+
 ```typescript
 import { createState, createCompute, read } from '@watervein/core';
 
@@ -46,6 +48,7 @@ const total = createCompute(() => read(price) * read(quantity));
 
 `createEffect(fn: () => void): Node<void>`
 Creates a side-effect node that re-runs whenever its tracked dependencies mutate, on the next flush.
+
 ```typescript
 import { createEffect, read } from '@watervein/core';
 
@@ -53,8 +56,10 @@ createEffect(() => {
   console.log(`Current Total: ${read(total)}`);
 });
 ```
+
 `batch(fn: () => void)`
 Groups multiple state modifications into a single transaction to prevent unnecessary intermediate evaluations.
+
 ```typescript
 import { batch, write } from '@watervein/core';
 
@@ -65,6 +70,7 @@ batch(() => {
 ```
 
 ## Control Flow & Entity APIs
+
 Watervein introduces low-level control flow structures that manage underlying memory nodes through transactional Entity scopes.
 
 `mapEntity<T>(listNode: Node<T[]>, keyFn: (item: T) => any, renderFn: ...)`
@@ -119,7 +125,7 @@ graph TD
 
 This project is licensed under either of:
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.

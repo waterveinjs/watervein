@@ -1,7 +1,7 @@
 # @watervein/dom-core
 
 [![npm version](https://badge.fury.io/js/%40watervein%2Fdom-core.svg)](https://www.npmjs.com/package/@watervein/dom-core)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT or Apache2.0](https://img.shields.io/badge/license-MIT_or_Apache2.0-blue.svg)](https://github.com/waterveinjs/watervein#license)
 
 The DOM rendering orchestration layer for Watervein. It binds `@watervein/core`'s Node Edge System (NES) graph directly to the browser DOM, handling node scheduling, non-VNode control flows, and reactive template patching.
 
@@ -26,21 +26,27 @@ pnpm add @watervein/core @watervein/dom-core
 
 `element(tag, props, children)`
 The structural primitive builder for HTML tags. Processes event listeners (`on*`), reactive attributes, arrays of children, and nested graph callbacks.
+
 ```typescript
 import { element } from '@watervein/dom-core';
 import { createState, write } from '@watervein/core';
 
-const bg = createState("blue");
+const bg = createState('blue');
 
 // Generates an HTMLElement with a live style binding tied to the graph
-const button = element("button", {
-  style: { backgroundColor: bg },
-  onclick: () => write(bg, "red")
-}, "Click Me");
+const button = element(
+  'button',
+  {
+    style: { backgroundColor: bg },
+    onclick: () => write(bg, 'red'),
+  },
+  'Click Me',
+);
 ```
 
 `Show(condition, thenFn, elseFn?)`
 A reactive conditional rendering boundary. Uses `@watervein/core`'s `matchEntity` internally to destroy the previous branch's entity (and all of its reactive nodes) whenever the condition flips.
+
 ```typescript
 import { Show } from '@watervein/dom-core';
 
@@ -48,33 +54,40 @@ const isLogged = createState(false);
 
 const view = Show(
   isLogged,
-  () => element("div", {}, "Welcome Back!"),
-  () => element("div", {}, "Please Log In")
+  () => element('div', {}, 'Welcome Back!'),
+  () => element('div', {}, 'Please Log In'),
 );
 ```
 
 `For<T>(listNode, keyFn, renderFn)`
 A keyed list renderer backed by a flat cache (`entryCache`, keyed by `keyFn`). On each update it destroys entities/DOM for removed keys, creates entities/DOM for new keys, and repositions existing DOM nodes to match the new order — all within a single `createEffect`, iterating the list backwards.
+
 ```typescript
 import { For } from '@watervein/dom-core';
 
-const items = createState([{ id: 1, text: "Task A" }]);
+const items = createState([{ id: 1, text: 'Task A' }]);
 
 const listView = For(
   items,
   (item) => item.id,
-  (getItem, getIndex) => element("li", {}, () => getItem().text)
+  (getItem, getIndex) => element('li', {}, () => getItem().text),
 );
 ```
 
 ### Mount Helpers
+
 Lightweight mounting helpers to attach a graph's root element to the document.
 
 ```typescript
-import { mount, mountToBody, mountToHead, mountToRoot } from '@watervein/dom-core';
+import {
+  mount,
+  mountToBody,
+  mountToHead,
+  mountToRoot,
+} from '@watervein/dom-core';
 
 // Standard target mount
-mount(document.getElementById("app")!, myLayout);
+mount(document.getElementById('app')!, myLayout);
 
 // Global scopes
 mountToBody(modalContainer);
@@ -96,7 +109,7 @@ graph TD
     Destroy --> Walk
 
     Walk --> ChoiceCached{"Key already cached?"}
-    
+
     ChoiceCached -- Yes --> UpdateExisting["write() updated item/index<br>into existing nodes"]
     ChoiceCached -- No --> CreateNew["createEntity + renderFn,<br>cache the resulting DOM"]
 
@@ -104,7 +117,7 @@ graph TD
     CreateNew --> CheckAnchor
 
     CheckAnchor{"Is el.nextSibling !== anchor?"}
-    
+
     CheckAnchor -- YES --> Insert["wrapper.insertBefore(el, anchor)"]
     CheckAnchor -- NO --> Skip["skip (already in the correct position)"]
 
@@ -122,7 +135,7 @@ graph TD
 
 This project is licensed under either of:
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.

@@ -79,6 +79,34 @@ describe('Watervein Core - Radical NES Engine', () => {
     }).toThrow('[watervein] A circular reference');
   });
 
+
+  it('should destroy and reuse a root Entity without retaining stale ownership', () => {
+    const source = createState(0);
+    const firstEntity = createEntity();
+    const firstSpy = vi.fn();
+
+    withEntity(firstEntity, () => {
+      createEffect(() => firstSpy(read(source)));
+    });
+
+    DestructionSystem.destroyEntity(firstEntity);
+
+    const reusedEntity = createEntity();
+    expect(reusedEntity).toBe(firstEntity);
+
+    const reusedSpy = vi.fn();
+    withEntity(reusedEntity, () => {
+      createEffect(() => reusedSpy(read(source)));
+    });
+
+    write(source, 1);
+    UISystem.flush();
+
+    expect(firstSpy).toHaveBeenCalledTimes(1);
+    expect(reusedSpy).toHaveBeenCalledWith(1);
+    expect(reusedSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('should clean up nodes and edges completely upon Entity destruction', () => {
     const entityId = createEntity();
 

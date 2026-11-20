@@ -4,7 +4,6 @@ export const isDev: boolean = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
 export const NODE_TYPE_STATE = 0;
 export const NODE_TYPE_COMPUTE = 1;
 export const NODE_TYPE_EFFECT = 2;
-let nextAvailableNodeType = 3;
 
 const WV_NODE_TAG = 0x57564e44;
 
@@ -12,7 +11,6 @@ let NODE_ID_COUNTER = 0;
 
 const DEFAULT_EDGE_CAPACITY = 256;
 let edgeCapacity = DEFAULT_EDGE_CAPACITY;
-let edgePoolInitialized = false;
 
 let edgeDep = new Int32Array(edgeCapacity);
 let edgeSub = new Int32Array(edgeCapacity);
@@ -27,36 +25,6 @@ export const NULL_EDGE = -1;
 let edgeFreeListHead = NULL_EDGE;
 let nextUnallocatedEdgeId = 0;
 
-export function initCapacity(options: {
-  readonly edgeCapacity?: number;
-}): void {
-  if (edgePoolInitialized) {
-    throw new Error(
-      '[watervein] initCapacity() must be called before any node or edge is created, and can only be called once.',
-    );
-  }
-  if (nextUnallocatedEdgeId !== 0 || NODE_ID_COUNTER !== 0) {
-    throw new Error(
-      '[watervein] initCapacity() must be called before any node or edge is created.',
-    );
-  }
-
-  const requestedEdgeCapacity = options.edgeCapacity ?? DEFAULT_EDGE_CAPACITY;
-  if (requestedEdgeCapacity < 1) {
-    throw new Error('[watervein] edgeCapacity must be a positive integer.');
-  }
-
-  edgeCapacity = requestedEdgeCapacity;
-  edgeDep = new Int32Array(edgeCapacity);
-  edgeSub = new Int32Array(edgeCapacity);
-  edgeNextSub = new Int32Array(edgeCapacity);
-  edgePrevSub = new Int32Array(edgeCapacity);
-  edgeNextDep = new Int32Array(edgeCapacity);
-  edgePrevDep = new Int32Array(edgeCapacity);
-
-  edgePoolInitialized = true;
-}
-
 function expandInt32<T extends ArrayBufferLike>(
   old: Int32Array<T>,
   newCap: number,
@@ -67,7 +35,6 @@ function expandInt32<T extends ArrayBufferLike>(
 }
 
 function ensureEdgeCapacity(minCapacity: number) {
-  edgePoolInitialized = true;
   if (minCapacity < edgeCapacity) return;
   let newCap = edgeCapacity + (edgeCapacity >> 1) + 1;
   while (newCap <= minCapacity) newCap += (newCap >> 1) + 1;
@@ -84,7 +51,6 @@ function ensureEdgeCapacity(minCapacity: number) {
 
 function allocEdge(depId: number, subId: number): number {
   activeEdgeCount++;
-  edgePoolInitialized = true;
   let edgeId: number;
   if (edgeFreeListHead !== NULL_EDGE) {
     edgeId = edgeFreeListHead;
@@ -206,7 +172,7 @@ const entityRegistry: (Node[] | undefined)[] = [];
 let currentEntityId: number | null = null;
 
 let entityChildrenMap = new Map<number, Set<number>>();
-let entityParentMap = new Map<number, number | null>();
+let entityParentMap = new Map<number, number>();
 
 const freeEntityIds: number[] = [];
 
@@ -216,8 +182,8 @@ let raFID: NextTickId | null = null;
 export function createEntity(): number {
   const id = freeEntityIds.length > 0 ? freeEntityIds.pop()! : ENTITY_COUNT++;
   entityRegistry[id] = [];
-  entityParentMap.set(id, currentEntityId);
   if (currentEntityId !== null) {
+    entityParentMap.set(id, currentEntityId);
     let children = entityChildrenMap.get(currentEntityId);
     if (!children) {
       children = new Set();
@@ -246,10 +212,6 @@ export function withEntity<T>(entityId: number, fn: () => T): T {
   } finally {
     currentEntityId = prev;
   }
-}
-
-export function registerCustomNodeType(): number {
-  return nextAvailableNodeType++;
 }
 
 const freeNodeIds: number[] = [];
@@ -838,7 +800,6 @@ export const DataSystem = {
 };
 
 const DESTROY_TARGET_SETS: Set<number>[] = [];
-const DESTROYING_NODE_SETS: Set<number>[] = [];
 const COLLECTED_NODES_BUFFERS: Node[][] = [];
 const DEPTH_BUCKETS_BUFFERS: Node[][][] = [];
 
@@ -847,13 +808,11 @@ let destroyCallDepth = 0;
 function getDestroyBuffers(depth: number) {
   if (DESTROY_TARGET_SETS[depth] === undefined) {
     DESTROY_TARGET_SETS[depth] = new Set<number>();
-    DESTROYING_NODE_SETS[depth] = new Set<number>();
     COLLECTED_NODES_BUFFERS[depth] = [];
     DEPTH_BUCKETS_BUFFERS[depth] = [];
   }
   return {
     allTargetEntityIds: DESTROY_TARGET_SETS[depth],
-    destroyingNodeIds: DESTROYING_NODE_SETS[depth],
     allCollectedNodes: COLLECTED_NODES_BUFFERS[depth],
     depthBuckets: DEPTH_BUCKETS_BUFFERS[depth],
   };
@@ -883,7 +842,7 @@ export const DestructionSystem = {
       }
       entityRegistry[entityId] = undefined;
       const parentId = entityParentMap.get(entityId);
-      if (parentId !== undefined && parentId !== null) {
+      if (parentId !== undefined) {
         const parentChildren = entityChildrenMap.get(parentId);
         if (parentChildren) {
           parentChildren.delete(entityId);
@@ -899,31 +858,28 @@ export const DestructionSystem = {
   },
 
   destroyEntities(entityIds: readonly number[]) {
-    entityIds = entityIds.filter((id) => entityRegistry[id] !== undefined);
     const len = entityIds.length;
     if (len === 0) return;
 
     const depth = destroyCallDepth++;
-    const {
-      allTargetEntityIds,
-      destroyingNodeIds: destroying,
-      allCollectedNodes,
-      depthBuckets,
-    } = getDestroyBuffers(depth);
+    const { allTargetEntityIds, allCollectedNodes, depthBuckets } =
+      getDestroyBuffers(depth);
     let maxDepth = -1;
 
     try {
       allTargetEntityIds.clear();
-      destroying.clear();
       allCollectedNodes.length = 0;
       for (let i = 0; i < len; i++) {
-        collectRecursively(entityIds[i], allTargetEntityIds);
+        const entityId = entityIds[i];
+
+        if (entityRegistry[entityId] === undefined) continue;
+
+        collectRecursively(entityId, allTargetEntityIds);
       }
       for (const eId of allTargetEntityIds) {
         const parentId = entityParentMap.get(eId);
         if (
           parentId !== undefined &&
-          parentId !== null &&
           !allTargetEntityIds.has(parentId)
         ) {
           const parentChildren = entityChildrenMap.get(parentId);
@@ -938,7 +894,6 @@ export const DestructionSystem = {
           const nLen = nodes.length;
           for (let i = 0; i < nLen; i++) {
             const node = nodes[i];
-            destroying.add(node.id);
             allCollectedNodes.push(node);
             if (node.depth > maxDepth) {
               maxDepth = node.depth;
